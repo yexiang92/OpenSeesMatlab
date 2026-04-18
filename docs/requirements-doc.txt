@@ -1,2 +1,2 @@
 mkdocs-material
-mkdocstrings-matlab=2.1.0
+mkdocstrings-matlab==2.1.0
