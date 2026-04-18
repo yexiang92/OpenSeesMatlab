@@ -1,0 +1,166 @@
+site_name: OpenSeesMatlab Documentation
+site_url: 
+repo_url: 
+docs_dir: docs
+site_description: '⚡ Documentation for OpenSeesMatlab, a MATLAB interface to the OpenSees program.'
+site_author: Yexiang Yan
+theme:
+  name: material
+  logo: logo.png
+  favicon: logo2.png
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+  # custom_dir: docs/overrides
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: matlab
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: lime
+      toggle:
+        icon: material/weather-night
+        name: Switch to system preference
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - abbr
+  - attr_list
+  - admonition
+  - footnotes
+  - md_in_html
+  - pymdownx.blocks.admonition
+  - pymdownx.details
+  - pymdownx.blocks.tab:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      use_pygments: true
+      pygments_lang_class: true
+  - pymdownx.magiclink
+  - pymdownx.snippets:
+      # auto_append: [docs/.glossary.md]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: "¤"
+      toc_depth: 3
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: matlab
+      handlers:
+        matlab:
+          paths: ["OpenSeesMatlab"]
+          tree_sitter_logging_level: DEBUG
+          paths_recursive: true
+          paths_recursive: true
+          tree_sitter_logging_level: DEBUG
+          options:
+            show_inheritance_diagram: false
+            show_source: false
+            heading_level: 3
+            argument_headings: false
+            show_root_heading: true
+            show_root_toc_entry: false
+            show_root_full_path: true
+            show_root_members_full_path: false
+            show_object_full_path: false
+            show_category_heading: false
+            show_symbol_type_heading: false
+            show_symbol_type_toc: false
+
+            hidden_members: false
+            private_members: false
+            inherited_members: false
+            filters: ["!^delete$|^disp$"]
+            members_order: "source"
+            summary: false
+            show_attributes: true
+
+            docstring_style: numpy
+            docstring_section_style: table
+            parse_arguments: false
+            merge_constructor_into_class: false
+            show_if_no_docstring: false
+            show_docstring_description: true
+            show_docstring_examples: true
+            show_docstring_input_arguments: true
+            show_docstring_name_value_arguments: true
+            show_docstring_output_arguments: true
+
+            show_signature: true
+            show_signature_types: false
+            separate_signature: false
+# hooks:
+#   - tools/mkdocs_hooks.py
+nav:
+  - Home: 'index.md'
+
+  - Getting Started:
+    - Installation: 'getting_started/installation.md'
+    - Quick Start Guide: 'getting_started/quick_start.md'
+    # - User Guide: 'getting_started/user_guide.md'
+
+  - Examples:
+    - 'examples/index.md'
+    - Pre, Post-processing and Visualization: 'examples/post/index.md'
+    - Structural Analysis: 'examples/structural/index.md'
+    - Geotechnical Analysis: 'examples/geotechnical/index.md'
+    - Earthquake Analysis: 'examples/earthquake/index.md'
+    - Thermal Analysis: 'examples/thermal/index.md'
+    - Sensitivity Analysis: 'examples/sensitivity/index.md'
+    - Verification: 'examples/verify/index.md'
+  
+  - API Reference: 
+    - OpenSeesMatlab: 'api/OpenSeesMatlab.md'
+    - OpenSeesMatlabCmds: 'api/OpenSeesMatlabCmds.md'
+    - OpenSeesMatlabVis: 'api/OpenSeesMatlabVis.md'
+    - OpenSeesMatlabPost: 'api/OpenSeesMatlabPost.md'
+    - OpenSeesMatlabPre: 'api/OpenSeesMatlabPre.md'
+    - OpenSeesMatlabAnalysis: 'api/OpenSeesMatlabAnalysis.md'
+    - OpenSeesMatlabTool: 'api/OpenSeesMatlabTool.md'
+  
+  - About Author: 'aboutAuthor.md'
+  
