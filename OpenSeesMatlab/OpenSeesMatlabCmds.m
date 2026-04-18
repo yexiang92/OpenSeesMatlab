@@ -46,7 +46,7 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
             arguments
                 parentObj (1,1) OpenSeesMatlab
                 mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
-                mexDir {mustBeTextScalar} = ''
+                mexDir {mustBeTextScalar} = 'derived/'
             end
             obj@OpenSeesMatlabBase(mexName, mexDir);
             obj.parent = parentObj;

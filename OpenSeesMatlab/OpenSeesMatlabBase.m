@@ -4,7 +4,7 @@ classdef (Abstract) OpenSeesMatlabBase < handle
 
     properties
         mexName (1,:) char = 'OpenSeesMATLAB'
-        mexDir  (1,:) char = 'derived'
+        mexDir  (1,:) char = 'derived/'
     end
 
     properties (Hidden, Access = protected)

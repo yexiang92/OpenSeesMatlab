@@ -52,10 +52,11 @@ classdef OpenSeesMatlab < handle
             %
             % mexDir : string or char, optional
             %       Directory containing the MEX module.
+            %       Default values are 'OpenSeesMATLAB' for mexName and 'derived/' for mexDir.
 
             arguments
                 options.mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
-                options.mexDir {mustBeTextScalar} = 'derived'
+                options.mexDir {mustBeTextScalar} = 'derived/'
             end
 
             obj.opensees = OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
