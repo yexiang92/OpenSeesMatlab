@@ -40,7 +40,3 @@ For more detailed installation and usage instructions, see the documentation.
 
 ## License
 This project is licensed for academic research and personal use only. Commercial and closed-source use is prohibited. See the [LICENSE](LICENSE) file for details.
-
----
-
-For more help, please refer to the documentation in the `docs/` directory or open an issue.
