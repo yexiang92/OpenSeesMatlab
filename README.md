@@ -1,5 +1,8 @@
 # OpenSeesMatlab
 
+[![Documentation Status](https://readthedocs.org/projects/OpenSeesMatlab/badge/?version=latest)](https://openseesmatlab.readthedocs.io/en/latest/)
+<!-- [![github stars](https://img.shields.io/github/stars/yexiang92/OpenSeesMatlab?style=social)](https://github.com/yexiang92/OpenSeesMatlab) -->
+[![GitHub License](https://img.shields.io/github/license/yexiang92/OpenSeesMatlab?style=flat)](https://img.shields.io/github/license/yexiang92/OpenSeesMatlab?style=flat)
 
 OpenSeesMatlab is a MATLAB-based platform for structural analysis and simulation. It aims to provide powerful modeling, analysis, post-processing, and visualization tools for research and engineering applications in structural, earthquake, and geotechnical engineering.
 
@@ -35,7 +38,7 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
 For more detailed installation and usage instructions, see the documentation.
 
 ## Documentation
-
+[https://openseesmatlab.readthedocs.io/en/latest/](https://openseesmatlab.readthedocs.io/en/latest/)
 
 
 ## License

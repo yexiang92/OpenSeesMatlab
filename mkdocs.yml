@@ -1,6 +1,6 @@
 site_name: OpenSeesMatlab Documentation
-site_url: 
-repo_url: 
+site_url: https://openseesmatlab.readthedocs.io/en/latest/
+repo_url: https://github.com/yexiang92/OpenSeesMatlab
 docs_dir: docs
 site_description: '⚡ Documentation for OpenSeesMatlab, a MATLAB interface to the OpenSees program.'
 site_author: Yexiang Yan
