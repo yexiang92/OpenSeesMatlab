@@ -23,10 +23,11 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
 
 
 ## Quick Start
-1. Go to the `release/` directory and choose the version you want, for example `release/v3.8.0.0/`. Download it.
-2. Install the MATLAB toolbox package (`.mltbx`), for example:
-   - `release/v3.8.0.0/OpenSeesMatlab_v3.8.0.0.mltbx`
-   - You can install it by double-clicking the file in MATLAB, or by using the Add-On installer.
+1. Go to the `release/` directory and choose the version you want, for example `release/3.8.0.0/`. Download it.
+2. Open this release directory in MATLAB, then install the toolbox package by running:
+   ```matlab
+   installOpenSeesMatlab
+   ```
 3. After installation, explore and run example models in the `examples/` directory:
    - Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
      - `examples/earthquake_frame3D_transient.mlx`
