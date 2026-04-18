@@ -4,6 +4,7 @@
 *.autosave
 *.slx.r*
 *.mdl.r*
+*.prj
 
 # Derived content-obscured files
 *.p
@@ -38,3 +39,6 @@ codegen/
 # SimBiology backup files
 *.sbproj.backup
 *.sbproj.bak
+
+resources/
+release/

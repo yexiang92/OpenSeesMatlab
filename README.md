@@ -20,15 +20,11 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
 
 
 ## Quick Start
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/your-repo/OpenSeesMatlab.git
-   ```
-2. Add the `OpenSeesMatlab` directory and its subfolders to the MATLAB path:
-   ```matlab
-   addpath(genpath('OpenSeesMatlab'));
-   ```
-3. Explore and run example models in the `examples/` directory:
+1. Go to the `release/` directory and choose the version you want, for example `release/v3.8.0.0/`. Download it.
+2. Install the MATLAB toolbox package (`.mltbx`), for example:
+   - `release/v3.8.0.0/OpenSeesMatlab_v3.8.0.0.mltbx`
+   - You can install it by double-clicking the file in MATLAB, or by using the Add-On installer.
+3. After installation, explore and run example models in the `examples/` directory:
    - Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
      - `examples/earthquake_frame3D_transient.mlx`
      - `examples/structural_nonlinear_truss.mlx`
@@ -36,12 +32,11 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
      - `examples/post_2d_Portal_Frame.mlx`
    - Click "Run" in MATLAB to execute and interact with the example.
 
-For more detailed installation and usage instructions, see [docs/getting_started/installation.md](docs/getting_started/installation.md) and [docs/getting_started/quick_start.md](docs/getting_started/quick_start.md).
+For more detailed installation and usage instructions, see the documentation.
 
 ## Documentation
-- [User Guide](docs/getting_started/user_guide.md)
-- [API Reference](docs/api/index.md)
-- [Examples](docs/examples/index.md)
+
+
 
 ## License
 This project is licensed for academic research and personal use only. Commercial and closed-source use is prohibited. See the [LICENSE](LICENSE) file for details.

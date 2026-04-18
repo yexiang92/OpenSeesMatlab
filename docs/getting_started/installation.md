@@ -4,7 +4,7 @@ OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source
 
 ---
 
-## Option 1: Install via MATLAB Toolbox
+## Option 1: Install from MATLAB File Exchange
 
 1. Download the `.mltbx` file.
 2. Double-click it in MATLAB.
@@ -12,16 +12,18 @@ OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source
 
 
 ## Option 2: Install from GitHub
-1. Download or clone the repository:
-```bash
-git clone https://github.com/your-username/OpenSeesMatlab.git
-```
-
-2. Add to MATLAB path:
-```MATLAB
-addpath(genpath('path_to_OpenSeesMatlab'));
-savepath;
-```
+1. Go to the [OpenSeesMatlab GitHub Repository](https://github.com/yexiang92/OpenSeesMatlab).
+1. Go to the `release/` directory and choose the version you want, for example `release/v3.8.0.0/`. Download it.
+2. Install the MATLAB toolbox package (`.mltbx`), for example:
+   - `release/v3.8.0.0/OpenSeesMatlab_v3.8.0.0.mltbx`
+   - You can install it by double-clicking the file in MATLAB, or by using the Add-On installer.
+3. After installation, explore and run example models in the `examples/` directory:
+   - Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
+     - `examples/earthquake_frame3D_transient.mlx`
+     - `examples/structural_nonlinear_truss.mlx`
+     - `examples/geotechnical_PM4Sand.mlx`
+     - `examples/post_2d_Portal_Frame.mlx`
+   - Click "Run" in MATLAB to execute and interact with the example.
 
 ## Versioning
 
