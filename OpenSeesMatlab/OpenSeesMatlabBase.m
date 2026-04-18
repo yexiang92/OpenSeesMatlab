@@ -24,13 +24,20 @@ classdef (Abstract) OpenSeesMatlabBase < handle
                 obj.mexName = char(mexName);
             end
             if nargin >= 2 && ~isempty(mexDir)
-                obj.mexDir = char(mexDir);
+                obj.mexDir = obj.resolveMexDir(char(mexDir));
                 if isfolder(obj.mexDir)
                     addpath(obj.mexDir);
                 end
             end
 
             obj.mexHandle = str2func(obj.mexName);
+
+            if isempty(which(obj.mexName))
+                error('OpenSeesMatlab:MexNotFound', ...
+                    ['Cannot locate the OpenSees MEX module "%s". ', ...
+                     'Resolved mexDir: %s'], ...
+                    obj.mexName, obj.mexDir);
+            end
         end
 
         function varargout = call(obj, cmd, varargin)
@@ -83,9 +90,34 @@ classdef (Abstract) OpenSeesMatlabBase < handle
                 fprintf('  mexPath : %s\n', p);
             end
         end
+
+        function mexDir = resolveMexDir(obj, mexDir)
+            if isempty(mexDir)
+                return;
+            end
+
+            mexDir = char(mexDir);
+            if isfolder(mexDir)
+                return;
+            end
+
+            if obj.isAbsolutePath(mexDir)
+                return;
+            end
+
+            classDir = fileparts(mfilename('fullpath'));
+            candidateDir = fullfile(classDir, mexDir);
+            if isfolder(candidateDir)
+                mexDir = candidateDir;
+            end
+        end
     end
 
     methods (Access = protected)
+        function tf = isAbsolutePath(~, pathStr)
+            tf = ~isempty(regexp(pathStr, '^[A-Za-z]:[\\/]|^\\\\', 'once'));
+        end
+
         function varargout = dispatchCommand(obj, cmd, varargin)
             % Dispatch an OpenSees command, with optional preprocessing and postprocessing hooks.
             [varargout{1:nargout}] = obj.mexHandle(cmd, varargin{:});
