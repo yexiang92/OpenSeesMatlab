@@ -40,5 +40,5 @@ codegen/
 *.sbproj.backup
 *.sbproj.bak
 
-resources/
+# resources/
 # release/
