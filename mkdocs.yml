@@ -1,9 +1,13 @@
 site_name: OpenSeesMatlab Documentation
 site_url: https://openseesmatlab.readthedocs.io/en/latest/
-repo_url: https://github.com/yexiang92/OpenSeesMatlab
 docs_dir: docs
 site_description: '⚡ Documentation for OpenSeesMatlab, a MATLAB interface to the OpenSees program.'
 site_author: Yexiang Yan
+repo_name: yexiang92/OpenSeesMatlab
+repo_url: https://github.com/yexiang92/OpenSeesMatlab
+# Copyright
+copyright: Copyright &copy; 2026 - 2026 Yexiang Yan. All rights reserved.
+
 theme:
   name: material
   logo: logo.png
@@ -26,6 +30,9 @@ theme:
     - toc.follow
   icon:
     repo: fontawesome/brands/github
+  font:
+    text: Open Sans
+    code: PT Mono
   # custom_dir: docs/overrides
   palette:
     - media: "(prefers-color-scheme)"
