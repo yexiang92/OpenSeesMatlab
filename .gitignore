@@ -21,3 +21,4 @@ dist/
 
 .openseesmatlab.output/
 paraview_output/
+release/

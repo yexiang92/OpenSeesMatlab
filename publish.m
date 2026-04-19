@@ -28,6 +28,11 @@ toolboxRootDir   = fullfile(projectRoot, "OpenSeesMatlab");
 srcMltbxDir      = fullfile(toolboxRootDir, "release");
 srcInstallScript = fullfile(projectRoot, "installOpenSeesMatlab.m");
 
+%% Create release root folder if needed
+if ~exist(srcMltbxDir, "dir")
+    mkdir(srcMltbxDir);
+end
+
 %% Locate toolbox project file
 prjFiles = dir(fullfile(toolboxRootDir, "*.prj"));
 
