@@ -6,7 +6,7 @@ OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source
 
 ## Option 1: Install from MATLAB File Exchange
 
-
+Coming soon
 
 
 ## Option 2: Install from GitHub
@@ -16,7 +16,8 @@ OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source
    ```matlab
    installOpenSeesMatlab
    ```
-3. After installation, explore and run example models in the `examples/` directory:
+
+After installation, explore and run example models in the `examples/` directory (You need to use it as your working directory):
    - Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
      - `examples/earthquake_frame3D_transient.mlx`
      - `examples/structural_nonlinear_truss.mlx`
