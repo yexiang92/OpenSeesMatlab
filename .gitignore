@@ -19,6 +19,5 @@ dist/
 *.mpco
 .DS_Store
 
-output_data/
 .openseesmatlab.output/
 paraview_output/
