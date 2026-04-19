@@ -4,23 +4,19 @@ OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source
 
 ---
 
-## Option 1: Install from MATLAB File Exchange
 
-1. Go to the [MATLAB File Exchange](https://www.mathworks.com/matlabcentral/fileexchange), search for ``OpenSeesMatlab``, and download it.
-2. Go to the `release/` directory and choose the version you want, for example `release/3.8.0.0/`. Download it.
-3. Open this release directory in MATLAB, then install the toolbox package by running:
-   ```matlab
-   installOpenSeesMatlab
-   ```
-
-
-## Option 2: Install from GitHub
+## Option 1: Install from GitHub
 1. Go to the [OpenSeesMatlab GitHub Repository](https://github.com/yexiang92/OpenSeesMatlab).
 2. Go to the `release/` directory and choose the version you want, for example `release/3.8.0.0/`. Download it.
 3. Open this release directory in MATLAB, then install the toolbox package by running:
    ```matlab
    installOpenSeesMatlab
    ```
+
+
+## Option 2: Install from MATLAB File Exchange
+
+Coming soon
 
 After installation, explore and run example models in the `examples/` directory (You need to use it as your working directory):
    - Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
