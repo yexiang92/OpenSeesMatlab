@@ -55,6 +55,7 @@ OpenSeesMatlab is intended for users who want to combine:
 
 - the computational power of OpenSees ⚙️
 - with the scripting, visualization, and data-processing capabilities of MATLAB 📊
+- MATLAB R2023a or later, running on Windows (currently supported on Windows only)
 
 📚 The project is actively evolving — more examples, utilities, and documentation will be added over time.
 

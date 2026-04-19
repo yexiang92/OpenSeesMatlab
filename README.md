@@ -65,6 +65,12 @@ opsMat.vis.plotModel();      % Visualize the model
 - 📈 **`.anlys`** — high-level analysis workflows and utilities
 - 🛠️ **`.utils`** — auxiliary helper functions and common utilities
 
+## Requirements
+
+MATLAB R2023a or later
+
+Windows operating system (currently only supported on Windows)
+
 
 For more detailed installation and usage instructions, see the documentation.
 
