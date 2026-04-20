@@ -1,5 +1,5 @@
 %% Build a versioned release package from the toolbox project file
-
+%
 % Notes
 % -----
 % - The toolbox project file is assumed to be located in:
@@ -8,6 +8,9 @@
 %       OpenSeesMatlab/release/OpenSeesMatlab.mltbx
 % - The copied toolbox file in the release folder is also named:
 %       OpenSeesMatlab.mltbx
+% - All .mlx files directly under examples/ are exported to .m files
+%   into the target release examples folder, instead of being copied.
+% - The utils folder is copied recursively, but .png and .mp4 files are excluded.
 
 clc;
 
@@ -17,30 +20,26 @@ clc;
 version = "3.8.0.0";   % <-- manually set toolbox version here
 
 %% Project root
-% Assume this script is placed under the project root directory.
 projectRoot = fileparts(mfilename("fullpath"));
 
 %% Source paths
-srcExamplesDir = fullfile(projectRoot, "examples");
-srcUtilsDir    = fullfile(srcExamplesDir, "utils");
+srcExamplesDir    = fullfile(projectRoot, "examples");
+srcUtilsDir       = fullfile(srcExamplesDir, "utils");
+toolboxRootDir    = fullfile(projectRoot, "OpenSeesMatlab");
+toolboxReleaseDir = fullfile(toolboxRootDir, "release");
+srcInstallScript  = fullfile(projectRoot, "installOpenSeesMatlab.m");
 
-toolboxRootDir   = fullfile(projectRoot, "OpenSeesMatlab");
-srcMltbxDir      = fullfile(toolboxRootDir, "release");
-srcInstallScript = fullfile(projectRoot, "installOpenSeesMatlab.m");
-
-%% Create release root folder if needed
-if ~exist(srcMltbxDir, "dir")
-    mkdir(srcMltbxDir);
-end
+%% Validate required paths
+assert(isfolder(srcExamplesDir),    "Examples folder does not exist: %s", srcExamplesDir);
+assert(isfolder(toolboxRootDir),    "Toolbox root folder does not exist: %s", toolboxRootDir);
+assert(isfile(srcInstallScript),    "Install script does not exist: %s", srcInstallScript);
 
 %% Locate toolbox project file
 prjFiles = dir(fullfile(toolboxRootDir, "*.prj"));
 
 if isempty(prjFiles)
     error("No toolbox .prj file was found in: %s", toolboxRootDir);
-end
-
-if numel(prjFiles) > 1
+elseif numel(prjFiles) > 1
     error("Multiple .prj files were found in: %s. Please keep only one.", toolboxRootDir);
 end
 
@@ -49,23 +48,8 @@ prjFile = fullfile(prjFiles(1).folder, prjFiles(1).name);
 fprintf("Toolbox project file: %s\n", prjFile);
 fprintf("Specified version   : %s\n", version);
 
-%% Validate source paths
-if ~exist(srcExamplesDir, "dir")
-    error("Examples folder does not exist: %s", srcExamplesDir);
-end
-
-if ~exist(toolboxRootDir, "dir")
-    error("Toolbox root folder does not exist: %s", toolboxRootDir);
-end
-
-if ~exist(srcInstallScript, "file")
-    error("Install script does not exist: %s", srcInstallScript);
-end
-
-%% Ensure toolbox release folder exists
-if ~exist(srcMltbxDir, "dir")
-    mkdir(srcMltbxDir);
-end
+%% Ensure toolbox internal release folder exists
+ensureDir(toolboxReleaseDir);
 
 %% =========================
 % Package toolbox from .prj
@@ -73,10 +57,8 @@ end
 fprintf("\nUpdating toolbox version in project...\n");
 matlab.addons.toolbox.toolboxVersion(prjFile, version);
 
-generatedMltbxFile = fullfile(srcMltbxDir, "OpenSeesMatlab.mltbx");
-
-% Remove old generated toolbox file if it exists
-if exist(generatedMltbxFile, "file")
+generatedMltbxFile = fullfile(toolboxReleaseDir, "OpenSeesMatlab.mltbx");
+if isfile(generatedMltbxFile)
     delete(generatedMltbxFile);
     fprintf("Removed existing toolbox package: %s\n", generatedMltbxFile);
 end
@@ -84,7 +66,7 @@ end
 fprintf("Packaging toolbox from project...\n");
 matlab.addons.toolbox.packageToolbox(prjFile, generatedMltbxFile);
 
-if ~exist(generatedMltbxFile, "file")
+if ~isfile(generatedMltbxFile)
     error("Failed to generate toolbox package: %s", generatedMltbxFile);
 end
 
@@ -99,44 +81,36 @@ targetOutDir      = fullfile(targetExDir, "output_data");
 targetMltbxFile   = fullfile(targetVerDir, "OpenSeesMatlab.mltbx");
 targetInstallFile = fullfile(targetVerDir, "installOpenSeesMatlab.m");
 
-%% Create release root folder if needed
-if ~exist(releaseRootDir, "dir")
-    mkdir(releaseRootDir);
-end
+%% Rebuild target release directory
+ensureDir(releaseRootDir);
 
-%% Rebuild the version folder
-if exist(targetVerDir, "dir")
+if isfolder(targetVerDir)
     fprintf("Removing existing folder: %s\n", targetVerDir);
     rmdir(targetVerDir, "s");
 end
 
 fprintf("Creating version folder: %s\n", targetVerDir);
-mkdir(targetVerDir);
 mkdir(targetExDir);
+mkdir(targetOutDir);
 
-%% Copy all .mlx files directly under examples/
+%% Export all .mlx files directly under examples/ to .m files
 mlxFiles = dir(fullfile(srcExamplesDir, "*.mlx"));
 
 for i = 1:numel(mlxFiles)
     srcFile = fullfile(mlxFiles(i).folder, mlxFiles(i).name);
-    dstFile = fullfile(targetExDir, mlxFiles(i).name);
-    copyfile(srcFile, dstFile);
-    % fprintf("Copied MLX: %s\n", mlxFiles(i).name);
-end
-fprintf("Copy MLX done!\n");
+    [~, baseName] = fileparts(mlxFiles(i).name);
+    dstFile = fullfile(targetExDir, baseName + ".m");
 
-%% Copy utils subfolder
-if exist(srcUtilsDir, "dir")
-    copyfile(srcUtilsDir, targetUtilsDir);
-    fprintf("Copied utils folder.\n");
+    export(srcFile, dstFile);
+end
+fprintf("Export MLX to M done! (%d files)\n", numel(mlxFiles));
+
+%% Copy utils subfolder recursively, excluding .png and .mp4
+if isfolder(srcUtilsDir)
+    nCopied = copyFolderExcludeExt(srcUtilsDir, targetUtilsDir, [".png", ".mp4"]);
+    fprintf("Copied utils folder (excluding .png and .mp4): %d files\n", nCopied);
 else
     warning("Utils folder does not exist: %s", srcUtilsDir);
-end
-
-%% Create empty output_data folder
-if ~exist(targetOutDir, "dir")
-    mkdir(targetOutDir);
-    fprintf("Created empty folder: %s\n", targetOutDir);
 end
 
 %% Copy toolbox package into the version folder
@@ -154,3 +128,61 @@ fprintf("Project file  : %s\n", prjFile);
 fprintf("Toolbox file  : %s\n", generatedMltbxFile);
 fprintf("Install script: %s\n", targetInstallFile);
 fprintf("Release folder: %s\n", targetVerDir);
+
+%% ========================================================================
+% Local functions
+% ========================================================================
+
+function ensureDir(folderPath)
+    if ~isfolder(folderPath)
+        mkdir(folderPath);
+    end
+end
+
+function nCopied = copyFolderExcludeExt(srcDir, dstDir, excludedExts)
+% Recursively copy a folder while excluding files with specified extensions.
+%
+% Parameters
+% ----------
+% srcDir : char/string
+%     Source directory.
+% dstDir : char/string
+%     Destination directory.
+% excludedExts : string array
+%     Extensions to exclude, e.g. [".png", ".mp4"].
+%
+% Returns
+% -------
+% nCopied : double
+%     Number of copied files.
+
+    ensureDir(dstDir);
+    nCopied = 0;
+
+    items = dir(srcDir);
+
+    for k = 1:numel(items)
+        name = items(k).name;
+
+        if strcmp(name, ".") || strcmp(name, "..")
+            continue;
+        end
+
+        srcPath = fullfile(srcDir, name);
+        dstPath = fullfile(dstDir, name);
+
+        if items(k).isdir
+            nCopied = nCopied + copyFolderExcludeExt(srcPath, dstPath, excludedExts);
+        else
+            [~, ~, ext] = fileparts(name);
+            ext = lower(string(ext));
+
+            if any(ext == excludedExts)
+                continue;
+            end
+
+            copyfile(srcPath, dstPath);
+            nCopied = nCopied + 1;
+        end
+    end
+end
