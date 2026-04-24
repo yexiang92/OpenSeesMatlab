@@ -661,8 +661,8 @@ classdef SmartAnalyze
 
         function ok = tryRelaxStep(step, verbose)
             s = analysis.SmartAnalyze.state();
-            alpha   = s.cfg.relaxation;
-            minStep = s.cfg.minStep;
+            alpha   = abs(s.cfg.relaxation);
+            minStep = abs(s.cfg.minStep);
 
             remain = step;
             stepTry = step * alpha;
