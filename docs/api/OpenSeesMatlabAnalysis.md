@@ -29,6 +29,7 @@
       members:
         - configure
         - reset
+        - setTotalSteps
         - staticStepSplit
         - staticAnalyze
         - transientStepSplit

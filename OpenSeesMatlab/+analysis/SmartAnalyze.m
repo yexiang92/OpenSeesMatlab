@@ -1,45 +1,138 @@
 classdef SmartAnalyze
-    % SmartAnalyze provides utilities for managing and running smart analysis strategies in OpenSeesMatlab. It is designed to be used in conjunction with the OpenSeesMatlabAnalysis class, which holds an instance of SmartAnalyze for analysis management.
+    % SmartAnalyze manages robust OpenSees analysis retries for OpenSeesMatlab.
+    %
+    %   SmartAnalyze stores analysis configuration, progress information, and
+    %   retry strategies for transient and displacement-control static analyses.
+    %   It is intended to be accessed through OpenSeesMatlabAnalysis:
+    %
+    %       opsmat = OpenSeesMatlab();
+    %       smartAnalyze = opsmat.anlys.smartAnalyze;
+    %
+    %   OpenSeesMatlabAnalysis automatically calls setOPS with the OpenSees
+    %   command interface. If SmartAnalyze is used directly, call setOPS or
+    %   setOps before configure, transientAnalyze, or staticAnalyze.
+    %
+    % Retry order
+    % -----------
+    %   Each failed analysis step is retried in this order:
+    %
+    %   1. Add convergence-test iteration limits, if tryAddTestTimes is true.
+    %   2. Try alternate algorithm types, if tryAlterAlgoTypes is true.
+    %   3. Split the current step using relaxation until minStep is reached.
+    %   4. Loosen the test tolerance, if tryLooseTestTol is true.
     %
     % Example
     % --------
-    %     % for transient analysis with automatic retries and adjustments
-    %     SmartAnalyze.configure(...
-    %         analysis="Transient", ...
-    %         tryAlterAlgoTypes=true, ...
-    %         algoTypes=[40 10], ...
-    %         tryAddTestTimes=true, ...
-    %         testIterTimesMore=50, ...
-    %         debugMode=true);
+    %       % Transient analysis with default settings
+    %       opsmat = OpenSeesMatlab();
+    %       smartAnalyze = opsmat.anlys.smartAnalyze;
     %
-    %     segs = SmartAnalyze.transientStepSplit(1000);
-    %     for i = 1:numel(segs)
-    %         SmartAnalyze.TransientAnalyze(0.01);
-    %     end
-    %     SmartAnalyze.reset();  % reset to default state if needed for another analysis
+    %       smartAnalyze.configure(...
+    %           analysis="Transient", ...
+    %           testType="EnergyIncr", ...
+    %           testTol=1e-10, ...
+    %           testIterTimes=10, ...
+    %           testPrintFlag=0, ...
+    %           tryAddTestTimes=true, ...
+    %           normTol=1e3, ...
+    %           testIterTimesMore=[50 100], ...
+    %           tryLooseTestTol=true, ...
+    %           looseTestTolTo=1e-8, ...
+    %           tryAlterAlgoTypes=true, ...
+    %           algoTypes=[40 10 20 30], ...
+    %           UserAlgoArgs={}, ...
+    %           initialStep=0.01, ...
+    %           relaxation=0.5, ...
+    %           minStep=1e-6, ...
+    %           debugMode=true, ...
+    %           printPer=20);
     %
-    %     %     % for static analysis with automatic retries and adjustments
-    %     SmartAnalyze.configure(...
-    %         analysis="Static", ...
-    %         tryAlterAlgoTypes=true, ...
-    %         algoTypes=[40 10], ...
-    %         tryAddTestTimes=true, ...
-    %         testIterTimesMore=50, ...
-    %         debugMode=true);
-    %     targets = [0; 1.0];  % target displacement values for the static analysis
-    %     segs = SmartAnalyze.staticStepSplit(targets, maxStep=0.1);
-    %     for i = 1:numel(segs)
-    %         SmartAnalyze.staticAnalyze(nodeTag, dof, segs(i));
-    %     end
-    %     SmartAnalyze.reset();  % reset to default state if needed for another analysis
+    %       segs = smartAnalyze.transientStepSplit(1000);
+    %       for i = 1:numel(segs)
+    %           ok = smartAnalyze.transientAnalyze(0.01);
+    %           if ok < 0
+    %               error("Transient analysis failed at step %d.", i);
+    %           end
+    %       end
+    %       smartAnalyze.reset();
+    %
+    %       %----------------------------------------
+    %       % Static analysis with displacement control
+    %       nodeTag = 1;
+    %       dof = 1;
+    %       targets = [0; 0.5; 1.0];
+    %
+    %       smartAnalyze.configure(...
+    %           analysis="Static", ...
+    %           testType="EnergyIncr", ...
+    %           testTol=1e-10, ...
+    %           testIterTimes=10, ...
+    %           testPrintFlag=0, ...
+    %           tryAddTestTimes=true, ...
+    %           normTol=1e3, ...
+    %           testIterTimesMore=[50 100], ...
+    %           tryLooseTestTol=true, ...
+    %           looseTestTolTo=1e-8, ...
+    %           tryAlterAlgoTypes=true, ...
+    %           algoTypes=[40 10 20 30], ...
+    %           UserAlgoArgs={}, ...
+    %           initialStep=0.1, ...
+    %           relaxation=0.5, ...
+    %           minStep=1e-6, ...
+    %           debugMode=true, ...
+    %           printPer=20);
+    %
+    %       % smartAnalyze.setSensitivityAlgorithm("-computeAtEachStep");  % if sensitivity analysis is needed
+    %       segs = smartAnalyze.staticStepSplit(targets, 0.1);
+    %       for i = 1:numel(segs)
+    %           ok = smartAnalyze.staticAnalyze(nodeTag, dof, segs(i));
+    %           if ok < 0
+    %               error("Static analysis failed at segment %d.", i);
+    %           end
+    %       end
+    %       smartAnalyze.reset();
 
     properties (Constant)
         % Logo for printing messages
-        logo = "OPSTOOL::SmartAnalyze::"
+        logo = "SmartAnalyze::"
     end
 
     methods (Static)
         function setOPS(ops)
+            % Set the OpenSees command interface used by SmartAnalyze.
+            %
+            %   setOPS is kept for backward compatibility. New code can use the
+            %   equivalent setOps method.
+            %
+            % Parameters
+            % ----------
+            % ops : OpenSeesMatlabCmds or compatible object
+            %     Object that provides the OpenSees command methods used by this
+            %     class, including test, algorithm, integrator, analysis,
+            %     analyze, testNorm, and sensitivityAlgorithm when sensitivity
+            %     analysis is enabled.
+            arguments
+                ops
+            end
+            analysis.SmartAnalyze.setOps(ops);
+        end
+
+        function setOps(ops)
+            % Set the OpenSees command interface used by SmartAnalyze.
+            %
+            % Parameters
+            % ----------
+            % ops : OpenSeesMatlabCmds or compatible object
+            %     Object that provides the OpenSees command methods used by this
+            %     class, including test, algorithm, integrator, analysis,
+            %     analyze, testNorm, and sensitivityAlgorithm when sensitivity
+            %     analysis is enabled.
+            %
+            % Example
+            % -------
+            %     opsmat = OpenSeesMatlab();
+            %     smartAnalyze = analysis.SmartAnalyze;
+            %     smartAnalyze.setOps(opsmat.opensees);
             arguments
                 ops
             end
@@ -49,37 +142,64 @@ classdef SmartAnalyze
         end
 
         function configure(opts)
-            % Configure the analysis settings.
+            % Configure analysis settings and apply the initial OpenSees test and algorithm.
+            %
+            % Syntax
+            % ------
+            %     smartAnalyze.configure(Name=Value)
+            %
+            % Notes
+            % -----
+            %     setOPS or setOps must be called before configure when this class
+            %     is used directly. OpenSeesMatlabAnalysis does this automatically
+            %     when SmartAnalyze is accessed as opsmat.anlys.smartAnalyze.
+            %
+            %     configure immediately applies the selected convergence test and
+            %     the first algorithm in algoTypes to the OpenSees command
+            %     interface. Therefore, a valid OpenSees command interface is
+            %     required even if the actual analysis step is executed later.
             %
             % Parameters
             % ----------
             % analysis : string, optional
-            %     Type of analysis, either "Transient" or "Static". Default is "Transient".
+            %     Analysis type. Must be "Transient" or "Static". Default is "Transient".
             % testType : string, optional
-            %     Type of test for convergence, e.g., "EnergyIncr". Default is "EnergyIncr".
+            %     OpenSees convergence test type. Default is "EnergyIncr".
             % testTol : double, optional
-            %     Tolerance for the test. Default is 1e-10.
+            %     Convergence-test tolerance. Default is 1e-10.
             % testIterTimes : double, optional
-            %     Number of iterations for the test. Default is 10.
+            %     Default maximum number of convergence-test iterations. Default is 10.
             % testPrintFlag : double, optional
-            %     Print flag for the test. Default is 0.
+            %     OpenSees convergence-test print flag. Default is 0.
             % tryAddTestTimes : logical, optional
-            %     Whether to try adding test times when convergence fails. Default is false.
+            %     If true, retry failed steps with larger iteration limits from
+            %     testIterTimesMore when the latest norm is less than normTol.
+            %     Default is false.
             % normTol : double, optional
-            %     Norm tolerance for deciding when to try adding test times. Default is 1e3.
-            % testIterTimesMore : double, optional
-            %     Additional iteration times to try when adding test times. Default is 50.
+            %     Maximum latest test norm that allows tryAddTestTimes retries.
+            %     Default is 1e3.
+            % testIterTimesMore : double array, optional
+            %     Additional convergence-test iteration limits to try. Nonfinite
+            %     or nonpositive values are ignored during normalization.
+            %     Default is 50.
             % tryLooseTestTol : logical, optional
-            %     Whether to try loosening the test tolerance when convergence fails. Default is false.
+            %     If true, retry failed steps with looseTestTolTo after the other
+            %     retry strategies fail. Default is false.
             % looseTestTolTo : double, optional
-            %     The looser test tolerance to try. Default is 100 times the original testTol.
+            %     Looser convergence-test tolerance used by tryLooseTestTol.
+            %     Default is 100 times testTol.
             % tryAlterAlgoTypes : logical, optional
-            %     Whether to try altering algorithm types when convergence fails. Default is false.
+            %     If true, retry failed steps with the remaining entries in
+            %     algoTypes. Default is false.
             % algoTypes : double array, optional
-            %     Algorithm types to try in order when altering algorithms. Default is [40 10].
-            %     Optional:
-            %     
-            %     - 0: Linear
+            %     Algorithm type codes. The first entry is applied during
+            %     configure; subsequent entries are used as fallback algorithms
+            %     when tryAlterAlgoTypes is true. Default is
+            %     [40 10 20 30 50 60 70 90].
+            %
+            %     Supported values:
+            %
+            %     - 0: {'Linear'}
             %     - 1: {'Linear','-Initial'}
             %     - 2: {'Linear','-Secant'}
             %     - 3: {'Linear','-FactorOnce'}
@@ -97,7 +217,7 @@ classdef SmartAnalyze
             %     - 25: {'NewtonLineSearch','-type','InitialInterpolated'}
             %     - 30: {'ModifiedNewton'}
             %     - 31: {'ModifiedNewton','-initial'}
-            %     - 32: {'ModifiedNewton','-secant'}  
+            %     - 32: {'ModifiedNewton','-secant'}
             %     - 40: {'KrylovNewton'}
             %     - 41: {'KrylovNewton','-iterate','initial'}
             %     - 42: {'KrylovNewton','-increment','initial'}
@@ -116,20 +236,49 @@ classdef SmartAnalyze
             %     - 72: {'Broyden','-secant'}
             %     - 80: {'PeriodicNewton'}
             %     - 81: {'PeriodicNewton','-maxDim',10}
-            %     - 90: {'Secant'}
-            %     - 100: User-defined, in which case UserAlgoArgs must be provided to specify the arguments for the algorithm command.
+            %     - 90: {'ExpressNewton'}
+            %     - 91: {'ExpressNewton','-InitialTangent'}
+            %     - 100: user-defined algorithm; UserAlgoArgs must be provided.
             % UserAlgoArgs : cell array, optional
-            %     User-defined algorithm arguments when algoTypes includes 100. Default is {}.
+            %     User-defined arguments passed to the OpenSees algorithm command
+            %     when algoTypes includes 100. Default is {}.
             % initialStep : double, optional
-            %     Initial step size for the analysis. Default is NaN (not set).
+            %     Initial analysis step stored in the configuration. transientAnalyze
+            %     and staticAnalyze overwrite this value for each actual step.
+            %     Default is unset.
             % relaxation : double, optional
-            %     Relaxation factor for step size when trying to relax steps. Default is 0.5.
+            %     Factor used to split a failed step during step relaxation.
+            %     Default is 0.5.
             % minStep : double, optional
-            %     Minimum step size when trying to relax steps. Default is 1e-6.
+            %     Minimum absolute substep allowed during step relaxation.
+            %     Default is 1e-6.
             % debugMode : logical, optional
-            %     Whether to enable debug mode for verbose output. Default is false.
+            %     Whether to print retry and progress messages. Default is false.
             % printPer : double, optional
-            %     Print progress every this many steps. Default is 20.
+            %     Print progress every printPer successful steps when debugMode is
+            %     true. Default is 20.
+            %
+            % Example
+            % -------
+            %     smartAnalyze.configure(...
+            %         analysis="Transient", ...
+            %         testType="EnergyIncr", ...
+            %         testTol=1e-10, ...
+            %         testIterTimes=10, ...
+            %         testPrintFlag=0, ...
+            %         tryAddTestTimes=true, ...
+            %         normTol=1e3, ...
+            %         testIterTimesMore=[50 100], ...
+            %         tryLooseTestTol=true, ...
+            %         looseTestTolTo=1e-8, ...
+            %         tryAlterAlgoTypes=true, ...
+            %         algoTypes=[40 10 20 30], ...
+            %         UserAlgoArgs={}, ...
+            %         initialStep=0.01, ...
+            %         relaxation=0.5, ...
+            %         minStep=1e-6, ...
+            %         debugMode=true, ...
+            %         printPer=20);
 
             arguments
                 opts.analysis string {mustBeMember(opts.analysis, ["Transient","Static"])} = string(missing)
@@ -212,6 +361,7 @@ classdef SmartAnalyze
             s = analysis.SmartAnalyze.normalizeState(s);
             analysis.SmartAnalyze.state(s);
 
+            analysis.SmartAnalyze.requireOps();
             analysis.SmartAnalyze.setTest();
             analysis.SmartAnalyze.setAlgorithm(s.cfg.algoTypes(1));
         end
@@ -234,7 +384,17 @@ classdef SmartAnalyze
         end
 
         function setSensitivityAlgorithm(algorithm)
-            % Set the sensitivity algorithm for the analysis. This will be used when running sensitivity analysis in StaticAnalyze.
+            % Set the OpenSees sensitivity algorithm used before static analysis steps.
+            %
+            % Parameters
+            % ----------
+            % algorithm : string
+            %     Sensitivity algorithm option. Must be "-computeAtEachStep" or
+            %     "-computeByCommand".
+            %
+            % Example
+            % -------
+            %     smartAnalyze.setSensitivityAlgorithm("-computeAtEachStep");
             arguments
                 algorithm (1,1) string {mustBeMember(algorithm, ["-computeAtEachStep","-computeByCommand"])}
             end
@@ -243,43 +403,113 @@ classdef SmartAnalyze
             analysis.SmartAnalyze.state(s);
         end
 
-        function segs = transientStepSplit(npts)
-            % Split the transient analysis into npts segments. This is a simple utility to set the number of steps for progress tracking.
+        function setTotalSteps(npts)
+            % Set the total number of analysis steps for progress tracking.
+            %
+            %   This method is useful when the caller already knows the total
+            %   number of expected transientAnalyze or staticAnalyze calls and
+            %   does not need transientStepSplit or staticStepSplit to generate
+            %   segments.
             %
             % Parameters
             % ----------
             % npts : double
-            %     Number of points (steps) to split the transient analysis into. Must be a nonnegative integer.
+            %     Total number of expected analysis steps. The value must be
+            %     finite and nonnegative; it is rounded to the nearest integer.
             %
-            % Returns
+            % Example
             % -------
-            % segs : double array
-            %     Array of step sizes for each segment. For transient analysis, this will be an array of 1's with length npts, indicating that each segment corresponds to one step in the transient analysis.
+            %     smartAnalyze.setTotalSteps(1000);
+            %     for i = 1:1000
+            %         ok = smartAnalyze.transientAnalyze(0.01);
+            %         if ok < 0
+            %             error("Transient analysis failed at step %d.", i);
+            %         end
+            %     end
             arguments
                 npts (1,1) double {mustBeNonnegative, mustBeFinite}
             end
             npts = round(npts);
             s = analysis.SmartAnalyze.state();
             s.progress.npts = npts;
+            s.progress.done = 0;
+            s.progress.counter = 0;
+            s.progress.tic = tic;
             analysis.SmartAnalyze.state(s);
+        end
+
+        function segs = transientStepSplit(npts)
+            % Split a transient analysis into step indices for progress tracking.
+            %
+            %   This method does not change the OpenSees time step. It records the
+            %   expected number of transientAnalyze calls and returns 1:npts so it
+            %   can be used directly in a loop.
+            %
+            % Parameters
+            % ----------
+            % npts : double
+            %     Number of transient analysis steps. The value must be finite and
+            %     nonnegative; it is rounded to the nearest integer.
+            %
+            % Returns
+            % -------
+            % segs : double array
+            %     Row vector 1:npts. Each entry represents one call to
+            %     transientAnalyze.
+            %
+            % Example
+            % -------
+            %     dt = 0.01;
+            %     segs = smartAnalyze.transientStepSplit(1000);
+            %     for i = 1:numel(segs)
+            %         ok = smartAnalyze.transientAnalyze(dt);
+            %         if ok < 0
+            %             error("Transient analysis failed at step %d.", i);
+            %         end
+            %     end
+            arguments
+                npts (1,1) double {mustBeNonnegative, mustBeFinite}
+            end
+            npts = round(npts);
+            analysis.SmartAnalyze.setTotalSteps(npts);
             segs = 1:npts;
         end
 
         function segs = staticStepSplit(targets, maxStep)
-            % Split the static analysis into segments based on target values and maximum step size. This utility generates a sequence of steps that will be taken in the StaticAnalyze method, ensuring that the steps do not exceed maxStep and that the targets are reached.
+            % Split displacement-control target values into bounded static steps.
+            %
+            %   targets defines one or more target displacement values. When a
+            %   scalar target is provided, it is treated as [0; target]. Consecutive
+            %   duplicate targets are ignored within the class tolerance.
             %
             % Parameters
             % ----------
             % targets : double array
-            %     Target values for the static analysis. Can be a scalar or a vector. If scalar, it will be treated as [0; target].
+            %     Column vector of target displacement values. If scalar, it is
+            %     expanded to [0; targets].
             % maxStep : double, optional
-            %     Maximum step size for the analysis. Default is NaN, which means it will
-            %     be set to the absolute difference between the first two targets or the target itself if only one target is provided.
-            % 
+            %     Maximum absolute displacement increment for a generated segment.
+            %     If omitted or NaN, the absolute difference between the first two
+            %     targets is used. The value is converted to abs(maxStep).
+            %
             % Returns
             % -------
             % segs : double array
-            %     Array of step sizes for each segment in the static analysis. The sum of segs will equal the difference between the last and first target, and no individual step will exceed maxStep in absolute value.
+            %     Column vector of displacement increments. The sum of all segments
+            %     equals targets(end) - targets(1), excluding zero-length intervals,
+            %     and each generated segment has abs(seg) <= maxStep.
+            %
+            % Example
+            % -------
+            %     targets = [0; 0.5; 1.0];
+            %     maxStep = 0.1;
+            %     segs = smartAnalyze.staticStepSplit(targets, maxStep);
+            %     for i = 1:numel(segs)
+            %         ok = smartAnalyze.staticAnalyze(nodeTag, dof, segs(i));
+            %         if ok < 0
+            %             error("Static analysis failed at segment %d.", i);
+            %         end
+            %     end
             arguments
                 targets (:,1) double
                 maxStep (1,1) double {mustBeFinite} = NaN
@@ -308,8 +538,7 @@ classdef SmartAnalyze
 
             if isempty(d)
                 segs = zeros(0,1);
-                s.progress.npts = 0;
-                analysis.SmartAnalyze.state(s);
+                analysis.SmartAnalyze.setTotalSteps(0);
                 return;
             end
 
@@ -332,22 +561,34 @@ classdef SmartAnalyze
                 end
             end
 
-            s.progress.npts = numel(segs);
-            analysis.SmartAnalyze.state(s);
+            analysis.SmartAnalyze.setTotalSteps(numel(segs));
         end
 
         function ok = transientAnalyze(dt)
-            % Perform a transient analysis step with the given time step size. This method will automatically handle retries and adjustments if the analysis fails to converge, based on the configuration set in the configure method.
+            % Run one transient analysis step with automatic retry strategies.
+            %
+            % Requirements
+            % ------------
+            %     configure must have been called with analysis="Transient", and
+            %     setOPS or setOps must have supplied a valid OpenSees command
+            %     interface.
             %
             % Parameters
             % ----------
             % dt : double
-            %     Time step size for the transient analysis. Must be a positive finite number.
+            %     Time-step size passed to ops.analyze(1, dt). Must be finite and
+            %     real.
             %
             % Returns
             % -------
             % ok : double
-            %     0 if the analysis step was successful, <0 if it failed. The method will attempt retries and adjustments according to the configuration, and will return -1 only if all attempts fail.
+            %     0 if the step succeeds. A negative value means the original step
+            %     and all enabled retry strategies failed.
+            %
+            % Example
+            % -------
+            %     smartAnalyze.configure(analysis="Transient", initialStep=0.01);
+            %     ok = smartAnalyze.transientAnalyze(0.01);
             arguments
                 dt (1,1) double {mustBeFinite, mustBeReal}
             end
@@ -366,21 +607,38 @@ classdef SmartAnalyze
         end
 
         function ok = staticAnalyze(nodeTag, dof, seg)
-            % Perform a static analysis step with displacement control on the specified node and degree of freedom, using the given step size. This method will automatically handle retries and adjustments if the analysis fails to converge, based on the configuration set in the configure method.
+            % Run one displacement-control static analysis step with retries.
+            %
+            % Requirements
+            % ------------
+            %     configure must have been called with analysis="Static", and
+            %     setOPS or setOps must have supplied a valid OpenSees command
+            %     interface.
             %
             % Parameters
             % ----------
             % nodeTag : double
-            %     Node tag for displacement control. Must be a positive integer.
+            %     Node tag used by the OpenSees DisplacementControl integrator.
+            %     Must be a positive integer.
             % dof : double
-            %     Degree of freedom for displacement control. Must be a positive integer.
+            %     Degree of freedom used by the OpenSees DisplacementControl
+            %     integrator. Must be a positive integer.
             % seg : double
-            %     Step size for the displacement control. Must be a finite real number.
+            %     Displacement increment for this segment. Must be finite and real.
             %
             % Returns
             % -------
             % ok : double
-            %     0 if the analysis step was successful, <0 if it failed. The method will attempt retries and adjustments according to the configuration, and will return -1 only if all attempts fail.
+            %     0 if the segment succeeds. A negative value means the original
+            %     segment and all enabled retry strategies failed.
+            %
+            % Example
+            % -------
+            %     nodeTag = 1;
+            %     dof = 1;
+            %     seg = 0.1;
+            %     smartAnalyze.configure(analysis="Static", initialStep=seg);
+            %     ok = smartAnalyze.staticAnalyze(nodeTag, dof, seg);
             arguments
                 nodeTag (1,1) double {mustBeInteger, mustBePositive}
                 dof     (1,1) double {mustBeInteger, mustBePositive}
@@ -407,12 +665,21 @@ classdef SmartAnalyze
         end
 
         function s = getState()
-            % Get the current internal state of SmartAnalyze. This can be useful for debugging or for advanced users who want to inspect the state directly.
+            % Get the current internal state of SmartAnalyze.
+            %
+            %   This is mainly intended for debugging and advanced workflows. The
+            %   returned structure includes the OpenSees command interface, current
+            %   analysis type, configuration, and progress counters.
             %
             % Returns
             % -------
             % s : struct
-            %     The current internal state of SmartAnalyze.
+            %     Current internal SmartAnalyze state.
+            %
+            % Example
+            % -------
+            %     s = smartAnalyze.getState();
+            %     disp(s.cfg);
 
             s = analysis.SmartAnalyze.state();
         end
@@ -425,8 +692,8 @@ classdef SmartAnalyze
             s.analysis = "Transient";
             s.debug = false;
             s.eps = 1e-12;
-            s.logFile = ".SmartAnalyze-OpenSees.log";
-            s.logo = "OPSTOOL::SmartAnalyze::";
+            % s.logFile = ".SmartAnalyze-OpenSees.log";
+            s.logo = "SmartAnalyze::";
             s.sensitivityAlgorithm = '';
 
             s.cfg = struct( ...
@@ -508,7 +775,7 @@ classdef SmartAnalyze
             s = analysis.SmartAnalyze.state();
             if isempty(s.ops)
                 error('SmartAnalyze:OpsNotSet', ...
-                    'Call SmartAnalyze.setOps(ops) first.');
+                    'Call SmartAnalyze.setOps(ops) or SmartAnalyze.setOPS(ops) first. This is done automatically when using opsmat.anlys.smartAnalyze.');
             end
         end
 
@@ -562,10 +829,20 @@ classdef SmartAnalyze
         function printStatus(success)
             s = analysis.SmartAnalyze.state();
             t = analysis.SmartAnalyze.elapsed();
-            if success
-                fprintf('>>>🎃 %s Successfully finished! Time consumption: %.3f s.\n', s.logo, t);
+            if s.progress.npts > 0
+                pct = min(100, 100 * s.progress.done / s.progress.npts);
+                progressText = sprintf(' Progress: %.3f %% (%d/%d).', ...
+                    pct, s.progress.done, s.progress.npts);
             else
-                fprintf('>>>❌ %s Analyze failed. Time consumption: %.3f s.\n', s.logo, t);
+                progressText = sprintf(' Progress: %d steps.', s.progress.done);
+            end
+
+            if success
+                fprintf('>>>🎃 %s Successfully finished!%s Time consumption: %.3f s.\n', ...
+                    s.logo, progressText, t);
+            else
+                fprintf('>>>❌ %s Analyze failed.%s Time consumption: %.3f s.\n', ...
+                    s.logo, progressText, t);
             end
         end
 
@@ -573,8 +850,9 @@ classdef SmartAnalyze
             s = analysis.SmartAnalyze.state();
             t = analysis.SmartAnalyze.elapsed();
             if s.progress.npts > 0
-                fprintf('>>>✅ %s progress %.3f %% . Time consumption: %.3f s.\n', ...
-                    s.logo, 100 * s.progress.done / s.progress.npts, t);
+                pct = min(100, 100 * s.progress.done / s.progress.npts);
+                fprintf('>>>✅ %s progress %.3f %% (%d/%d). Time consumption: %.3f s.\n', ...
+                    s.logo, pct, s.progress.done, s.progress.npts, t);
             else
                 fprintf('>>>✅ %s progress %d steps. Time consumption: %.3f s.\n', ...
                     s.logo, s.progress.done, t);
@@ -592,7 +870,7 @@ classdef SmartAnalyze
 
             if ~verbose
                 try
-                    s.ops.logFile(s.logFile, '-noEcho');
+                    % s.ops.logFile(s.logFile, '-noEcho');
                 catch
                 end
             end
