@@ -1,5 +1,38 @@
 classdef OpenSeesMatlabPre < handle
-    % Pre-processing interface for OpenSeesMatlab. OpenSeesMatlabPre provides methods for defining and modifying OpenSees models.
+    % OpenSeesMatlabPre Pre-processing utilities for OpenSeesMatlab.
+    %
+    %   OpenSeesMatlabPre groups helper tools used before and during model
+    %   construction. It is created automatically by OpenSeesMatlab and is
+    %   accessed through the pre property:
+    %
+    %       opsmat = OpenSeesMatlab();
+    %       pre = opsmat.pre;
+    %       ops = opsmat.opensees;
+    %
+    %   The interface includes:
+    %
+    %   - unitSystem for unit metadata and conversion helpers.
+    %   - Gmsh2OPS for converting Gmsh meshes to OpenSees definitions.
+    %   - section geometry recording for plotting fiber sections.
+    %   - model-data utilities such as nodal mass and M/C/K matrix extraction.
+    %   - load transformation helpers for gravity, beam, and surface loads.
+    %
+    % Example
+    % -------
+    %       opsmat = OpenSeesMatlab();
+    %       ops = opsmat.opensees;
+    %
+    %       ops.wipe();
+    %       ops.model('basic', '-ndm', 2, '-ndf', 3);
+    %
+    %       opsmat.pre.setSectionGeometryRecorder(true);
+    %       ops.section('Fiber', 1, '-GJ', 1.0e6);
+    %       ops.patch('rect', 1, 10, 10, -0.2, -0.3, 0.2, 0.3);
+    %       opsmat.pre.plotSection(1);
+    %       opsmat.pre.setSectionGeometryRecorder(false);
+    %
+    %       nodeMass = opsmat.pre.getNodeMass();
+    %       K = opsmat.pre.getMCK('k');
 
     properties (Access = private)
         parent    % Reference to the parent OpenSeesMatlab object
@@ -9,7 +42,7 @@ classdef OpenSeesMatlabPre < handle
         loadTools pre.LoadTools    % Load tools for applying loads and transformations
     end
 
-    properties 
+    properties
         secGeoRecorder = []    % pre.utils.SectionGeometryRecorder
         unitSystem    % Unit system information for the model, including length, force, time, etc. This can be used for unit conversions and ensuring consistency in model definitions and results interpretation. See pre.UnitSystem for details.
         Gmsh2OPS   % Gmsh2OPS object for converting Gmsh mesh files to OpenSees model definitions. This can be used to import complex geometries and meshes created in Gmsh into OpenSees for analysis. See pre.Gmsh2OPS for details.
@@ -17,6 +50,23 @@ classdef OpenSeesMatlabPre < handle
 
     methods
         function obj = OpenSeesMatlabPre(parentObj)
+            % Construct the pre-processing interface.
+            %
+            %   Users normally do not instantiate this class directly. The main
+            %   OpenSeesMatlab constructor creates it and stores it as opsmat.pre.
+            %   The constructor initializes the unit system, load tools, and Gmsh
+            %   mesh converter using the parent OpenSees command interface.
+            %
+            % Parameters
+            % ----------
+            % parentObj : OpenSeesMatlab
+            %     Parent OpenSeesMatlab object. The pre-processing interface uses
+            %     parentObj.opensees to query model data and issue load commands.
+            %
+            % Example
+            % -------
+            %     opsmat = OpenSeesMatlab();
+            %     pre = opsmat.pre;
             if nargin < 1 || isempty(parentObj)
                 error('OpenSeesMatlabPre:InvalidInput', ...
                     'A parent OpenSeesMatlab object is required.');
@@ -32,13 +82,35 @@ classdef OpenSeesMatlabPre < handle
 
     methods
         function setSectionGeometryRecorder(obj, sw)
-            % Set up the section geometry recorder to track section definitions for post-processing and visualization.
-            % Currently, the section geometry recorder is designed to work with fiber sections.
+            % Enable or disable section geometry recording.
+            %
+            %   When enabled, fiber-section-related OpenSees commands issued
+            %   through opsmat.opensees are recorded by a SectionGeometryRecorder.
+            %   The recorded geometry can then be plotted with plotSection. This
+            %   is useful because OpenSees itself does not retain enough section
+            %   construction history for visualization in all workflows.
+            %
+            % Syntax
+            % ------
+            %     pre.setSectionGeometryRecorder()
+            %     pre.setSectionGeometryRecorder(true)
+            %     pre.setSectionGeometryRecorder(false)
             %
             % Parameters
             % ----------
             % sw : logical, optional
-            %     If true, the section geometry recorder will be enabled to track section definitions. If false, the recorder will be disabled. Default is true.
+            %     If true, enable section geometry recording. If false, disable it
+            %     and clear the current recorder. Default is true.
+            %
+            % Example
+            % -------
+            %     opsmat = OpenSeesMatlab();
+            %     ops = opsmat.opensees;
+            %
+            %     opsmat.pre.setSectionGeometryRecorder(true);
+            %     ops.section('Fiber', 1, '-GJ', 1.0e6);
+            %     ops.patch('rect', 1, 10, 10, -0.2, -0.3, 0.2, 0.3);
+            %     opsmat.pre.plotSection(1);
 
             arguments
                 obj (1,1) OpenSeesMatlabPre
@@ -53,15 +125,33 @@ classdef OpenSeesMatlabPre < handle
         end
 
         function plotSection(obj, secTag, ax)
-            % Plot the section geometry for a given section tag.
-            % This method uses the section geometry recorder to visualize the section defined by the specified tag. It can plot fiber sections, including fiber arrangements and patch definitions.
+            % Plot recorded fiber-section geometry.
+            %
+            %   plotSection visualizes a section previously recorded by
+            %   setSectionGeometryRecorder(true). The recorder must be enabled
+            %   before the corresponding OpenSees section, fiber, patch, and layer
+            %   commands are issued.
+            %
+            % Syntax
+            % ------
+            %     pre.plotSection(secTag)
+            %     pre.plotSection(secTag, ax)
             %
             % Parameters
             % ----------
             % secTag : double
-            %     The section tag for which to plot the geometry. This should correspond to a section defined in the OpenSees model.
+            %     Section tag to plot. It should match a section tag previously
+            %     defined through ops.section while recording was enabled.
             % ax : axes handle, optional
-            %     An optional axes handle to plot on. If not provided, a new figure will be created for the plot.
+            %     Target axes for plotting. If empty or omitted, the recorder will
+            %     create a suitable figure/axes.
+            %
+            % Example
+            % -------
+            %     opsmat.pre.setSectionGeometryRecorder(true);
+            %     ops.section('Fiber', 1, '-GJ', 1.0e6);
+            %     ops.fiber(0.0, 0.0, 0.01, 1);
+            %     opsmat.pre.plotSection(1);
 
             arguments
                 obj (1,1) OpenSeesMatlabPre
@@ -75,46 +165,81 @@ classdef OpenSeesMatlabPre < handle
         end
 
         function nodeMass = getNodeMass(obj)
-            % Get nodal mass data from the OpenSees model, including the
-            % mass assembled from the model (node, element, and mass matrix contributions).
+            % Get assembled nodal mass data from the current OpenSees model.
+            %
+            %   The returned map contains nodal mass contributions assembled from
+            %   model definitions, element mass contributions, and mass matrix
+            %   information supported by the underlying utility implementation.
+            %
+            % Syntax
+            % ------
+            %     nodeMass = pre.getNodeMass()
             %
             % Returns
-            % ----------
+            % -------
             % nodeMass : containers.Map
-            %   Key   : node tag
-            %   Value : row vector of nodal masses for each DOF
+            %     Map of nodal masses.
+            %
+            %     - Key   : node tag
+            %     - Value : row vector of nodal masses for each degree of freedom
+            %
+            % Example
+            % -------
+            %     nodeMass = opsmat.pre.getNodeMass();
+            %     m1 = nodeMass(1);
 
             nodeMass = pre.ModelDataUtils.getNodeMass(obj.parent.opensees);
 
         end
 
         function out = getMCK(obj, matrixType, options)
-            % Get the mass, damping, stiffness, or initial stiffness matrix.
+            % Assemble and return a global model matrix.
+            %
+            %   getMCK extracts the current global mass, damping, stiffness, or
+            %   initial stiffness matrix from the OpenSees model using the
+            %   specified constraint handler, system, and numberer settings.
+            %
+            % Syntax
+            % ------
+            %     out = pre.getMCK(matrixType)
+            %     out = pre.getMCK(matrixType, constraintsArgs=args)
+            %     out = pre.getMCK(matrixType, systemArgs=args, numbererArgs=args)
             %
             % Parameters
             % ----------
-            % matrixType: char or string
+            % matrixType : char or string
             %     Type of matrix to retrieve. Options are:
             %
-            %     - 'm'  - Mass matrix
-            %     - 'c'  - Damping matrix
-            %     - 'k'  - Stiffness matrix
-            %     - 'ki' - Initial stiffness matrix
-            % constraintsArgs: cell array
-            %     Arguments for handling constraints when forming the matrix. For example:
-            %     - {'Penalty', 1e10, 1e10} to use the penalty method with specified parameters.
-            % systemArgs: cell array, optional
-            %     Arguments for the system of equations to solve when forming the matrix. Default is {'FullGeneral'}.
-            % numbererArgs: cell array, optional
-            %     Arguments for the DOF numberer to use when forming the matrix. Default is {'Plain'}.
-            % 
-            % Returns
-            % ----------
-            % matrix : struct
-            %     - .Type   - Type of matrix ('m', 'c', 'k', or 'ki')
-            %     - .Data   - The matrix data as a sparse matrix
-            %     - .Labels - Cell array of DOF labels corresponding to the rows/columns of the matrix
+            %     - 'm'  : mass matrix
+            %     - 'c'  : damping matrix
+            %     - 'k'  : tangent stiffness matrix
+            %     - 'ki' : initial stiffness matrix
+            % constraintsArgs : cell array, optional
+            %     Arguments passed to the OpenSees constraints command when
+            %     forming the matrix. Default is {'Penalty', 1e12, 1e12}.
+            % systemArgs : cell array, optional
+            %     Arguments passed to the OpenSees system command. Default is
+            %     {'FullGeneral'}.
+            % numbererArgs : cell array, optional
+            %     Arguments passed to the OpenSees numberer command. Default is
+            %     {'Plain'}.
             %
+            % Returns
+            % -------
+            % out : struct
+            %     Matrix data and labels.
+            %
+            %     - .Type   : matrix type, one of 'm', 'c', 'k', or 'ki'
+            %     - .Data   : sparse matrix data
+            %     - .Labels : cell array of DOF labels for rows/columns
+            %
+            % Example
+            % -------
+            %     K = opsmat.pre.getMCK('k');
+            %     M = opsmat.pre.getMCK('m', ...
+            %         constraintsArgs={'Penalty', 1e12, 1e12}, ...
+            %         systemArgs={'FullGeneral'}, ...
+            %         numbererArgs={'Plain'});
 
             arguments
                 obj (1,1) OpenSeesMatlabPre
@@ -128,22 +253,43 @@ classdef OpenSeesMatlabPre < handle
         end
 
         function nodeLoads = createGravityLoad(obj, opts)
-            % Apply gravity loads from nodal masses, which can be obtained from the mass matrix (from node, element, and mass matrix contributions). This method calculates the gravity loads based on the nodal masses and applies them to the model using the OpenSees command ``load``.
+            % Create and apply gravity loads from assembled nodal masses.
+            %
+            %   This method obtains nodal mass information and converts it to
+            %   equivalent nodal gravity loads. The generated loads are applied to
+            %   the active OpenSees load pattern by calling the OpenSees load
+            %   command through the parent command interface.
+            %
+            % Syntax
+            % ------
+            %     nodeLoads = pre.createGravityLoad()
+            %     nodeLoads = pre.createGravityLoad(direction="Z", factor=-9.81)
+            %     nodeLoads = pre.createGravityLoad(excludeNodes=[1 2], direction="Y")
             %
             % Parameters
             % ----------
             % excludeNodes : double array, optional
-            %     Array of node tags to exclude from gravity load application. Default is an empty array, meaning all nodes will be included.
+            %     Node tags to exclude from gravity load application. Default is
+            %     empty, meaning all nodes with assembled mass are included.
             % direction : string, optional
-            %     Direction of the gravity load. Options are 'X', 'Y', 'Z', 'x', 'y', 'z'. Default is 'Z'.
+            %     Gravity direction. Must be "X", "Y", "Z", "x", "y", or "z".
+            %     Default is "Z".
             % factor : double, optional
-            %     Factor to scale the gravity load. Default is -9.81.
+            %     Gravity/load scale factor. Default is -9.81.
             %
             % Returns
             % -------
             % nodeLoads : containers.Map
-            %     key   = node tag
-            %     value = row vector nodal load
+            %     Applied nodal loads.
+            %
+            %     - Key   : node tag
+            %     - Value : row vector nodal load
+            %
+            % Example
+            % -------
+            %     ops.timeSeries('Linear', 1);
+            %     ops.pattern('Plain', 1, 1);
+            %     nodeLoads = opsmat.pre.createGravityLoad(direction="Z", factor=-9.81);
 
             arguments
                 obj
@@ -159,19 +305,33 @@ classdef OpenSeesMatlabPre < handle
         end
 
         function beamGlobalUniformLoad(obj, eleTags, opts)
-            % Transform beam uniform loads from global to local coordinates
-            % and directly call ops.eleLoad(...).
+            % Apply global uniform loads to beam elements.
+            %
+            %   The input load components are defined in the global coordinate
+            %   system. They are transformed to each beam element's local
+            %   coordinate system and then applied through ops.eleLoad(...).
+            %
+            % Syntax
+            % ------
+            %     pre.beamGlobalUniformLoad(eleTags)
+            %     pre.beamGlobalUniformLoad(eleTags, wx=wx, wy=wy, wz=wz)
             %
             % Parameters
             % ----------
             % eleTags : double array
-            %     Array of element tags to which the uniform load will be applied
+            %     Element tags to which the uniform load will be applied.
             % wx : double, optional
-            %     Uniform load intensity in the global x-direction. Default is 0.0.
+            %     Uniform load intensity in the global x direction. Default is 0.0.
             % wy : double, optional
-            %     Uniform load intensity in the global y-direction. Default is 0.0.
+            %     Uniform load intensity in the global y direction. Default is 0.0.
             % wz : double, optional
-            %     Uniform load intensity in the global z-direction. Default is 0.0.
+            %     Uniform load intensity in the global z direction. Default is 0.0.
+            %
+            % Example
+            % -------
+            %     ops.timeSeries('Linear', 1);
+            %     ops.pattern('Plain', 1, 1);
+            %     opsmat.pre.beamGlobalUniformLoad([1 2 3], wx=0, wy=-10, wz=0);
 
             arguments
                 obj OpenSeesMatlabPre
@@ -184,21 +344,37 @@ classdef OpenSeesMatlabPre < handle
         end
 
         function beamGlobalPointLoad(obj, eleTags, opts)
-            % Transform beam point loads from global to local coordinates
-            % and directly call ops.eleLoad(...).
+            % Apply global point loads to beam elements.
+            %
+            %   The input load components are defined in the global coordinate
+            %   system. They are transformed to each beam element's local
+            %   coordinate system and then applied through ops.eleLoad(...).
+            %
+            % Syntax
+            % ------
+            %     pre.beamGlobalPointLoad(eleTags)
+            %     pre.beamGlobalPointLoad(eleTags, px=px, py=py, pz=pz, xl=xl)
             %
             % Parameters
             % ----------
             % eleTags : double array
-            %     Array of element tags to which the point load will be applied
+            %     Element tags to which the point load will be applied.
             % px : double, optional
-            %     Point load magnitude in the global x-direction. Default is 0.0.
+            %     Point load magnitude in the global x direction. Default is 0.0.
             % py : double, optional
-            %     Point load magnitude in the global y-direction. Default is 0.0.
+            %     Point load magnitude in the global y direction. Default is 0.0.
             % pz : double, optional
-            %     Point load magnitude in the global z-direction. Default is 0.0.
+            %     Point load magnitude in the global z direction. Default is 0.0.
             % xl : double, optional
-            %     Location of the point load along the beam element as a fraction of the element length (0.0 to 1.0). Default is 0.5 (mid-span).
+            %     Location along each beam element as a fraction of the element
+            %     length. Use 0.0 at the I end, 1.0 at the J end, and 0.5 for
+            %     midspan. Default is 0.5.
+            %
+            % Example
+            % -------
+            %     ops.timeSeries('Linear', 1);
+            %     ops.pattern('Plain', 1, 1);
+            %     opsmat.pre.beamGlobalPointLoad([1 2], py=-100, xl=0.5);
 
             arguments
                 obj OpenSeesMatlabPre
@@ -210,17 +386,31 @@ classdef OpenSeesMatlabPre < handle
             end
              obj.loadTools.BeamGlobalPointLoad(eleTags, px=opts.px, py=opts.py, pz=opts.pz, xl=opts.xl);
          end
-        
+
         function surfaceGlobalPressureLoad(obj, eleTags, p)
-            % Convert uniform pressure on surface elements to equivalent
-            % nodal loads in global coordinates.
+            % Apply uniform pressure loads to surface elements.
+            %
+            %   This method converts uniform pressure on surface elements to
+            %   equivalent nodal loads in global coordinates. The positive surface
+            %   normal follows the cross product of the I-J and J-K element edges.
+            %
+            % Syntax
+            % ------
+            %     pre.surfaceGlobalPressureLoad(eleTags, p)
             %
             % Parameters
             % ----------
             % eleTags : double array
-            %     Array of surface element tags to which the pressure load will be applied
+            %     Surface element tags to which the pressure load will be applied.
             % p : double
-            %     Uniform surface load magnitude (per unit area) along the surface normal direction. The positive direction of the normal is obtained by the cross-product of the I-J and J-K edges. If a list or numpy array is provided, the length should be the same as the number of elements.
+            %     Uniform pressure magnitude per unit area. p can be scalar or a
+            %     vector with one value per element tag.
+            %
+            % Example
+            % -------
+            %     ops.timeSeries('Linear', 1);
+            %     ops.pattern('Plain', 1, 1);
+            %     opsmat.pre.surfaceGlobalPressureLoad([101 102 103], -5.0);
 
             arguments
                 obj OpenSeesMatlabPre

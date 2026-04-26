@@ -1,6 +1,48 @@
 classdef OpenSeesMatlabVis < handle
-    % Visualization interface for OpenSeesMatlab.
-    %   OpenSeesMatlabVis provides methods for visualizing OpenSees models and results.
+    % OpenSeesMatlabVis Visualization interface for OpenSeesMatlab.
+    %
+    %   OpenSeesMatlabVis provides high-level plotting utilities for OpenSees
+    %   models and analysis results. It is created automatically by
+    %   OpenSeesMatlab and is normally accessed through the vis property:
+    %
+    %       opsmat = OpenSeesMatlab();
+    %       vis = opsmat.vis;
+    %
+    %   The visualization methods use model information collected by
+    %   opsmat.post.getModelData or response/eigen data collected by the
+    %   post-processing interface. Most plotting methods accept an optional opts
+    %   struct and an optional target axes handle. Default option templates are
+    %   exposed as public properties and can be copied before customization.
+    %
+    % Common workflow
+    % ---------------
+    %       opsmat = OpenSeesMatlab();
+    %       ops = opsmat.opensees;
+    %
+    %       % Build or load an OpenSees model with ops...
+    %       % ops.wipe();
+    %       % ops.model(...);
+    %
+    %       modelInfo = opsmat.post.getModelData();
+    %       hModel = opsmat.vis.plotModel();
+    %
+    %       eigenData = opsmat.post.getEigenData(numModes=3);
+    %       hMode1 = opsmat.vis.plotEigen(1, eigenData);
+    %
+    % Properties
+    % ----------
+    % defaultPlotModelOptions : struct
+    %     Default option template used by plotModel.
+    % defaultPlotEigenOptions : struct
+    %     Default option template used by plotEigen.
+    % defaultPlotNodalResponseOptions : struct
+    %     Default option template used by plotNodalResponse and plotDeformation.
+    % defaultPlotFrameResponseOptions : struct
+    %     Default option template used by plotFrameResponse.
+    % defaultPlotShellResponseOptions : struct
+    %     Default option template used by shell response plotting.
+    % defaultPlotContinuumResponseOptions : struct
+    %     Default option template used by continuum response plotting.
 
     properties (Access = private)
         parent  % Reference to the parent OpenSeesMatlab object
@@ -38,6 +80,24 @@ classdef OpenSeesMatlabVis < handle
 
     methods
         function obj = OpenSeesMatlabVis(parentObj)
+            % Construct an OpenSeesMatlabVis visualization interface.
+            %
+            %   Users normally do not construct this class directly. A
+            %   visualization interface is created automatically by OpenSeesMatlab
+            %   and can be accessed as opsmat.vis.
+            %
+            % Parameters
+            % ----------
+            % parentObj : OpenSeesMatlab
+            %     Parent OpenSeesMatlab object. The visualization interface uses
+            %     parentObj.post to collect or load model and response data needed
+            %     by the plotter classes.
+            %
+            % Example
+            % -------
+            %     opsmat = OpenSeesMatlab();
+            %     vis = opsmat.vis;
+            %     h = vis.plotModel();
             if nargin < 1 || isempty(parentObj)
                 error('OpenSeesMatlabVis:InvalidInput', ...
                     'A parent OpenSeesMatlab object is required.');
@@ -46,25 +106,44 @@ classdef OpenSeesMatlabVis < handle
         end
 
         function h = plotModel(obj, options)
-            % Visualize the OpenSees model.
+            % Visualize the current OpenSees model.
             %
-            % Example
-            % --------
-            %     h = plotModel();
-            %     h = plotModel(opts=opts, ax=ax);
+            %   plotModel collects model information from the current OpenSees
+            %   model through obj.parent.post.getModelData and renders the model
+            %   geometry using plotter.PlotModel.
+            %
+            % Syntax
+            % ------
+            %     h = vis.plotModel()
+            %     h = vis.plotModel(opts=opts)
+            %     h = vis.plotModel(ax=ax)
+            %     h = vis.plotModel(opts=opts, ax=ax)
             %
             % Parameters
-            % -----------
+            % ----------
             % opts : struct, optional
-            %     Visualization options. Use ``vis.defaultPlotModelOptions`` to get default options.
+            %     Visualization options passed to plotter.PlotModel. Start from
+            %     vis.defaultPlotModelOptions when you want to customize the
+            %     default model-plot appearance.
             % ax : matlab.graphics.axis.Axes, optional
-            %     Target axes. If omitted, a new figure/axes will be created by
-            %     PatchPlotter.
+            %     Target axes. If omitted or empty, a new figure/axes is created by
+            %     the underlying plotter.
             %
             % Returns
-            % --------
+            % -------
             % h : array of graphics objects
             %     Handles to the created graphics objects.
+            %
+            % Example
+            % -------
+            %     opsmat = OpenSeesMatlab();
+            %     % Build model with opsmat.opensees...
+            %     h = opsmat.vis.plotModel();
+            %
+            %     opts = opsmat.vis.defaultPlotModelOptions;
+            %     figure;
+            %     ax = axes();
+            %     h = opsmat.vis.plotModel(opts=opts, ax=ax);
 
             arguments
                 obj (1,1) OpenSeesMatlabVis
@@ -84,28 +163,45 @@ classdef OpenSeesMatlabVis < handle
         end
 
         function h = plotEigen(obj, modeTag, eigenData, options)
-            % Visualize a specific mode shape from eigenvalue analysis results.
+            % Visualize one mode shape from eigenvalue analysis results.
             %
-            % Example
-            % ---------
-            %     h = plotEigen(modeTag, eigenData)
-            %     h = plotEigen(modeTag, eigenData, opts=opts, ax=ax)
+            %   eigenData is usually collected with opsmat.post.getEigenData or
+            %   loaded from a file generated by opsmat.post.saveEigenData.
+            %
+            % Syntax
+            % ------
+            %     h = vis.plotEigen(modeTag, eigenData)
+            %     h = vis.plotEigen(modeTag, eigenData, opts=opts)
+            %     h = vis.plotEigen(modeTag, eigenData, ax=ax)
+            %     h = vis.plotEigen(modeTag, eigenData, opts=opts, ax=ax)
             %
             % Parameters
-            % -----------
+            % ----------
             % modeTag : integer
-            %     The mode number to visualize (e.g., 1 for the first mode).
+            %     Mode number to visualize. For example, modeTag=1 plots the first
+            %     mode shape.
             % eigenData : struct
-            %     Eigenvalue analysis results, typically obtained from ``post.getEigenData()``.
+            %     Eigenvalue analysis results, typically returned by
+            %     opsmat.post.getEigenData.
             % opts : struct, optional
-            %     Visualization options. Use ``vis.defaultPlotEigenOptions`` to get default options.
+            %     Visualization options passed to plotter.PlotEigen. Start from
+            %     vis.defaultPlotEigenOptions for customization.
             % ax : matlab.graphics.axis.Axes, optional
-            %     Target axes. If omitted, a new figure/axes will be created.
+            %     Target axes. If omitted or empty, a new figure/axes is created.
             %
             % Returns
-            % --------
+            % -------
             % h : array of graphics objects
             %     Handles to the created graphics objects.
+            %
+            % Example
+            % -------
+            %     eigenData = opsmat.post.getEigenData(numModes=3);
+            %     h = opsmat.vis.plotEigen(1, eigenData);
+            %
+            %     opts = opsmat.vis.defaultPlotEigenOptions;
+            %     opts.deform.scale = 10;
+            %     h = opsmat.vis.plotEigen(2, eigenData, opts=opts);
 
             arguments
                 obj (1,1) OpenSeesMatlabVis
@@ -114,42 +210,66 @@ classdef OpenSeesMatlabVis < handle
                 options.opts (1,1) struct = struct()
                 options.ax {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
-            
+
             modelInfo = obj.parent.post.getModelData();
             pe = plotter.PlotEigen(modelInfo, eigenData, options.ax, options.opts);
             h = pe.plotMode(modeTag);
         end
 
         function plotNodalResponse(obj, nodeRespData, options)
-            % Visualize nodal response data for a specific analysis step.
+            % Visualize nodal response data at a selected analysis step.
             %
-            % Example
-            % ---------
-            %     plotNodalResponse(nodeRespData)
-            %     plotNodalResponse(nodeRespData, stepIdx="absMax", opts=opts, ax=ax)
+            %   plotNodalResponse renders nodal scalar or vector response fields
+            %   such as displacement, velocity, acceleration, reaction, Rayleigh
+            %   force, or pressure. The model information is loaded from the ODB
+            %   referenced by nodeRespData.odbTag.
+            %
+            % Syntax
+            % ------
+            %     vis.plotNodalResponse(nodeRespData)
+            %     vis.plotNodalResponse(nodeRespData, respType=respType)
+            %     vis.plotNodalResponse(nodeRespData, respComponent=component)
+            %     vis.plotNodalResponse(nodeRespData, stepIdx=stepIdx)
+            %     vis.plotNodalResponse(nodeRespData, opts=opts, ax=ax)
             %
             % Parameters
-            % -----------
+            % ----------
             % nodeRespData : struct
-            %     Nodal response data, typically obtained from ``post.getNodalResponse(odbTag)``.
+            %     Nodal response data, typically obtained from
+            %     opsmat.post.getNodalResponse(odbTag). The struct must include an
+            %     odbTag field so the corresponding model information can be
+            %     loaded.
             % respType : string, optional
-            %     The type of response to visualize. Default is "disp" (displacement).
-            %     Common options include 'disp','vel','accel','reaction','reactionIncInertia', 'rayleighForces','pressure'.
+            %     Response type to visualize. Default is "disp". Common values
+            %     include "disp", "vel", "accel", "reaction",
+            %     "reactionIncInertia", "rayleighForces", and "pressure".
             % respComponent : string, optional
-            %     The component of the response to visualize. Default is "magnitude".
-            %     For vector responses, options include "x", "y", "z", "rx", "ry", "rz", "magnitude", etc.
-            % stepIdx : integer or "absMax", optional
-            %     - The index of the analysis step to visualize. Default is "absMax".
-            %     - If "absMax", the step with the maximum absolute response will be visualized.
-            %     - If "absMin", the step with the minimum absolute response will be visualized.
-            %     - If "Max", the step with the maximum response will be visualized.
-            %     - If "Min", the step with the minimum response will be visualized.
-            %     - If ``Integer``, the step with the specified index will be visualized.
+            %     Response component to visualize. Default is "magnitude". For
+            %     vector responses, common values include "x", "y", "z", "rx",
+            %     "ry", "rz", and "magnitude".
+            % stepIdx : integer or string, optional
+            %     Analysis step selector. Default is "absMax".
+            %
+            %     - "absMax": step with the maximum absolute response.
+            %     - "absMin": step with the minimum absolute response.
+            %     - "Max": step with the maximum response.
+            %     - "Min": step with the minimum response.
+            %     - integer: explicit step index.
             % opts : struct, optional
-            %     Visualization options. Use ``vis.defaultPlotNodalResponseOptions`` to get default options.
+            %     Visualization options passed to plotter.PlotNodalResp. Start
+            %     from vis.defaultPlotNodalResponseOptions for customization.
             % ax : matlab.graphics.axis.Axes, optional
-            %     Target axes. If omitted, a new figure/axes will be created.
-            
+            %     Target axes. If omitted or empty, a new figure/axes is created.
+            %
+            % Example
+            % -------
+            %     nodeRespData = opsmat.post.getNodalResponse("MyODB");
+            %     opsmat.vis.plotNodalResponse(nodeRespData);
+            %     opsmat.vis.plotNodalResponse(nodeRespData, ...
+            %         respType="disp", ...
+            %         respComponent="magnitude", ...
+            %         stepIdx="absMax");
+
             arguments
                 obj (1,1) OpenSeesMatlabVis
                 nodeRespData (1,1) struct
@@ -170,35 +290,55 @@ classdef OpenSeesMatlabVis < handle
         end
 
         function plotDeformation(obj, nodeRespData, options)
-            % Visualize deformation for a specific analysis step.
+            % Visualize deformed model geometry from nodal displacement data.
             %
-            % Example
-            % ---------
-            %     plotDeformation(nodeRespData)
-            %     plotDeformation(nodeRespData, stepIdx="absMax", opts=opts, ax=ax)
+            %   plotDeformation is a convenience wrapper around the nodal response
+            %   plotter. It enables deformation display, uses displacement data
+            %   from nodeRespData, and allows direct control of deformation color,
+            %   interpolation, scale factor, and undeformed-shape visibility.
+            %
+            % Syntax
+            % ------
+            %     vis.plotDeformation(nodeRespData)
+            %     vis.plotDeformation(nodeRespData, stepIdx=stepIdx)
+            %     vis.plotDeformation(nodeRespData, color=color)
+            %     vis.plotDeformation(nodeRespData, useInterpolation=tf)
+            %     vis.plotDeformation(nodeRespData, scaleFactor=scale)
+            %     vis.plotDeformation(nodeRespData, showUndeformed=tf)
+            %     vis.plotDeformation(nodeRespData, ax=ax)
             %
             % Parameters
-            % -----------
+            % ----------
             % nodeRespData : struct
-            %     Nodal response data containing displacement information, typically obtained from ``post.getNodalResponse(odbTag)``.
-            % stepIdx : integer or "absMax", optional
-            %     - The index of the analysis step to visualize. Default is "absMax".
-            %     - If "absMax", the step with the maximum absolute response will be visualized.
-            %     - If "absMin", the step with the minimum absolute response will be visualized.
-            %     - If "Max", the step with the maximum response will be visualized.
-            %     - If "Min", the step with the minimum response will be visualized.
-            %     - If ``Integer``, the step with the specified index will be visualized.
-            % color : char | string, optional
-            %     Color for the deformed shape. Default is "blue".
+            %     Nodal response data containing displacement information,
+            %     typically obtained from opsmat.post.getNodalResponse(odbTag).
+            %     The struct must include an odbTag field.
+            % stepIdx : integer or string, optional
+            %     Analysis step selector. Default is "absMax". Supported string
+            %     selectors include "absMax", "absMin", "Max", and "Min".
+            % color : char or string, optional
+            %     Solid color used for the deformed shape. Default is "blue".
             % useInterpolation : logical, optional
-            %     Whether to use interpolation for smoother visualization. Default is true.
+            %     Whether to use interpolation for smoother visualized
+            %     deformation. Default is true.
             % scaleFactor : double, optional
-            %     Scale factor for deformation. Default is 1.0 (no scaling).
+            %     Deformation scale factor. Default is 1.0.
             % showUndeformed : logical, optional
-            %     Whether to show the undeformed shape as well. Default is false.
+            %     Whether to show the undeformed model together with the deformed
+            %     shape. Default is false.
             % ax : matlab.graphics.axis.Axes, optional
-            %     Target axes. If omitted, a new figure/axes will be created.
-            
+            %     Target axes. If omitted or empty, a new figure/axes is created.
+            %
+            % Example
+            % -------
+            %     nodeRespData = opsmat.post.getNodalResponse("MyODB");
+            %     opsmat.vis.plotDeformation(nodeRespData, ...
+            %         stepIdx="absMax", ...
+            %         color="red", ...
+            %         useInterpolation=true, ...
+            %         scaleFactor=20, ...
+            %         showUndeformed=true);
+
             arguments
                 obj (1,1) OpenSeesMatlabVis
                 nodeRespData (1,1) struct
@@ -225,17 +365,28 @@ classdef OpenSeesMatlabVis < handle
         end
 
         function plotFrameResponse(obj, respData, options)
-            % Visualize frame element response for a specific analysis step.
+            % Visualize frame element response at a selected analysis step.
             %
-            % Example
-            % ---------
-            %     plotFrameResponse(respData)
-            %     plotFrameResponse(respData, stepIdx="absMax", opts=opts, ax=ax)
+            %   plotFrameResponse displays frame-element result fields such as
+            %   section forces, section deformations, basic forces, basic
+            %   deformations, local forces, and plastic deformation. The response
+            %   data is typically collected from an ODB through the post-processing
+            %   interface.
+            %
+            % Syntax
+            % ------
+            %     vis.plotFrameResponse(respData)
+            %     vis.plotFrameResponse(respData, respType=respType)
+            %     vis.plotFrameResponse(respData, respComponent=component)
+            %     vis.plotFrameResponse(respData, stepIdx=stepIdx)
+            %     vis.plotFrameResponse(respData, opts=opts, ax=ax)
             %
             % Parameters
-            % -----------
+            % ----------
             % respData : struct
-            %     Frame response data containing element response information, typically obtained from ``post.getElementResponse(odbTag, eleType="Frame")``.
+            %     Frame response data containing element response information,
+            %     typically obtained from
+            %     opsmat.post.getElementResponse(odbTag, eleType="Frame").
             % respType : string, optional. The type of response to visualize. Default is "sectionForces". Common options include
             %     - 'sectionForces'
             %     - 'sectionDeformations'
@@ -366,7 +517,6 @@ classdef OpenSeesMatlabVis < handle
             %     - Plane strain  : "exx" "eyy" "exy"
             %     - Solid strain  : "exx" "eyy" "ezz" "exy" "eyz" "exz"
             %     - Measures      : "p1" "p2" "p3" "sigmavm" "taumax" "sigmaoct" "tauoct"
-            %     (Measure components auto-redirect respType to StressMeasureAtGP/Node)
             %
             % stepIdx : integer or string, optional  (default "absMax")
             %     "absMax" | "absMin" | "Max" | "Min" | integer step index.

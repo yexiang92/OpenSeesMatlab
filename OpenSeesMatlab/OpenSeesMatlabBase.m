@@ -1,6 +1,31 @@
 classdef (Abstract) OpenSeesMatlabBase < handle
-    % OpenSees MATLAB wrapper base.
-    % This class provides the basic infrastructure for calling OpenSees commands via a MEX interface.
+    % OpenSeesMatlabBase Base class for OpenSees MATLAB MEX command wrappers.
+    %
+    %   OpenSeesMatlabBase provides the shared infrastructure used by the
+    %   OpenSeesMatlab command interface. It resolves the OpenSees MEX module,
+    %   adds the configured MEX directory to the MATLAB path, stores a function
+    %   handle to the MEX entry point, and exposes lightweight helper methods for
+    %   dispatching OpenSees commands.
+    %
+    %   This class is abstract and is not intended to be used directly by end
+    %   users. User-facing command access is provided through OpenSeesMatlabCmds,
+    %   which derives from this class and defines explicit wrappers for OpenSees
+    %   commands such as model, node, element, analysis, analyze, and recorder.
+    %
+    % Typical use through OpenSeesMatlab
+    % ----------------------------------
+    %     opsmat = OpenSeesMatlab();
+    %     ops = opsmat.opensees;
+    %
+    %     ops.wipe();
+    %     ops.model('basic', '-ndm', 2, '-ndf', 3);
+    %     ops.node(1, 0.0, 0.0);
+    %
+    % Notes
+    % -----
+    %     The command argument style follows the OpenSees/OpenSeesPy command
+    %     style. String and character inputs are passed through to the MEX module,
+    %     so command arguments should match the OpenSees command documentation.
 
     properties
         mexName (1,:) char = 'OpenSeesMATLAB'
@@ -13,12 +38,34 @@ classdef (Abstract) OpenSeesMatlabBase < handle
 
     methods
         function obj = OpenSeesMatlabBase(mexName, mexDir)
-            % Constructor for OpenSeesMatlabBase.
+            % Construct an OpenSeesMatlabBase wrapper around an OpenSees MEX module.
             %
-            % Usage:
-            %   obj = OpenSeesMatlabBase() - uses default MEX name and current directory
-            %   obj = OpenSeesMatlabBase(mexName) - specifies MEX name, uses current directory
-            %   obj = OpenSeesMatlabBase(mexName, mexDir) - specifies MEX name and directory
+            % Syntax
+            % ------
+            %     obj = OpenSeesMatlabBase()
+            %     obj = OpenSeesMatlabBase(mexName)
+            %     obj = OpenSeesMatlabBase(mexName, mexDir)
+            %
+            % Parameters
+            % ----------
+            % mexName : string or char, optional
+            %     Name of the OpenSees MATLAB MEX function. The default is
+            %     'OpenSeesMATLAB'.
+            % mexDir : string or char, optional
+            %     Directory containing the OpenSees MATLAB MEX function. Relative
+            %     paths are resolved relative to the directory containing this
+            %     class when possible. If the resolved directory exists, it is
+            %     added to the MATLAB path.
+            %
+            % Errors
+            % ------
+            % OpenSeesMatlab:MexNotFound
+            %     Thrown when the configured MEX function cannot be located on the
+            %     MATLAB path after resolving mexDir.
+            %
+            % Example
+            % -------
+            %     baseObj = SomeConcreteOpenSeesWrapper('OpenSeesMATLAB', 'derived/');
 
             if nargin >= 1 && ~isempty(mexName)
                 obj.mexName = char(mexName);
@@ -41,9 +88,31 @@ classdef (Abstract) OpenSeesMatlabBase < handle
         end
 
         function varargout = call(obj, cmd, varargin)
-            % Call an OpenSees command via the MEX interface.
-            % Usage:
-            %   [out1, out2, ...] = obj.call(cmd, arg1, arg2, ...)
+            % Call an OpenSees command through the configured MEX function.
+            %
+            % Syntax
+            % ------
+            %     obj.call(cmd, arg1, arg2, ...)
+            %     [out1, out2, ...] = obj.call(cmd, arg1, arg2, ...)
+            %
+            % Parameters
+            % ----------
+            % cmd : char or string
+            %     OpenSees command name, for example 'model', 'node', 'element',
+            %     'analysis', or 'analyze'.
+            % arg1, arg2, ... : any
+            %     Command arguments passed directly to the OpenSees MEX module.
+            %
+            % Returns
+            % -------
+            % varargout
+            %     Outputs returned by the OpenSees MEX module for the requested
+            %     command.
+            %
+            % Example
+            % -------
+            %     obj.call('model', 'basic', '-ndm', 2, '-ndf', 3);
+            %     obj.call('node', 1, 0.0, 0.0);
 
             % if isstring(cmd)
             %     cmd = char(cmd);
@@ -52,25 +121,54 @@ classdef (Abstract) OpenSeesMatlabBase < handle
         end
 
         function tf = hasMex(obj)
-            % Check if the MEX function is available.
-            % Usage:
-            %   tf = obj.hasMex()
-            % Returns true if the MEX function is available, false otherwise.
+            % Check whether this wrapper has a MEX function handle.
+            %
+            % Syntax
+            % ------
+            %     tf = obj.hasMex()
+            %
+            % Returns
+            % -------
+            % tf : logical
+            %     True when the wrapper stores a nonempty MEX function handle.
+            %
+            % Notes
+            % -----
+            %     This method checks the stored function handle. Use mexPath to
+            %     inspect the resolved path returned by MATLAB's which function.
 
             tf = ~isempty(obj.mexHandle);
         end
 
         function p = mexPath(obj)
-            % Get the full path to the MEX function.
-            % Usage:
-            %   p = obj.mexPath()
-            % Returns the full path to the MEX function if it exists, empty otherwise.
+            % Get the path of the configured OpenSees MEX function.
+            %
+            % Syntax
+            % ------
+            %     p = obj.mexPath()
+            %
+            % Returns
+            % -------
+            % p : char
+            %     Full path returned by which(obj.mexName). If the MEX function is
+            %     not on the MATLAB path, p is empty.
+            %
+            % Example
+            % -------
+            %     p = obj.mexPath();
+            %     if isempty(p)
+            %         error("OpenSees MEX module is not on the MATLAB path.");
+            %     end
 
             p = which(obj.mexName);
         end
 
         function ensureMexOnPath(obj)
-            % Ensure that the MEX function is on the MATLAB path.
+            % Add the configured MEX directory to the MATLAB path.
+            %
+            %   This method is useful if the MATLAB path was changed after object
+            %   construction. It does not rebuild the MEX handle; it only calls
+            %   addpath for the stored mexDir when mexDir is nonempty.
             if ~isempty(obj.mexDir)
                 addpath(obj.mexDir);
             end
@@ -92,6 +190,19 @@ classdef (Abstract) OpenSeesMatlabBase < handle
         end
 
         function mexDir = resolveMexDir(obj, mexDir)
+            % Resolve a user-provided MEX directory.
+            %
+            % Parameters
+            % ----------
+            % mexDir : char or string
+            %     Directory supplied by the caller. Absolute paths and existing
+            %     relative paths are returned unchanged. Nonexisting relative paths
+            %     are also checked relative to the directory containing this class.
+            %
+            % Returns
+            % -------
+            % mexDir : char
+            %     Resolved directory candidate.
             if isempty(mexDir)
                 return;
             end
@@ -119,13 +230,18 @@ classdef (Abstract) OpenSeesMatlabBase < handle
         end
 
         function varargout = dispatchCommand(obj, cmd, varargin)
-            % Dispatch an OpenSees command, with optional preprocessing and postprocessing hooks.
+            % Dispatch an OpenSees command through the MEX function.
+            %
+            %   Subclasses can call this protected method when they need a single
+            %   internal dispatch point for command wrappers.
             [varargout{1:nargout}] = obj.mexHandle(cmd, varargin{:});
         end
 
         % Kept only for compatibility with existing subclasses.
         function out = validateTextScalar(~, value, ~)
-            % Validate that the input is a text scalar and convert to char if it's a string scalar.
+            % Convert a string scalar to char for compatibility with older callers.
+            %
+            %   This helper is kept for compatibility with existing subclasses.
             if isstring(value)
                 out = char(value);
             else
@@ -135,14 +251,25 @@ classdef (Abstract) OpenSeesMatlabBase < handle
 
         function args = preprocessCommandArgs(~, ~, args)
             % Preprocess command arguments before dispatching.
+            %
+            %   The default implementation leaves args unchanged. Subclasses may
+            %   override this hook to normalize or record command arguments before
+            %   they are sent to the OpenSees MEX module.
         end
 
         function beforeCommand(~, varargin)
-            % Hook for actions to perform before dispatching a command. Can be overridden by subclasses.
+            % Hook for actions to perform before dispatching a command.
+            %
+            %   The default implementation is empty. Subclasses may override this
+            %   hook to implement logging, bookkeeping, validation, or recording.
         end
 
         function afterCommand(~, varargin)
-            % Hook for actions to perform after dispatching a command. Can be overridden by subclasses.
+            % Hook for actions to perform after dispatching a command.
+            %
+            %   The default implementation is empty. Subclasses may override this
+            %   hook to update caches, collect metadata, or synchronize auxiliary
+            %   data after a command has been sent to OpenSees.
         end
     end
 

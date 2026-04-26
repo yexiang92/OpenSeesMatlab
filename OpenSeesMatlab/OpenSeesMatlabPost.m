@@ -1,7 +1,43 @@
 classdef OpenSeesMatlabPost < handle
     % OpenSeesMatlabPost Post-processing interface for OpenSeesMatlab.
-    %   OpenSeesMatlabPost provides methods for collecting, saving, and retrieving
-    %   model information, eigenvalue analysis and responses results from OpenSeesMatlab.
+    %
+    %   OpenSeesMatlabPost provides high-level utilities for collecting model
+    %   information, saving/loading model metadata, collecting eigenvalue results,
+    %   and creating output databases for step-by-step response storage.
+    %
+    %   Users normally access this class through the post property of the main
+    %   OpenSeesMatlab object:
+    %
+    %       opsmat = OpenSeesMatlab();
+    %       post = opsmat.post;
+    %
+    %   The post-processing workflow is typically:
+    %
+    %   1. Build an OpenSees model with opsmat.opensees.
+    %   2. Collect or save model metadata with getModelData or saveModelData.
+    %   3. Collect eigen data with getEigenData or saveEigenData when needed.
+    %   4. Create an ODB with createODB for response history storage.
+    %   5. Use opsmat.vis to visualize collected model/eigen/response data.
+    %
+    % Example
+    % -------
+    %       opsmat = OpenSeesMatlab();
+    %       ops = opsmat.opensees;
+    %
+    %       % Build model with ops...
+    %       % ops.wipe();
+    %       % ops.model(...);
+    %       % ops.node(...);
+    %       % ops.element(...);
+    %
+    %       post = opsmat.post;
+    %       post.setOutputDir(".openseesmatlab.output");
+    %
+    %       modelInfo = post.getModelData();
+    %       post.saveModelData("ModelA");
+    %
+    %       eigenData = post.getEigenData(numModes=3, solver="-genBandArpack");
+    %       post.saveEigenData("ModelA", 3, solver="-genBandArpack");
 
     properties (Access = private)
         parent  % Reference to the parent OpenSeesMatlab object
@@ -10,6 +46,24 @@ classdef OpenSeesMatlabPost < handle
 
     methods
         function obj = OpenSeesMatlabPost(parentObj)
+            % Construct an OpenSeesMatlabPost object.
+            %
+            %   The constructor is called by OpenSeesMatlab and normally should
+            %   not be called directly. It stores the parent OpenSeesMatlab object
+            %   so post-processing utilities can access the shared OpenSees command
+            %   interface through parentObj.opensees.
+            %
+            % Parameters
+            % ----------
+            % parentObj : OpenSeesMatlab
+            %     Parent OpenSeesMatlab object that owns this post-processing
+            %     interface.
+            %
+            % Example
+            % -------
+            %     opsmat = OpenSeesMatlab();
+            %     post = opsmat.post;
+
             if nargin < 1 || isempty(parentObj)
                 error('OpenSeesMatlabPost:InvalidInput', ...
                     'A parent OpenSeesMatlab object is required.');
@@ -18,12 +72,22 @@ classdef OpenSeesMatlabPost < handle
         end
 
         function setOutputDir(obj, dir)
-            % Set the output directory for OpenSeesMatlabPost. 
+            % Set the output directory used by post-processing save operations.
             %
-            %  Parameters
-            %  ----------
-            %  dir : char | string
-            %      The directory to set as the output directory for OpenSeesMatlabPost. If the directory does not exist, it will be created.
+            %   The output directory is used by saveModelData, saveEigenData, and
+            %   response database utilities. If the directory does not exist, it is
+            %   created automatically.
+            %
+            % Parameters
+            % ----------
+            % dir : char or string
+            %     Output directory path. Relative paths are interpreted relative to
+            %     the current MATLAB working directory.
+            %
+            % Example
+            % -------
+            %     post = opsmat.post;
+            %     post.setOutputDir(".openseesmatlab.output");
 
             obj.outputDir = dir;
             obj.checkOutputDir();
@@ -31,27 +95,37 @@ classdef OpenSeesMatlabPost < handle
         end
 
         function outDir = getOutputDir(obj)
-            % Get the output directory for OpenSeesMatlabPost.
+            % Get the current post-processing output directory.
             %
             % Returns
             % -------
-            % outDir : char | string
-            %     The current output directory for OpenSeesMatlabPost.
+            % outDir : char or string
+            %     Directory used by post-processing save operations.
+            %
+            % Example
+            % -------
+            %     outDir = opsmat.post.getOutputDir();
             outDir = obj.outputDir;
         end
 
 
         function saveModelData(obj, odbTag)
-            % Save model information to a file.
+            % Collect and save current OpenSees model information to an HDF5 file.
             %
-            % Example
-            % --------
-            %     saveModelData(1)
+            %   The saved file is named modelData_<odbTag>.hdf5 and is written to
+            %   the directory returned by getOutputDir. Use getModelData(odbTag)
+            %   to read the saved model data back from disk.
             %
             % Parameters
-            % -----------
-            % odbTag : char | string | numeric
-            %     A unique identifier for the ODB.
+            % ----------
+            % odbTag : char, string, or numeric, optional
+            %     Identifier used in the saved file name. Default is 1.
+            %
+            % Example
+            % -------
+            %     post = opsmat.post;
+            %     post.setOutputDir(".openseesmatlab.output");
+            %     post.saveModelData("ModelA");
             %
 
             arguments
@@ -70,22 +144,28 @@ classdef OpenSeesMatlabPost < handle
         end
 
         function modelInfo = getModelData(obj, odbTag)
-            % Get model information from memory or file.
+            % Get model information from the current OpenSees model or from file.
             %
-            % Example
-            % --------
-            %     modelInfo = obj.getModelData()  % from memory
-            %     modelInfo = obj.getModelData(odbTag)
+            %   Without odbTag, this method collects model metadata directly from
+            %   the current OpenSees model in memory. With odbTag, it reads the
+            %   file modelData_<odbTag>.hdf5 from the current output directory.
             %
             % Parameters
             % ----------
-            % odbTag : char | string | numeric
-            %     A unique identifier for the ODB.
+            % odbTag : char, string, or numeric, optional
+            %     Identifier of saved model data. If omitted or empty, model data
+            %     is collected from the current OpenSees model.
             %
             % Returns
             % -------
             % modelInfo : struct
-            %     Model information structure.
+            %     Model information structure used by post-processing and
+            %     visualization utilities.
+            %
+            % Examples
+            % --------
+            %     modelInfo = opsmat.post.getModelData();
+            %     modelInfo = opsmat.post.getModelData("ModelA");
 
             arguments
                 obj (1,1) OpenSeesMatlabPost
@@ -106,28 +186,39 @@ classdef OpenSeesMatlabPost < handle
         end
 
         function saveEigenData(obj, odbTag, numModes, options)
-            % Save eigenvalue analysis results to a file.
+            % Collect eigenvalue analysis results and save them to an HDF5 file.
             %
-            % Example
-            % --------
-            %     saveEigenData(odbTag, numModes)
-            %     saveEigenData(odbTag, numModes, solver="-genBandArpack")
-            %     saveEigenData(odbTag, numModes, solver="-genBandArpack", InterpolateBeam=false)
+            %   The saved file is named eigenData_<odbTag>.hdf5 and is written to
+            %   the directory returned by getOutputDir. The method first collects
+            %   model information from the current OpenSees model, then computes
+            %   and stores the requested eigen data.
             %
             % Parameters
-            % -----------
-            % odbTag : char | string | numeric
-            %     A unique identifier for the ODB.
-            % numModes : integer
-            %     The number of modes to collect and save.
-            % solver : char | string
-            %     The solver to use for eigenvalue analysis (e.g., '-genBandArpack').
-            % IncludeModelInfo : logical, default false
-            %     If true, include obj.ModelInfo in the output struct.
-            % InterpolateBeam : logical, default true
-            %     If true, interpolate beam element modal displacements by shape functions.
-            % NptsPerElement : integer >= 2, default 6
-            %     Number of interpolation points per element.
+            % ----------
+            % odbTag : char, string, or numeric, optional
+            %     Identifier used in the saved file name. Default is 1.
+            % numModes : positive integer, optional
+            %     Number of modes to collect and save. Default is 1.
+            % solver : char or string, optional
+            %     OpenSees eigen solver option. Default is "-genBandArpack".
+            % IncludeModelInfo : logical, optional
+            %     If true, include model information in the saved eigen-data
+            %     structure. Default is false.
+            % InterpolateBeam : logical, optional
+            %     If true, interpolate beam element modal displacements by shape
+            %     functions. Default is true.
+            % NptsPerElement : integer >= 2, optional
+            %     Number of interpolation points per beam element. Default is 6.
+            %
+            % Examples
+            % --------
+            %     post.saveEigenData("ModelA", 3);
+            %     post.saveEigenData("ModelA", 3, solver="-genBandArpack");
+            %     post.saveEigenData("ModelA", 3, ...
+            %         solver="-genBandArpack", ...
+            %         IncludeModelInfo=true, ...
+            %         InterpolateBeam=false, ...
+            %         NptsPerElement=8);
 
             arguments
                 obj (1,1) OpenSeesMatlabPost
@@ -157,35 +248,43 @@ classdef OpenSeesMatlabPost < handle
         end
 
         function out = getEigenData(obj, options)
-            % Get eigen data from file or collect from current model.
+            % Get eigen data from file or collect it from the current model.
             %
-            % Example
-            % --------
-            %     out = obj.getEigenData(numModes=10)
-            %     out = obj.getEigenData(numModes=10, solver="-genBandArpack")
-            %     out = obj.getEigenData(numModes=10, InterpolateBeam=false)
-            %     out = obj.getEigenData(odbTag="MyODB")  % read from file, which should be generated by ``saveEigenData``
+            %   If odbTag is provided, this method reads eigenData_<odbTag>.hdf5
+            %   from the current output directory. Otherwise, it collects eigen
+            %   data from the current OpenSees model using the requested number of
+            %   modes and solver options.
             %
             % Parameters
             % ----------
-            % odbTag : char | string | numeric, optional
-            %     If the first input is a text scalar or numeric, it is treated as a unique identifier for the ODB.
-            %     If the first input is not a text scalar or numeric, it is treated as numModes and eigen data will be collected from the current model.
-            % numModes : integer, optional
-            %     Number of modes to collect. Default is 1.
-            % solver : char | string, optional
-            %     Solver to use for eigenvalue analysis. Default is '-genBandArpack'.
-            % IncludeModelInfo : logical, default false
-            %     If true, include model information in the output struct.
-            % InterpolateBeam : logical, default true
-            %     If true, interpolate beam element modal displacements.
-            % NptsPerElement : integer >= 2, default 6
-            %     Number of interpolation points per element.
+            % odbTag : char, string, or numeric, optional
+            %     Identifier of saved eigen data. If provided and nonempty, data is
+            %     loaded from eigenData_<odbTag>.hdf5.
+            % numModes : positive integer, optional
+            %     Number of modes to collect when odbTag is not provided. Default
+            %     is 1.
+            % solver : char or string, optional
+            %     OpenSees eigen solver option. Default is "-genBandArpack".
+            % IncludeModelInfo : logical, optional
+            %     If true, include model information in the output structure.
+            %     Default is false.
+            % InterpolateBeam : logical, optional
+            %     If true, interpolate beam element modal displacements. Default
+            %     is true.
+            % NptsPerElement : integer >= 2, optional
+            %     Number of interpolation points per beam element. Default is 6.
             %
             % Returns
-            % ---------
+            % -------
             % out : struct
             %     Eigenvalue analysis results.
+            %
+            % Examples
+            % --------
+            %     eigenData = post.getEigenData(numModes=3);
+            %     eigenData = post.getEigenData(numModes=3, solver="-genBandArpack");
+            %     eigenData = post.getEigenData(numModes=3, InterpolateBeam=false);
+            %     eigenData = post.getEigenData(odbTag="ModelA");
 
             arguments
                 obj (1,1) OpenSeesMatlabPost
@@ -222,17 +321,21 @@ classdef OpenSeesMatlabPost < handle
     % Responses
     methods
         function odb = createODB(obj, odbTag, options)
-            % Create an output database (ODB) for storing response data.
+            % Create an output database for storing response data over analysis steps.
+            %
+            %   The returned ODB object can fetch and store model responses after
+            %   each analysis step. This is the recommended workflow for response
+            %   histories that will later be loaded, queried, or visualized.
             %
             % Example
-            % --------
-            %     odb = obj.createODB("MyODB")
-            %     odb = obj.createODB("MyODB", modelUpdate=true)
-            %     for i = 1 : Nsteps
-            %         ... run analysis step ...
-            %         odb.fetchResponseStep()  %  fetch response data for the current step and save to ODB
+            % -------
+            %     odb = post.createODB("MyODB", stepSize=1000, saveEvery=50);
+            %     for i = 1:1000
+            %         % Run one OpenSees analysis step here.
+            %         % ops.analyze(1);
+            %         odb.fetchResponseStep();
             %     end
-            %     odb.saveResponse()  % save ODB to disk
+            %     odb.saveResponse();
             %
             % Parameters
             % ----------
@@ -261,7 +364,7 @@ classdef OpenSeesMatlabPost < handle
             %     - {"mohrCoulombCPhi", c, phiDeg}, Mohr-Coulomb failure criterion with specified cohesion and friction angle.
             %     - {"druckerPragerSy", syc, syt}, Drucker-Prager failure criterion with specified shear strength parameters syc and syt.
             %     - {"druckerPragerCPhi", c, phiDeg, "circumscribed"}, Drucker-Prager failure criterion with specified cohesion, friction angle, and circumscribed option.
-            %     
+            %
             %     For Mohr-Coulomb and Drucker-Prager options, subcell arrays should be used to specify the parameters. For example, computeMechanicalMeasures = {"principal", "vonMises", "octahedral", "tauMax", {"mohrCoulombSy", syc, syc}}.
             % projectGaussToNodes : char | string, optional, default "extrapolation"
             %     Method to project Gauss point data to nodes for shell responses. Options are "
@@ -273,7 +376,7 @@ classdef OpenSeesMatlabPost < handle
             %     Flags to specify which types of response data to save.
             % nodeTags, frameTags, trussTags, linkTags, shellTags, fiberEleTags, planeTags, brickTags, contactTags, sensitivityParaTags : double array, optional
             %     Arrays of tags specifying which nodes/elements to save responses for .
-            % 
+            %
             % Returns
             % -------
             % odb : post.ODB
@@ -321,7 +424,7 @@ classdef OpenSeesMatlabPost < handle
                     'An odbTag must be provided.');
             end
             opts = namedargs2cell(options);
-     
+
             odb = post.ODB(obj.parent.opensees, odbTag, opts{:});
             odb.setOutputDir(obj.outputDir);
         end
@@ -386,7 +489,7 @@ classdef OpenSeesMatlabPost < handle
                 options.nodeTags    double = []
                 options.respType    {mustBeTextScalar} = ""
             end
-            
+
             odbTag = string(odbTag);
             if strlength(odbTag) == 0
                 error('getODBData:InvalidODBTag', ...
@@ -428,7 +531,7 @@ classdef OpenSeesMatlabPost < handle
                 options.eleTags   double = []
                 options.respType  {mustBeTextScalar} = ""
             end
-            
+
             odbTag = string(odbTag);
             if strlength(odbTag) == 0
                 error('getODBData:InvalidODBTag', ...
