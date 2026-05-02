@@ -18,46 +18,68 @@ classdef SmartAnalyze
     %
     %   1. Add convergence-test iteration limits, if tryAddTestTimes is true.
     %   2. Try alternate algorithm types, if tryAlterAlgoTypes is true.
-    %   3. Split the current step using relaxation until minStep is reached.
+    %   3. Try alternate convergence-test types, if tryAlterTestTypes is true.
     %   4. Loosen the test tolerance, if tryLooseTestTol is true.
+    %   5. Split the current step using relaxation until minStep is reached,
+    %      if tryRelaxStep is true.
+    %
+    %   Step relaxation is intentionally tried last because successful substeps
+    %   can partially advance the OpenSees model state. Keeping it last avoids
+    %   applying other whole-step retry strategies after the model has already
+    %   moved through part of the requested step.
     %
     % Example
     % --------
-    %       % Transient analysis with default settings
+    %       % Transient analysis with full retry strategies
     %       opsmat = OpenSeesMatlab();
+    %       ops = opsmat.ops;
     %       smartAnalyze = opsmat.anlys.smartAnalyze;
+    %
+    %       % You need to configure constraints, numberer, and system before analysis
+    %       ops.wipeAnalysis();
+    %       ops.constraints('Plain');
+    %       ops.numberer('RCM');
+    %       ops.system('UmfPack');
     %
     %       smartAnalyze.configure(...
     %           analysis="Transient", ...
     %           testType="EnergyIncr", ...
     %           testTol=1e-10, ...
-    %           testIterTimes=10, ...
+    %           testIterTimes=100, ...
     %           testPrintFlag=0, ...
     %           tryAddTestTimes=true, ...
     %           normTol=1e3, ...
     %           testIterTimesMore=[50 100], ...
     %           tryLooseTestTol=true, ...
-    %           looseTestTolTo=1e-8, ...
+    %           looseTestTolTo=[1e-8, 1e-6], ...
+    %           tryAlterTestTypes=true, ...
+    %           testTypesMore=["NormDispIncr","NormUnbalance"], ...
     %           tryAlterAlgoTypes=true, ...
     %           algoTypes=[40 10 20 30], ...
-    %           UserAlgoArgs={}, ...
-    %           initialStep=0.01, ...
+    %           tryRelaxStep=true, ...
     %           relaxation=0.5, ...
     %           minStep=1e-6, ...
+    %           recordNormHistory=true, ...
+    %           recordDiagnostics=false, ...
     %           debugMode=true, ...
-    %           printPer=20);
+    %           printPer=100);
     %
-    %       segs = smartAnalyze.transientStepSplit(1000);
-    %       for i = 1:numel(segs)
-    %           ok = smartAnalyze.transientAnalyze(0.01);
+    %       Nsteps = 1000;
+    %       dt = 0.01;
+    %       smartAnalyze.setTotalSteps(Nsteps);  % set total steps for transient analysis
+    %       for i = 1:Nsteps
+    %           ok = smartAnalyze.transientAnalyze(dt);
     %           if ok < 0
     %               error("Transient analysis failed at step %d.", i);
     %           end
     %       end
+    %
+    %       % Inspect convergence history
+    %       history = smartAnalyze.getNormHistory();
     %       smartAnalyze.reset();
     %
     %       %----------------------------------------
-    %       % Static analysis with displacement control
+    %       % Static pushover analysis (minimal settings)
     %       nodeTag = 1;
     %       dof = 1;
     %       targets = [0; 0.5; 1.0];
@@ -65,22 +87,13 @@ classdef SmartAnalyze
     %       smartAnalyze.configure(...
     %           analysis="Static", ...
     %           testType="EnergyIncr", ...
-    %           testTol=1e-10, ...
-    %           testIterTimes=10, ...
-    %           testPrintFlag=0, ...
-    %           tryAddTestTimes=true, ...
-    %           normTol=1e3, ...
-    %           testIterTimesMore=[50 100], ...
-    %           tryLooseTestTol=true, ...
-    %           looseTestTolTo=1e-8, ...
+    %           testTol=1e-8, ...
     %           tryAlterAlgoTypes=true, ...
-    %           algoTypes=[40 10 20 30], ...
-    %           UserAlgoArgs={}, ...
-    %           initialStep=0.1, ...
-    %           relaxation=0.5, ...
+    %           algoTypes=[40 10 20], ...
+    %           tryRelaxStep=true, ...
     %           minStep=1e-6, ...
-    %           debugMode=true, ...
-    %           printPer=20);
+    %           recordNormHistory=true, ...
+    %           debugMode=false);
     %
     %       % smartAnalyze.setSensitivityAlgorithm("-computeAtEachStep");  % if sensitivity analysis is needed
     %       segs = smartAnalyze.staticStepSplit(targets, 0.1);
@@ -114,28 +127,6 @@ classdef SmartAnalyze
             arguments
                 ops
             end
-            analysis.SmartAnalyze.setOps(ops);
-        end
-
-        function setOps(ops)
-            % Set the OpenSees command interface used by SmartAnalyze.
-            %
-            % Parameters
-            % ----------
-            % ops : OpenSeesMatlabCmds or compatible object
-            %     Object that provides the OpenSees command methods used by this
-            %     class, including test, algorithm, integrator, analysis,
-            %     analyze, testNorm, and sensitivityAlgorithm when sensitivity
-            %     analysis is enabled.
-            %
-            % Example
-            % -------
-            %     opsmat = OpenSeesMatlab();
-            %     smartAnalyze = analysis.SmartAnalyze;
-            %     smartAnalyze.setOps(opsmat.opensees);
-            arguments
-                ops
-            end
             s = analysis.SmartAnalyze.state();
             s.ops = ops;
             analysis.SmartAnalyze.state(s);
@@ -161,105 +152,140 @@ classdef SmartAnalyze
             %
             % Parameters
             % ----------
-            % analysis : string, optional
-            %     Analysis type. Must be "Transient" or "Static". Default is "Transient".
-            % testType : string, optional
-            %     OpenSees convergence test type. Default is "EnergyIncr".
-            % testTol : double, optional
-            %     Convergence-test tolerance. Default is 1e-10.
-            % testIterTimes : double, optional
-            %     Default maximum number of convergence-test iterations. Default is 10.
-            % testPrintFlag : double, optional
-            %     OpenSees convergence-test print flag. Default is 0.
-            % tryAddTestTimes : logical, optional
-            %     If true, retry failed steps with larger iteration limits from
-            %     testIterTimesMore when the latest norm is less than normTol.
-            %     Default is false.
-            % normTol : double, optional
-            %     Maximum latest test norm that allows tryAddTestTimes retries.
-            %     Default is 1e3.
-            % testIterTimesMore : double array, optional
-            %     Additional convergence-test iteration limits to try. Nonfinite
-            %     or nonpositive values are ignored during normalization.
-            %     Default is 50.
-            % tryLooseTestTol : logical, optional
-            %     If true, retry failed steps with looseTestTolTo after the other
-            %     retry strategies fail. Default is false.
-            % looseTestTolTo : double, optional
-            %     Looser convergence-test tolerance used by tryLooseTestTol.
-            %     Default is 100 times testTol.
-            % tryAlterAlgoTypes : logical, optional
-            %     If true, retry failed steps with the remaining entries in
-            %     algoTypes. Default is false.
-            % algoTypes : double array, optional
-            %     Algorithm type codes. The first entry is applied during
-            %     configure; subsequent entries are used as fallback algorithms
-            %     when tryAlterAlgoTypes is true. Default is
-            %     [40 10 20 30 50 60 70 90].
+            %   Basic analysis settings
+            %   ~~~~~~~~~~~~~~~~~~~~~~~
+            %   analysis : string, optional
+            %       Analysis type. Must be "Transient" or "Static". Default is "Transient".
+            %   testType : string, optional
+            %       OpenSees convergence test type. Default is "EnergyIncr".
+            %   testTol : double, optional
+            %       Convergence-test tolerance. Default is 1e-10.
+            %   testIterTimes : double, optional
+            %       Default maximum number of convergence-test iterations. Default is 10.
+            %   testPrintFlag : double, optional
+            %       OpenSees convergence-test print flag. Default is 0.
             %
-            %     Supported values:
+            %   Convergence-test retry strategies
+            %   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            %   tryAddTestTimes : logical, optional
+            %       If true, retry failed steps with larger iteration limits from
+            %       testIterTimesMore when the latest norm is less than normTol.
+            %       Default is false.
+            %   normTol : double, optional
+            %       Maximum latest test norm that allows tryAddTestTimes retries.
+            %       Default is 1e3.
+            %   testIterTimesMore : double array, optional
+            %       Additional convergence-test iteration limits to try. Nonfinite
+            %       or nonpositive values are ignored during normalization.
+            %       Default is 50.
+            %   tryLooseTestTol : logical, optional
+            %       If true, retry failed steps with looseTestTolTo after the other
+            %       retry strategies fail. Default is false.
+            %   looseTestTolTo : double or double array, optional
+            %       Looser convergence-test tolerance(s) used by tryLooseTestTol.
+            %       Multiple values are tried in order. Default is 100*testTol.
+            %   tryAlterTestTypes : logical, optional
+            %       If true, retry failed steps with alternate convergence-test
+            %       types from testTypesMore. Default is false.
+            %   testTypesMore : string array or cell array of char, optional
+            %       Alternate convergence-test types to try when
+            %       tryAlterTestTypes is true. Default is
+            %       {'NormDispIncr','NormUnbalance','RelativeEnergyIncr'}.
             %
-            %     - 0: {'Linear'}
-            %     - 1: {'Linear','-Initial'}
-            %     - 2: {'Linear','-Secant'}
-            %     - 3: {'Linear','-FactorOnce'}
-            %     - 4: {'Linear','-Initial','-FactorOnce'}
-            %     - 5: {'Linear','-Secant','-FactorOnce'}
-            %     - 10: {'Newton'}
-            %     - 11: {'Newton','-Initial'}
-            %     - 12: {'Newton','-intialThenCurrent'}
-            %     - 13: {'Newton','-Secant'}
-            %     - 20: {'NewtonLineSearch'}
-            %     - 21: {'NewtonLineSearch','-type','Bisection'}
-            %     - 22: {'NewtonLineSearch','-type','Secant'}
-            %     - 23: {'NewtonLineSearch','-type','RegulaFalsi'}
-            %     - 24: {'NewtonLineSearch','-type','LinearInterpolated'}
-            %     - 25: {'NewtonLineSearch','-type','InitialInterpolated'}
-            %     - 30: {'ModifiedNewton'}
-            %     - 31: {'ModifiedNewton','-initial'}
-            %     - 32: {'ModifiedNewton','-secant'}
-            %     - 40: {'KrylovNewton'}
-            %     - 41: {'KrylovNewton','-iterate','initial'}
-            %     - 42: {'KrylovNewton','-increment','initial'}
-            %     - 43: {'KrylovNewton','-iterate','initial','-increment','initial'}
-            %     - 44: {'KrylovNewton','-maxDim',10}
-            %     - 45: {'KrylovNewton','-iterate','initial','-increment','initial','-maxDim',10}
-            %     - 50: {'SecantNewton'}
-            %     - 51: {'SecantNewton','-iterate','initial'}
-            %     - 52: {'SecantNewton','-increment','initial'}
-            %     - 53: {'SecantNewton','-iterate','initial','-increment','initial'}
-            %     - 60: {'BFGS'}
-            %     - 61: {'BFGS','-initial'}
-            %     - 62: {'BFGS','-secant'}
-            %     - 70: {'Broyden'}
-            %     - 71: {'Broyden','-initial'}
-            %     - 72: {'Broyden','-secant'}
-            %     - 80: {'PeriodicNewton'}
-            %     - 81: {'PeriodicNewton','-maxDim',10}
-            %     - 90: {'ExpressNewton'}
-            %     - 91: {'ExpressNewton','-InitialTangent'}
-            %     - 100: user-defined algorithm; UserAlgoArgs must be provided.
-            % UserAlgoArgs : cell array, optional
-            %     User-defined arguments passed to the OpenSees algorithm command
-            %     when algoTypes includes 100. Default is {}.
-            % initialStep : double, optional
-            %     Initial analysis step stored in the configuration. transientAnalyze
-            %     and staticAnalyze overwrite this value for each actual step.
-            %     Default is unset.
-            % relaxation : double, optional
-            %     Factor used to split a failed step during step relaxation.
-            %     Default is 0.5.
-            % minStep : double, optional
-            %     Minimum absolute substep allowed during step relaxation.
-            %     Default is 1e-6.
-            % debugMode : logical, optional
-            %     Whether to print retry and progress messages. Default is false.
-            % printPer : double, optional
-            %     Print progress every printPer successful steps when debugMode is
-            %     true. Default is 20.
+            %   Algorithm retry strategies
+            %   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+            %   tryAlterAlgoTypes : logical, optional
+            %       If true, retry failed steps with the remaining entries in
+            %       algoTypes. Default is false.
+            %   algoTypes : double array, optional
+            %       Algorithm type codes. The first entry is applied during
+            %       configure; subsequent entries are used as fallback algorithms
+            %       when tryAlterAlgoTypes is true. Default is
+            %       [40 10 20 30 50 60 70 90].
+            %
+            %       Supported values:
+            %
+            %       - 0: {'Linear'}
+            %       - 1: {'Linear','-Initial'}
+            %       - 2: {'Linear','-Secant'}
+            %       - 3: {'Linear','-FactorOnce'}
+            %       - 4: {'Linear','-Initial','-FactorOnce'}
+            %       - 5: {'Linear','-Secant','-FactorOnce'}
+            %       - 10: {'Newton'}
+            %       - 11: {'Newton','-Initial'}
+            %       - 12: {'Newton','-intialThenCurrent'}
+            %       - 13: {'Newton','-Secant'}
+            %       - 20: {'NewtonLineSearch'}
+            %       - 21: {'NewtonLineSearch','-type','Bisection'}
+            %       - 22: {'NewtonLineSearch','-type','Secant'}
+            %       - 23: {'NewtonLineSearch','-type','RegulaFalsi'}
+            %       - 24: {'NewtonLineSearch','-type','LinearInterpolated'}
+            %       - 25: {'NewtonLineSearch','-type','InitialInterpolated'}
+            %       - 30: {'ModifiedNewton'}
+            %       - 31: {'ModifiedNewton','-initial'}
+            %       - 32: {'ModifiedNewton','-secant'}
+            %       - 40: {'KrylovNewton'}
+            %       - 41: {'KrylovNewton','-iterate','initial'}
+            %       - 42: {'KrylovNewton','-increment','initial'}
+            %       - 43: {'KrylovNewton','-iterate','initial','-increment','initial'}
+            %       - 44: {'KrylovNewton','-maxDim',10}
+            %       - 45: {'KrylovNewton','-iterate','initial','-increment','initial','-maxDim',10}
+            %       - 50: {'SecantNewton'}
+            %       - 51: {'SecantNewton','-iterate','initial'}
+            %       - 52: {'SecantNewton','-increment','initial'}
+            %       - 53: {'SecantNewton','-iterate','initial','-increment','initial'}
+            %       - 60: {'BFGS'}
+            %       - 61: {'BFGS','-initial'}
+            %       - 62: {'BFGS','-secant'}
+            %       - 70: {'Broyden'}
+            %       - 71: {'Broyden','-initial'}
+            %       - 72: {'Broyden','-secant'}
+            %       - 80: {'PeriodicNewton'}
+            %       - 81: {'PeriodicNewton','-maxDim',10}
+            %       - 90: {'ExpressNewton'}
+            %       - 91: {'ExpressNewton','-InitialTangent'}
+            %       - 100: user-defined algorithm; UserAlgoArgs must be provided.
+            %   UserAlgoArgs : cell array, optional
+            %       User-defined arguments passed to the OpenSees algorithm command
+            %       when algoTypes includes 100. Default is {}.
+            %
+            %   Step control
+            %   ~~~~~~~~~~~~
+            %   initialStep : double, optional
+            %       Initial analysis step stored in the configuration. transientAnalyze
+            %       and staticAnalyze overwrite this value for each actual step.
+            %       Default is unset.
+            %   relaxation : double, optional
+            %       Factor used to split a failed step during step relaxation.
+            %       Default is 0.5.
+            %   minStep : double, optional
+            %       Minimum absolute substep allowed during step relaxation.
+            %       Default is 1e-6.
+            %   tryRelaxStep : logical, optional
+            %       If true, enable step relaxation (substep splitting) as the
+            %       final fallback strategy. Default is true.
+            %
+            %   Diagnostics and history
+            %   ~~~~~~~~~~~~~~~~~~~~~~~
+            %   recordDiagnostics : logical, optional
+            %       If true, record detailed failure diagnostics (records and
+            %       lastFailure). When false, only lightweight norm history is kept.
+            %       Default is false.
+            %   recordNormHistory : logical, optional
+            %       If true, record a summary of convergence norms for each
+            %       analysis attempt. Default is true.
+            %
+            %   Debug output
+            %   ~~~~~~~~~~~~
+            %   debugMode : logical, optional
+            %       Whether to print retry and progress messages. Default is false.
+            %   printPer : double, optional
+            %       Print progress every printPer successful steps when debugMode is
+            %       true. Default is 20.
             %
             % Example
             % -------
+            %     % Transient analysis with full retry strategies
             %     smartAnalyze.configure(...
             %         analysis="Transient", ...
             %         testType="EnergyIncr", ...
@@ -270,15 +296,30 @@ classdef SmartAnalyze
             %         normTol=1e3, ...
             %         testIterTimesMore=[50 100], ...
             %         tryLooseTestTol=true, ...
-            %         looseTestTolTo=1e-8, ...
+            %         looseTestTolTo=[1e-8, 1e-6], ...
+            %         tryAlterTestTypes=true, ...
+            %         testTypesMore=["NormDispIncr","NormUnbalance"], ...
             %         tryAlterAlgoTypes=true, ...
             %         algoTypes=[40 10 20 30], ...
-            %         UserAlgoArgs={}, ...
-            %         initialStep=0.01, ...
+            %         tryRelaxStep=true, ...
             %         relaxation=0.5, ...
             %         minStep=1e-6, ...
+            %         recordNormHistory=true, ...
+            %         recordDiagnostics=false, ...
             %         debugMode=true, ...
             %         printPer=20);
+            %
+            %     % Static pushover analysis (minimal settings)
+            %     smartAnalyze.configure(...
+            %         analysis="Static", ...
+            %         testType="EnergyIncr", ...
+            %         testTol=1e-8, ...
+            %         tryAlterAlgoTypes=true, ...
+            %         algoTypes=[40 10 20], ...
+            %         tryRelaxStep=true, ...
+            %         minStep=1e-6, ...
+            %         recordNormHistory=true, ...
+            %         debugMode=false);
 
             arguments
                 opts.analysis string {mustBeMember(opts.analysis, ["Transient","Static"])} = string(missing)
@@ -291,9 +332,14 @@ classdef SmartAnalyze
                 opts.testIterTimesMore double = NaN
                 opts.tryLooseTestTol = []
                 opts.looseTestTolTo double = NaN
+                opts.tryAlterTestTypes = []
+                opts.testTypesMore = []
+                opts.recordNormHistory = []
+                opts.recordDiagnostics = []
                 opts.tryAlterAlgoTypes = []
                 opts.algoTypes double = NaN
                 opts.UserAlgoArgs cell = {}
+                opts.tryRelaxStep = []
                 opts.initialStep double = NaN
                 opts.relaxation double = NaN
                 opts.minStep double = NaN
@@ -332,6 +378,27 @@ classdef SmartAnalyze
             end
             if ~isnan(opts.looseTestTolTo)
                 s.cfg.looseTestTolTo = opts.looseTestTolTo;
+            end
+            if ~isempty(opts.tryAlterTestTypes)
+                s.cfg.tryAlterTestTypes = logical(opts.tryAlterTestTypes);
+            end
+            if ~isempty(opts.testTypesMore)
+                if isstring(opts.testTypesMore)
+                    s.cfg.testTypesMore = cellstr(opts.testTypesMore);
+                elseif iscell(opts.testTypesMore)
+                    s.cfg.testTypesMore = opts.testTypesMore;
+                else
+                    s.cfg.testTypesMore = {char(opts.testTypesMore)};
+                end
+            end
+            if ~isempty(opts.tryRelaxStep)
+                s.cfg.tryRelaxStep = logical(opts.tryRelaxStep);
+            end
+            if ~isempty(opts.recordNormHistory)
+                s.cfg.recordNormHistory = logical(opts.recordNormHistory);
+            end
+            if ~isempty(opts.recordDiagnostics)
+                s.cfg.recordDiagnostics = logical(opts.recordDiagnostics);
             end
             if ~isempty(opts.tryAlterAlgoTypes)
                 s.cfg.tryAlterAlgoTypes = logical(opts.tryAlterAlgoTypes);
@@ -683,6 +750,117 @@ classdef SmartAnalyze
 
             s = analysis.SmartAnalyze.state();
         end
+
+        function diagnostics = getDiagnostics()
+            % Get SmartAnalyze retry and convergence diagnostics. You
+            % can use this to inspect the diagnostic records collected
+            % during analyze attempts. You need to enable diagnostic
+            % recording in the configuration before using this function.
+            %
+            % Returns
+            % -------
+            % diagnostics : struct
+            %     Diagnostic records collected during analyze attempts. The struct
+            %     contains:
+            %
+            %     - records     : cell array of attempt records
+            %     - lastFailure : most recent failed attempt record
+            %     - maxRecords  : maximum number of records retained
+            %
+            % Example
+            % -------
+            %     diagnostics = smartAnalyze.getDiagnostics();
+            %     smartAnalyze.printLastFailure();
+
+            s = analysis.SmartAnalyze.state();
+
+            if s.cfg.recordDiagnostics
+                diagnostics = s.diagnostics;
+            else
+                warning('Diagnostics are not recorded.');
+                diagnostics = [];
+            end
+        end
+
+        function printLastFailure()
+            % Print a concise diagnostic report for the most recent failed attempt.
+            %
+            % Example
+            % -------
+            %     smartAnalyze.printLastFailure();
+
+            d = analysis.SmartAnalyze.getDiagnostics();
+            if ~isfield(d, 'lastFailure') || isempty(d.lastFailure)
+                fprintf('>>> %s No failed SmartAnalyze attempt has been recorded.\n', analysis.SmartAnalyze.logo);
+                return;
+            end
+
+            r = d.lastFailure;
+            fprintf('>>>❌ %s Last failure diagnostic\n', analysis.SmartAnalyze.logo);
+            fprintf('    Time         : %s\n', r.timestamp);
+            fprintf('    Step index   : %d\n', r.stepIndex);
+            fprintf('    Analysis     : %s\n', r.analysis);
+            fprintf('    Strategy     : %s\n', r.strategy);
+            fprintf('    Step size    : %.6e\n', r.step);
+            fprintf('    Algorithm    : %s\n', r.algorithmText);
+            fprintf('    Test         : %s, tol=%.3e, iter=%d, printFlag=%d\n', ...
+                r.testType, r.testTol, r.testIterTimes, r.testPrintFlag);
+            fprintf('    Return code  : %g\n', r.ok);
+            fprintf('    Reason       : %s\n', r.reason);
+            if isfield(r, 'partialAdvance') && r.partialAdvance
+                fprintf('    Partial step : model state may have advanced by %.6e before relaxation failed\n', ...
+                    r.partialAdvanceInfo.completedStep);
+                fprintf('                   remaining=%.6e, failedSubstep=%.6e, reason=%s\n', ...
+                    r.partialAdvanceInfo.remainingStep, ...
+                    r.partialAdvanceInfo.failedSubstep, ...
+                    r.partialAdvanceInfo.reason);
+            end
+            if isfield(r, 'suggestion') && ~isempty(r.suggestion)
+                fprintf('    Suggestion   : %s\n', r.suggestion);
+            end
+
+            if ~isempty(r.norms)
+                fprintf('    Norm history : first=%.3e, last=%.3e, min=%.3e, max=%.3e\n', ...
+                    r.trend.first, r.trend.last, r.trend.min, r.trend.max);
+                fprintf('    Norm trend   : improving=%d, stagnating=%d, diverging=%d, nonfinite=%d\n', ...
+                    r.trend.isImproving, r.trend.isStagnating, ...
+                    r.trend.isDiverging, r.trend.hasNonfinite);
+            else
+                fprintf('    Norm history : unavailable\n');
+            end
+        end
+
+        function history = getNormHistory()
+            % Get the convergence norm history collected during analysis.
+            % You can use this to inspect the norm history collected
+            % during analyze attempts. You need to enable norm history
+            % recording in the configuration before using this function.
+            %
+            % Returns
+            % -------
+            % history : struct array
+            %     Each element contains stepIndex, strategy, ok, firstNorm,
+            %     lastNorm, minNorm, maxNorm, numIter, improvementRatio,
+            %     isDiverging, and isStagnating.
+            %
+            % Example
+            % -------
+            %     history = smartAnalyze.getNormHistory();
+            %     semilogy([history.lastNorm]);
+
+            s = analysis.SmartAnalyze.state();
+            if s.cfg.recordNormHistory
+                if isempty(s.normHistory)
+                    warning('Norm history is empty.');
+                    history = struct([]);
+                else
+                    history = s.normHistory;
+                end
+            else
+                warning('Norm history is not recorded.');
+                history = struct([]);
+            end
+        end
     end
 
     methods (Static, Access = private)
@@ -695,6 +873,12 @@ classdef SmartAnalyze
             % s.logFile = ".SmartAnalyze-OpenSees.log";
             s.logo = "SmartAnalyze::";
             s.sensitivityAlgorithm = '';
+            s.currentAlgorithmType = NaN;
+            s.currentAlgorithmArgs = {};
+            s.currentTestType = 'EnergyIncr';
+            s.currentTestTol = 1e-10;
+            s.currentTestIterTimes = 10;
+            s.currentTestPrintFlag = 0;
 
             s.cfg = struct( ...
                 'analysis',          'Transient', ...
@@ -707,16 +891,24 @@ classdef SmartAnalyze
                 'testIterTimesMore', 50, ...
                 'tryLooseTestTol',   false, ...
                 'looseTestTolTo',    1e-8, ...
+                'tryAlterTestTypes', false, ...
+                'testTypesMore',     {{'NormDispIncr','NormUnbalance','RelativeEnergyIncr'}}, ...
+                'recordNormHistory', true, ...
+                'recordDiagnostics', false, ...
                 'tryAlterAlgoTypes', false, ...
                 'algoTypes',         [40 10 20 30 50 60 70 90], ...
                 'UserAlgoArgs',      {{}}, ...
+                'tryRelaxStep',      true, ...
                 'initialStep',       [], ...
                 'relaxation',        0.5, ...
                 'minStep',           1e-6, ...
-                'debugMode',         false, ...
+                'debugMode',         true, ...
                 'printPer',          20);
 
             s.cfg.looseTestTolTo = 100 * s.cfg.testTol;
+
+            s.lastNorms = [];
+            s.normHistory = [];
 
             s.progress = struct( ...
                 'tic',      tic, ...
@@ -726,6 +918,36 @@ classdef SmartAnalyze
                 'step',     0.0, ...
                 'node',     0, ...
                 'dof',      0);
+
+            s.diagnostics = struct( ...
+                'records',   {{}}, ...
+                'lastFailure', [], ...
+                'maxRecords', 200);
+        end
+
+        function clearDiagnostics()
+            % Clear SmartAnalyze diagnostic records.
+            %
+            % Example
+            % -------
+            %     smartAnalyze.clearDiagnostics();
+
+            s = analysis.SmartAnalyze.state();
+            s.diagnostics.records = {};
+            s.diagnostics.lastFailure = [];
+            analysis.SmartAnalyze.state(s);
+        end
+
+        function clearNormHistory()
+            % Clear the convergence norm history.
+            %
+            % Example
+            % -------
+            %     smartAnalyze.clearNormHistory();
+
+            s = analysis.SmartAnalyze.state();
+            s.normHistory = [];
+            analysis.SmartAnalyze.state(s);
         end
 
         function out = state(varargin)
@@ -768,6 +990,26 @@ classdef SmartAnalyze
                 s.cfg.initialStep = [];
             end
 
+            % normalize looseTestTolTo
+            t = double(s.cfg.looseTestTolTo(:)).';
+            t = t(isfinite(t) & t > 0);
+            if isempty(t)
+                t = 100 * s.cfg.testTol;
+            end
+            s.cfg.looseTestTolTo = t;
+
+            % normalize testTypesMore
+            if ~iscell(s.cfg.testTypesMore)
+                if ischar(s.cfg.testTypesMore) || isstring(s.cfg.testTypesMore)
+                    s.cfg.testTypesMore = {char(s.cfg.testTypesMore)};
+                else
+                    s.cfg.testTypesMore = {};
+                end
+            end
+            s.cfg.testTypesMore = s.cfg.testTypesMore(~cellfun('isempty', s.cfg.testTypesMore));
+
+            s.cfg.recordNormHistory = logical(s.cfg.recordNormHistory);
+            s.cfg.recordDiagnostics = logical(s.cfg.recordDiagnostics);
             s.debug = logical(s.cfg.debugMode);
         end
 
@@ -796,14 +1038,18 @@ classdef SmartAnalyze
             step = s.cfg.initialStep;
             verbose = s.debug;
 
-            ok = analysis.SmartAnalyze.analyzeOne(step, verbose);
+            ok = analysis.SmartAnalyze.analyzeOne(step, verbose, "initial");
             if ok < 0, ok = analysis.SmartAnalyze.tryAddTestTimes(step, verbose); end
             if ok < 0, ok = analysis.SmartAnalyze.tryAlterAlgo(step, verbose); end
-            if ok < 0, ok = analysis.SmartAnalyze.tryRelaxStep(step, verbose); end
+            if ok < 0, ok = analysis.SmartAnalyze.tryAlterTestTypes(step, verbose); end
             if ok < 0, ok = analysis.SmartAnalyze.tryLooseTol(step, verbose); end
+            if ok < 0 && s.cfg.tryRelaxStep, ok = analysis.SmartAnalyze.tryRelaxStep(step, verbose); end
 
             if ok < 0
                 analysis.SmartAnalyze.printStatus(false);
+                if verbose
+                    analysis.SmartAnalyze.printLastFailure();
+                end
                 return;
             end
 
@@ -859,7 +1105,11 @@ classdef SmartAnalyze
             end
         end
 
-        function ok = analyzeOne(step, verbose)
+        function ok = analyzeOne(step, verbose, strategy)
+            if nargin < 3 || strlength(string(strategy)) == 0
+                strategy = "analyzeOne";
+            end
+
             s = analysis.SmartAnalyze.state();
 
             if s.analysis == "Static"
@@ -881,9 +1131,9 @@ classdef SmartAnalyze
                 ok = s.ops.analyze(1, step);
             end
 
-            s = analysis.SmartAnalyze.state();
-            s.progress.step = step;
-            analysis.SmartAnalyze.state(s);
+            norms = analysis.SmartAnalyze.testNorms();
+            trend = analysis.SmartAnalyze.normTrend(norms);
+            analysis.SmartAnalyze.recordAttempt(strategy, step, ok, norms, trend);
         end
 
         function ok = tryAddTestTimes(step, verbose)
@@ -906,7 +1156,8 @@ classdef SmartAnalyze
                     fprintf('>>>✳️ %s Adding test times to %d.\n', s.logo, n);
                 end
                 s.ops.test(s.cfg.testType, s.cfg.testTol, n, s.cfg.testPrintFlag);
-                ok = analysis.SmartAnalyze.analyzeOne(step, verbose);
+                analysis.SmartAnalyze.setCurrentTest(s.cfg.testType, s.cfg.testTol, n, s.cfg.testPrintFlag);
+                ok = analysis.SmartAnalyze.analyzeOne(step, verbose, sprintf('tryAddTestTimes:%d', n));
                 if ok == 0
                     analysis.SmartAnalyze.setTest();
                     return;
@@ -928,7 +1179,7 @@ classdef SmartAnalyze
                     fprintf('>>>✳️ %s Setting algorithm to %d.\n', s.logo, a);
                 end
                 analysis.SmartAnalyze.setAlgorithm(a);
-                ok = analysis.SmartAnalyze.analyzeOne(step, verbose);
+                ok = analysis.SmartAnalyze.analyzeOne(step, verbose, sprintf('tryAlterAlgo:%g', a));
                 if ok == 0
                     return;
                 end
@@ -939,12 +1190,18 @@ classdef SmartAnalyze
 
         function ok = tryRelaxStep(step, verbose)
             s = analysis.SmartAnalyze.state();
+            ok = -1;
+
+            if ~s.cfg.tryRelaxStep
+                return;
+            end
+
             alpha   = abs(s.cfg.relaxation);
             minStep = abs(s.cfg.minStep);
 
             remain = step;
             stepTry = step * alpha;
-            ok = -1;
+            completed = 0.0;
 
             if verbose
                 fprintf('>>>✳️ %s Dividing current step %.3e into %.3e and %.3e.\n', ...
@@ -953,9 +1210,17 @@ classdef SmartAnalyze
 
             while abs(remain) > s.eps
                 if abs(stepTry) < minStep
+                    if abs(completed) > s.eps
+                        analysis.SmartAnalyze.flagPartialAdvance( ...
+                            step, completed, remain, stepTry, "minStepReached");
+                    end
                     if verbose
                         fprintf('>>>❌ %s Current step %.3e is below minStep %.3e.\n', ...
                             s.logo, stepTry, minStep);
+                        if abs(completed) > s.eps
+                            fprintf('>>>⚠️ %s Relaxed substeps partially advanced the model by %.3e before failure. Remaining step: %.3e.\n', ...
+                                s.logo, completed, remain);
+                        end
                     end
                     return;
                 end
@@ -964,14 +1229,15 @@ classdef SmartAnalyze
                     stepTry = remain;
                 end
 
-                ok = analysis.SmartAnalyze.analyzeOne(stepTry, verbose);
+                ok = analysis.SmartAnalyze.analyzeOne(stepTry, verbose, "tryRelaxStep");
 
                 if ok == 0
                     remain = remain - stepTry;
+                    completed = step - remain;
                     stepTry = remain;
                     if verbose
                         fprintf('>>>✳️ %s Total step %.3e, completed %.3e, remaining %.3e.\n', ...
-                            s.logo, step, step - remain, remain);
+                            s.logo, step, completed, remain);
                     end
                 else
                     stepTry = stepTry * alpha;
@@ -983,22 +1249,57 @@ classdef SmartAnalyze
             end
         end
 
-        function ok = tryLooseTol(step, verbose)
+        function ok = tryAlterTestTypes(step, verbose)
             s = analysis.SmartAnalyze.state();
             ok = -1;
-            if ~s.cfg.tryLooseTestTol
+            if ~s.cfg.tryAlterTestTypes || isempty(s.cfg.testTypesMore)
                 return;
             end
 
-            if verbose
-                fprintf('>>>✳️ %s Loosing test tolerance to %.3e.\n', ...
-                    s.logo, s.cfg.looseTestTolTo);
+            for tt = s.cfg.testTypesMore
+                ttChar = char(tt);
+                if verbose
+                    fprintf('>>>✳️ %s Switching test type to %s.\n', s.logo, ttChar);
+                end
+                s.ops.test(ttChar, s.cfg.testTol, ...
+                           s.cfg.testIterTimes, s.cfg.testPrintFlag);
+                analysis.SmartAnalyze.setCurrentTest(ttChar, s.cfg.testTol, ...
+                           s.cfg.testIterTimes, s.cfg.testPrintFlag);
+                ok = analysis.SmartAnalyze.analyzeOne(step, verbose, sprintf('tryAlterTestTypes:%s', ttChar));
+                if ok == 0
+                    analysis.SmartAnalyze.setTest();
+                    return;
+                end
             end
 
-            s.ops.test(s.cfg.testType, s.cfg.looseTestTolTo, ...
-                       s.cfg.testIterTimes, s.cfg.testPrintFlag);
+            analysis.SmartAnalyze.setTest();
+        end
 
-            ok = analysis.SmartAnalyze.analyzeOne(step, verbose);
+        function ok = tryLooseTol(step, verbose)
+            s = analysis.SmartAnalyze.state();
+            ok = -1;
+            if ~s.cfg.tryLooseTestTol || isempty(s.cfg.looseTestTolTo)
+                return;
+            end
+
+            for tol = s.cfg.looseTestTolTo
+                if verbose
+                    fprintf('>>>✳️ %s Loosing test tolerance to %.3e.\n', ...
+                        s.logo, tol);
+                end
+
+                s.ops.test(s.cfg.testType, tol, ...
+                           s.cfg.testIterTimes, s.cfg.testPrintFlag);
+                analysis.SmartAnalyze.setCurrentTest(s.cfg.testType, tol, ...
+                           s.cfg.testIterTimes, s.cfg.testPrintFlag);
+
+                ok = analysis.SmartAnalyze.analyzeOne(step, verbose, sprintf('tryLooseTol:%.3e', tol));
+                if ok == 0
+                    analysis.SmartAnalyze.setTest();
+                    return;
+                end
+            end
+
             analysis.SmartAnalyze.setTest();
         end
 
@@ -1006,6 +1307,17 @@ classdef SmartAnalyze
             s = analysis.SmartAnalyze.state();
             s.ops.test(s.cfg.testType, s.cfg.testTol, ...
                        s.cfg.testIterTimes, s.cfg.testPrintFlag);
+            analysis.SmartAnalyze.setCurrentTest(s.cfg.testType, s.cfg.testTol, ...
+                       s.cfg.testIterTimes, s.cfg.testPrintFlag);
+        end
+
+        function setCurrentTest(testType, testTol, testIterTimes, testPrintFlag)
+            s = analysis.SmartAnalyze.state();
+            s.currentTestType = testType;
+            s.currentTestTol = testTol;
+            s.currentTestIterTimes = testIterTimes;
+            s.currentTestPrintFlag = testPrintFlag;
+            analysis.SmartAnalyze.state(s);
         end
 
         function setAlgorithm(algotype)
@@ -1018,24 +1330,238 @@ classdef SmartAnalyze
             end
 
             s.ops.algorithm(args{:});
+
+            s = analysis.SmartAnalyze.state();
+            s.currentAlgorithmType = algotype;
+            s.currentAlgorithmArgs = args;
+            analysis.SmartAnalyze.state(s);
         end
 
         function n = lastNorm()
             s = analysis.SmartAnalyze.state();
-            n = inf;
+            a = s.lastNorms;
+            if isempty(a)
+                a = analysis.SmartAnalyze.testNorms();
+            end
+            a = a(isfinite(a));
+            if isempty(a)
+                n = inf;
+            else
+                n = a(end);
+            end
+        end
+
+        function norms = testNorms()
+            s = analysis.SmartAnalyze.state();
+            norms = zeros(0,1);
             try
                 a = s.ops.testNorm();
                 if isempty(a)
                     return;
                 end
-                a = double(a(:));
-                a = a(isfinite(a));
-                if ~isempty(a)
-                    n = a(end);
-                end
+                norms = double(a(:));
             catch
-                n = inf;
+                norms = zeros(0,1);
             end
+        end
+
+        function trend = normTrend(norms)
+            norms = double(norms(:));
+
+            trend = struct( ...
+                'isEmpty',       isempty(norms), ...
+                'hasNaN',        any(isnan(norms)), ...
+                'hasInf',        any(isinf(norms)), ...
+                'hasNonfinite',  any(~isfinite(norms)), ...
+                'first',         NaN, ...
+                'last',          NaN, ...
+                'min',           NaN, ...
+                'max',           NaN, ...
+                'improvementRatio', NaN, ...
+                'isImproving',   false, ...
+                'isStagnating',  false, ...
+                'isDiverging',   false);
+
+            finiteNorms = norms(isfinite(norms));
+            if isempty(finiteNorms)
+                return;
+            end
+
+            trend.isEmpty = false;
+            trend.first = finiteNorms(1);
+            trend.last  = finiteNorms(end);
+            trend.min   = min(finiteNorms);
+            trend.max   = max(finiteNorms);
+
+            denom = max(abs(trend.first), eps);
+            trend.improvementRatio = abs(trend.last) / denom;
+            trend.isImproving = trend.improvementRatio < 0.5;
+            trend.isDiverging = numel(finiteNorms) >= 2 && abs(trend.last) > abs(trend.first);
+
+            if numel(finiteNorms) >= 3
+                recent = finiteNorms(max(1,end-2):end);
+                relChange = abs(diff(recent)) ./ max(abs(recent(1:end-1)), eps);
+                trend.isStagnating = all(relChange < 1e-3);
+            end
+        end
+
+        function recordAttempt(strategy, step, ok, norms, trend)
+            s = analysis.SmartAnalyze.state();
+
+            % 缓存 norms 并更新当前步长
+            s.progress.step = step;
+            s.lastNorms = norms;
+
+            % 记录 norm history（轻量级摘要）
+            if s.cfg.recordNormHistory
+                nh = struct( ...
+                    'stepIndex', s.progress.done + 1, ...
+                    'strategy', char(string(strategy)), ...
+                    'ok', ok, ...
+                    'firstNorm', trend.first, ...
+                    'lastNorm', trend.last, ...
+                    'minNorm', trend.min, ...
+                    'maxNorm', trend.max, ...
+                    'numIter', numel(norms), ...
+                    'improvementRatio', trend.improvementRatio, ...
+                    'isDiverging', trend.isDiverging, ...
+                    'isStagnating', trend.isStagnating);
+                if isempty(s.normHistory)
+                    s.normHistory = nh;
+                else
+                    s.normHistory(end+1) = nh;
+                end
+            end
+
+            % 成功时快速返回，避免诊断记录和复杂计算的开销
+            if ok == 0
+                analysis.SmartAnalyze.state(s);
+                return;
+            end
+
+            % 失败时，仅在 recordDiagnostics 开启时记录详细诊断
+            if s.cfg.recordDiagnostics
+                rec = struct();
+                rec.timestamp = datestr(now, 'yyyy-mm-dd HH:MM:SS.FFF');
+                rec.stepIndex = s.progress.done + 1;
+                rec.analysis = char(string(s.analysis));
+                rec.strategy = char(string(strategy));
+                rec.step = step;
+                rec.ok = ok;
+                rec.success = false;
+                rec.testType = s.currentTestType;
+                rec.testTol = s.currentTestTol;
+                rec.testIterTimes = s.currentTestIterTimes;
+                rec.testPrintFlag = s.currentTestPrintFlag;
+                rec.algorithmType = s.currentAlgorithmType;
+                rec.algorithmArgs = s.currentAlgorithmArgs;
+                rec.algorithmText = analysis.SmartAnalyze.algorithmText(s.currentAlgorithmArgs);
+                rec.norms = norms;
+                rec.trend = trend;
+                rec.reason = analysis.SmartAnalyze.failureReason(ok, trend);
+                rec.partialAdvance = false;
+                rec.partialAdvanceInfo = [];
+                rec.suggestion = analysis.SmartAnalyze.convergenceSuggestion(ok, trend, rec);
+
+                if ~isfield(s, 'diagnostics') || isempty(s.diagnostics)
+                    s.diagnostics = struct('records', {{}}, 'lastFailure', [], 'maxRecords', 200);
+                end
+
+                s.diagnostics.records{end+1} = rec;
+                if isfield(s.diagnostics, 'maxRecords') && numel(s.diagnostics.records) > s.diagnostics.maxRecords
+                    s.diagnostics.records = s.diagnostics.records(end-s.diagnostics.maxRecords+1:end);
+                end
+                s.diagnostics.lastFailure = rec;
+            end
+
+            analysis.SmartAnalyze.state(s);
+        end
+
+        function reason = failureReason(ok, trend)
+            if ok == 0
+                reason = 'converged';
+                return;
+            end
+
+            if trend.hasNonfinite
+                reason = 'nonfinite convergence norm detected';
+            elseif trend.isEmpty
+                reason = 'convergence norm unavailable';
+            elseif trend.isDiverging
+                reason = 'convergence norm is diverging';
+            elseif trend.isStagnating
+                reason = 'convergence norm is stagnating';
+            elseif trend.isImproving
+                reason = 'convergence norm is improving but did not reach tolerance';
+            else
+                reason = 'analysis command returned a failure code';
+            end
+        end
+
+        function suggestion = convergenceSuggestion(ok, trend, rec)
+            if ok == 0
+                suggestion = 'No action needed.';
+                return;
+            end
+
+            if trend.hasNonfinite
+                suggestion = 'Detected NaN/Inf convergence norms. Try reducing the step size, checking material state limits, and switching to a robust line-search algorithm.';
+            elseif trend.isEmpty
+                suggestion = 'OpenSees did not provide convergence norms. Enable test print output, inspect the OpenSees warning log, and check whether the system/integrator failed before the convergence test ran.';
+            elseif trend.isDiverging
+                suggestion = 'The convergence norm is growing. Try a smaller step, NewtonLineSearch, KrylovNewton, or a more stable constraint/system configuration.';
+            elseif trend.isStagnating
+                suggestion = 'The convergence norm is stagnating. Try changing the convergence test type, switching algorithms, or using a smaller step size.';
+            elseif trend.isImproving
+                suggestion = 'The convergence norm is decreasing but not enough. Try increasing testIterTimes, using tryAddTestTimes, or loosening testTol within an acceptable engineering tolerance.';
+            elseif contains(rec.strategy, 'tryRelaxStep')
+                suggestion = 'Step relaxation failed. Consider reducing the target step size, increasing relaxation, decreasing minStep, or checking for severe local nonlinearities.';
+            elseif contains(rec.strategy, 'tryAlterAlgo')
+                suggestion = 'Algorithm switching failed. Add more algorithm candidates, especially NewtonLineSearch variants, ModifiedNewton, BFGS, or Broyden.';
+            elseif contains(rec.strategy, 'tryLooseTol')
+                suggestion = 'Loose tolerance retry failed. The issue is likely not only tolerance-related; try smaller steps or a different algorithm/test type.';
+            else
+                suggestion = 'Try enabling tryAddTestTimes, tryAlterAlgoTypes, and tryLooseTestTol, then inspect the recorded norm trend and OpenSees warning messages.';
+            end
+        end
+
+        function flagPartialAdvance(totalStep, completedStep, remainingStep, failedSubstep, reason)
+            s = analysis.SmartAnalyze.state();
+
+            info = struct( ...
+                'totalStep',     totalStep, ...
+                'completedStep', completedStep, ...
+                'remainingStep', remainingStep, ...
+                'failedSubstep', failedSubstep, ...
+                'reason',        char(string(reason)));
+
+            if ~isfield(s, 'diagnostics') || isempty(s.diagnostics)
+                s.diagnostics = struct('records', {{}}, 'lastFailure', [], 'maxRecords', 200);
+            end
+
+            if ~isempty(s.diagnostics.records)
+                rec = s.diagnostics.records{end};
+                rec.partialAdvance = true;
+                rec.partialAdvanceInfo = info;
+                rec.reason = sprintf('%s; partial model advancement detected', rec.reason);
+                rec.suggestion = [rec.suggestion, ...
+                    ' The OpenSees model state may already be partially advanced; avoid applying another whole-step retry unless the model can be restored.'];
+                s.diagnostics.records{end} = rec;
+
+                if ~isempty(s.diagnostics.lastFailure)
+                    s.diagnostics.lastFailure = rec;
+                end
+            end
+
+            analysis.SmartAnalyze.state(s);
+        end
+
+        function txt = algorithmText(args)
+            if isempty(args)
+                txt = '<unset>';
+                return;
+            end
+            txt = strjoin(cellfun(@analysis.SmartAnalyze.toText, args, 'UniformOutput', false), ' ');
         end
 
         function args = algorithmArgs(algotype, userArgs)
@@ -1049,7 +1575,7 @@ classdef SmartAnalyze
 
                 case 10, args = {'Newton'};
                 case 11, args = {'Newton','-Initial'};
-                case 12, args = {'Newton','-intialThenCurrent'};
+                case 12, args = {'Newton','-initialThenCurrent'};
                 case 13, args = {'Newton','-Secant'};
 
                 case 20, args = {'NewtonLineSearch'};
