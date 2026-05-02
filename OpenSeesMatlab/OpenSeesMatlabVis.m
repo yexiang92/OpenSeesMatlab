@@ -405,10 +405,55 @@ classdef OpenSeesMatlabVis < handle
             %     - If "Max", the step with the maximum response will be visualized.
             %     - If "Min", the step with the minimum response will be visualized.
             %     - If an integer, the step with the specified index will be visualized.
+            %
+            %     For large response histories, passing a numeric step index is
+            %     faster than using "absMax", "absMin", "Max", or "Min", because
+            %     those string selectors scan all analysis steps to find the
+            %     requested peak step.
             % opts : struct, optional
             %     Visualization options. Use ``vis.defaultPlotFrameResponseOptions`` to get default options.
+            %     For large frame models, the following options can significantly
+            %     reduce plotting time:
+            %
+            %     - opts.showMaxMinLabel = "none" or "global" to avoid creating
+            %       one or more text labels per element.
+            %     - opts.performance.fastMode = true to skip expensive auxiliary
+            %       geometry such as unstructured wireframes and element/all labels.
+            %       In fast mode, color limits also use the current step unless
+            %       opts.color.clim is explicitly specified.
+            %     - opts.performance.maxElementLabels = N to automatically skip
+            %       element/all labels when the number of beam elements exceeds N.
+            %       Use Inf to disable this automatic limit.
+            %     - opts.performance.maxSectionsPerElement = N to downsample
+            %       section-point diagrams for each beam element. Use Inf to keep
+            %       all recorded section points.
+            %     - opts.surf.show = false to skip non-frame surface wireframes.
+            %     - opts.color.climMode = "current" to compute color limits from
+            %       only the plotted step. Use "global" only when consistent color
+            %       limits across all steps are required.
+            %     - opts.color.clim = [cmin cmax] to use fixed color limits and
+            %       avoid scanning response data for color limits.
+            %     - opts.cbar.show = false to skip colorbar creation/update.
+            %     - opts.color.useColormap = false to use a solid color diagram.
+            %
             % ax : matlab.graphics.axis.Axes, optional
             %     Target axes. If omitted, a new figure/axes will be created.
+            %
+            % Large-model example
+            % -------------------
+            %     opts = opsmat.vis.defaultPlotFrameResponseOptions;
+            %     opts.showMaxMinLabel = "none";
+            %     opts.performance.fastMode = true;
+            %     opts.performance.maxSectionsPerElement = 12;
+            %     opts.surf.show = false;
+            %     opts.cbar.show = false;
+            %     opts.color.useColormap = false;
+            %
+            %     opsmat.vis.plotFrameResponse(frameRespData, ...
+            %         respType="sectionForces", ...
+            %         respComponent="MZ", ...
+            %         stepIdx=0, ...  % numeric step index is faster than "absMax"
+            %         opts=opts);
 
             arguments
                 obj (1,1) OpenSeesMatlabVis

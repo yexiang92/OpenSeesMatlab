@@ -36,3 +36,6 @@
         - transientAnalyze
         - setSensitivityAlgorithm
         - getState
+        - getNormHistory
+        - getDiagnostics
+        - printLastFailure
