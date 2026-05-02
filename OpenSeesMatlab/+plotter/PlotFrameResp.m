@@ -14,6 +14,33 @@ classdef PlotFrameResp < handle
     %   frameResp.sectionLocs      – struct with .data [nStep x nEle x nSec x nLocDof]
     %   frameResp.eleTags          – [nEle x 1]
     %   frameResp.time             – [nStep x 1]
+    %
+    % Performance tips for large beam models
+    % --------------------------------------
+    %   Frame response plotting can become slow when a model contains many beam
+    %   elements, especially if per-element text labels or auxiliary wireframes
+    %   are enabled. For large models, start from the default options and disable
+    %   expensive decorations:
+    %
+    %       opts = plotter.PlotFrameResp.defaultOptions();
+    %       opts.showMaxMinLabel = 'none';          % avoid one or more text labels per element
+    %       opts.performance.fastMode = true;       % skip expensive auxiliary geometry/labels
+    %       opts.performance.maxSectionsPerElement = 12; % downsample section points per element
+    %       opts.surf.show = false;                 % skip non-frame unstructured wireframe
+    %       opts.cbar.show = false;                 % skip colorbar creation/update
+    %       opts.color.useColormap = false;         % use a solid-color diagram
+    %
+    %   If color mapping is still needed, the default color limit mode uses only
+    %   the current step. Providing fixed color limits is fastest and avoids any
+    %   color-limit scan:
+    %
+    %       opts.color.useColormap = true;
+    %       opts.color.climMode = 'current';      % 'current' | 'global'
+    %       opts.color.clim = [-1.0e3, 1.0e3];   % optional fixed limits
+    %
+    %   The default performance.maxElementLabels setting automatically suppresses
+    %   element/all labels when the beam-element count is large. Set it to Inf
+    %   only when all labels are explicitly required.
 
     % =====================================================================
     properties
@@ -37,6 +64,7 @@ classdef PlotFrameResp < handle
         PeakCache        struct = struct('absmax',[],'absmin',[],'max',[],'min',[])
         DiagScaleCache   double = NaN
         DiagScaleStep    double = NaN
+        CurrentClimCache double = []
     end
 
     % =====================================================================
@@ -56,6 +84,7 @@ classdef PlotFrameResp < handle
 
             opts.color = struct( ...
                 'useColormap',true, 'colormap',jet(256), 'clim',[], ...
+                'climMode','current', ...
                 'solidColor','blue', 'faceAlpha',1.0, ...
                 'wireColor','blue', 'wireWidth',1.2, ...
                 'zeroLineColor','black', 'zeroLineWidth',0.7, ...
@@ -67,9 +96,20 @@ classdef PlotFrameResp < handle
 
             opts.surf = struct('show',true, 'lineColor','#d8dcd6', 'lineWidth',0.8);
 
+            % Performance options for large frame models.
+            % fastMode skips expensive auxiliary geometry/labels.
+            % maxElementLabels automatically suppresses element/all labels above
+            % the specified beam-element count. Use Inf to disable this limit.
+            % maxSectionsPerElement downsamples section-point diagrams. Use Inf
+            % to keep all section points.
+            opts.performance = struct( ...
+                'fastMode',false, ...
+                'maxElementLabels',200, ...
+                'maxSectionsPerElement',24);
+
             % 'none' | 'global' | 'element' | 'all'
             % true/false also accepted for backward compatibility.
-            opts.showMaxMinLabel = 'element';
+            opts.showMaxMinLabel = 'global';
             opts.labelFontSize   = 9;
 
             opts.cbar = struct('show',true, 'label','');
@@ -113,6 +153,7 @@ classdef PlotFrameResp < handle
 
             if ~strcmp(prev, now) || ~strcmp(prevScaleMode, nowScaleMode)
                 obj.GlobalClimCache = [];
+                obj.CurrentClimCache = [];
                 obj.PeakCache       = struct('absmax',[],'absmin',[],'max',[],'min',[]);
                 obj.DiagScaleCache  = NaN;
                 obj.DiagScaleStep   = NaN;
@@ -124,6 +165,7 @@ classdef PlotFrameResp < handle
                 obj.setOptions(opts);
             end
             stepIdx = obj.resolveStep(stepIdx);
+            obj.CurrentClimCache = [];
             obj.prepAxes();
             obj.Handles = struct();
             obj.render(stepIdx);
@@ -131,6 +173,12 @@ classdef PlotFrameResp < handle
         end
 
         function [cmin, cmax] = globalClim(obj)
+            if ~isempty(obj.Opts.color.clim) && numel(obj.Opts.color.clim) == 2
+                cmin = obj.Opts.color.clim(1);
+                cmax = obj.Opts.color.clim(2);
+                return;
+            end
+
             if ~isempty(obj.GlobalClimCache) && ...
                strcmp(obj.GlobalClimField, char(string(obj.Opts.respType))) && ...
                strcmp(obj.GlobalClimComp,  char(string(obj.Opts.component)))
@@ -172,7 +220,7 @@ classdef PlotFrameResp < handle
                 if obj.Opts.showBeamModel && ~isempty(info.conn)
                     obj.drawModelLines(P, info.conn);
                 end
-                if obj.Opts.surf.show
+                if obj.Opts.surf.show && ~obj.Opts.performance.fastMode
                     try
                         obj.drawUnstructuredWireframe(P, stepIdx);
                     catch ME
@@ -200,7 +248,7 @@ classdef PlotFrameResp < handle
                     obj.drawZeroLines(eleStart, eleEnd);
                 end
 
-                if ~strcmp(obj.resolveLabelMode(),'none') && ~isempty(vals)
+                if obj.shouldAnnotate(numel(eleStart)) && ~isempty(vals)
                     obj.annotate(basePts, tipPts, vals, eleStart, eleEnd);
                 end
             end
@@ -302,74 +350,124 @@ classdef PlotFrameResp < handle
             locPerEle = obj.secLocs(stepIdx);
             nEle      = size(info.conn,1);
 
-            basePts  = zeros(0,3);  tipPts = zeros(0,3);
-            vals     = zeros(0,1);
-            eleStart = zeros(nEle,1);  eleEnd = zeros(nEle,1);
+            nPerEle  = zeros(nEle,1);
+            eleStart = zeros(nEle,1);
+            eleEnd   = zeros(nEle,1);
 
+            totalPts = 0;
             for e = 1:nEle
                 v = valPerEle{e}(:);
                 s = locPerEle{e}(:);
-                if isempty(v)||isempty(s), continue; end
+                if isempty(v) || isempty(s), continue; end
 
-                n = min(numel(v),numel(s));
-                v = v(1:n);  s = s(1:n);
+                n = min(numel(v), numel(s));
+                idx = obj.sectionSampleIndex(n);
+                nPerEle(e) = numel(idx);
+                totalPts = totalPts + nPerEle(e);
+            end
+
+            basePts = zeros(totalPts,3);
+            tipPts  = zeros(totalPts,3);
+            vals    = zeros(totalPts,1);
+
+            row0 = 1;
+            for e = 1:nEle
+                n = nPerEle(e);
+                if n == 0, continue; end
+
+                rawN = min(numel(valPerEle{e}), numel(locPerEle{e}));
+                idx = obj.sectionSampleIndex(rawN);
+                v = valPerEle{e}(idx);
+                s = locPerEle{e}(idx);
+                n = numel(idx);
 
                 p1   = P(info.conn(e,1),:);
                 p2   = P(info.conn(e,2),:);
                 axis = info.plotAxis(e,:);
 
-                base = p1 + s .* (p2 - p1);
-                tip  = base + sc .* v .* axis;
+                rows = row0:(row0+n-1);
+                basePts(rows,:) = p1 + s(:) .* (p2 - p1);
+                tipPts(rows,:)  = basePts(rows,:) + sc .* v(:) .* axis;
+                vals(rows)      = v(:);
 
-                row0 = size(basePts,1) + 1;
                 eleStart(e) = row0;
                 eleEnd(e)   = row0 + n - 1;
-
-                basePts = [basePts; base]; %#ok<AGROW>
-                tipPts  = [tipPts;  tip];  %#ok<AGROW>
-                vals    = [vals;    v];    %#ok<AGROW>
+                row0 = row0 + n;
             end
         end
 
         function drawSurface(obj, basePts, tipPts, vals, eleStart, eleEnd)
-            allNodes   = zeros(0,3);
-            allTris    = zeros(0,3);
-            allScalars = zeros(0,1);
-            [cmin, cmax] = obj.globalClim();
+            [cmin, cmax] = obj.colorLimits(vals);
+            splitAtZero = obj.Opts.color.useColormap && ~obj.Opts.performance.fastMode;
 
             nEle = numel(eleStart);
+            nNode = 0;
+            nTri  = 0;
+
             for e = 1:nEle
                 r0 = eleStart(e);  r1 = eleEnd(e);
                 if r0==0||r1<r0, continue; end
 
-                base = basePts(r0:r1,:);  tip = tipPts(r0:r1,:);
-                v    = vals(r0:r1);       n   = size(base,1);
-                nBase = size(allNodes,1);
-                pts   = zeros(0,3);  scl = zeros(0,1);
+                v = vals(r0:r1);
+                n = numel(v);
+                for seg = 1:n-1
+                    if ~splitAtZero || v(seg)*v(seg+1) >= 0
+                        nNode = nNode + 4;
+                    else
+                        nNode = nNode + 6;
+                    end
+                    nTri = nTri + 2;
+                end
+            end
+
+            if nNode == 0 || nTri == 0
+                return;
+            end
+
+            allNodes   = zeros(nNode,3);
+            allTris    = zeros(nTri,3);
+            allScalars = zeros(nNode,1);
+
+            nodeIdx = 1;
+            triIdx  = 1;
+
+            for e = 1:nEle
+                r0 = eleStart(e);  r1 = eleEnd(e);
+                if r0==0||r1<r0, continue; end
+
+                base = basePts(r0:r1,:);
+                tip  = tipPts(r0:r1,:);
+                v    = vals(r0:r1);
+                n    = size(base,1);
 
                 for seg = 1:n-1
-                    v0=v(seg); v1=v(seg+1);
-                    b0=base(seg,:); b1=base(seg+1,:);
-                    t0=tip(seg,:);  t1=tip(seg+1,:);
-                    if v0*v1 >= 0
-                        i = nBase + size(pts,1);
-                        pts = [pts; b0;t0;b1;t1]; %#ok<AGROW>
-                        scl = [scl; v0;v0;v1;v1]; %#ok<AGROW>
-                        allTris = [allTris; i+1,i+2,i+3; i+2,i+4,i+3]; %#ok<AGROW>
+                    v0 = v(seg);     v1 = v(seg+1);
+                    b0 = base(seg,:); b1 = base(seg+1,:);
+                    t0 = tip(seg,:);  t1 = tip(seg+1,:);
+
+                    if ~splitAtZero || v0*v1 >= 0
+                        ids = nodeIdx:nodeIdx+3;
+                        allNodes(ids,:) = [b0; t0; b1; t1];
+                        allScalars(ids) = [v0; v0; v1; v1];
+                        allTris(triIdx:triIdx+1,:) = [ ...
+                            ids(1), ids(2), ids(3); ...
+                            ids(2), ids(4), ids(3)];
+                        nodeIdx = nodeIdx + 4;
                     else
                         tc  = v0/(v0-v1);
                         zPt = b0 + tc*(b1-b0);
-                        i   = nBase + size(pts,1);
-                        pts = [pts; b0;t0;zPt;b1;t1;zPt]; %#ok<AGROW>
-                        scl = [scl; v0;v0;0;v1;v1;0];     %#ok<AGROW>
-                        allTris = [allTris; i+1,i+2,i+3; i+4,i+5,i+6]; %#ok<AGROW>
+                        ids = nodeIdx:nodeIdx+5;
+                        allNodes(ids,:) = [b0; t0; zPt; b1; t1; zPt];
+                        allScalars(ids) = [v0; v0; 0; v1; v1; 0];
+                        allTris(triIdx:triIdx+1,:) = [ ...
+                            ids(1), ids(2), ids(3); ...
+                            ids(4), ids(5), ids(6)];
+                        nodeIdx = nodeIdx + 6;
                     end
-                end
-                allNodes   = [allNodes;   pts]; %#ok<AGROW>
-                allScalars = [allScalars; scl]; %#ok<AGROW>
-            end
 
-            if isempty(allNodes), return; end
+                    triIdx = triIdx + 2;
+                end
+            end
 
             s.nodes     = allNodes;
             s.tris      = allTris;
@@ -388,39 +486,68 @@ classdef PlotFrameResp < handle
         end
 
         function drawWireframe(obj, basePts, tipPts, vals, eleStart, eleEnd)
-            [cmin, cmax] = obj.globalClim();
+            [cmin, cmax] = obj.colorLimits(vals);
+
+            tipNodes = zeros(0,3);
+            tipLines = zeros(0,2);
+            tipVals  = zeros(0,1);
+
+            vertNodes = zeros(0,3);
+            vertLines = zeros(0,2);
+            vertVals  = zeros(0,1);
+
             nEle = numel(eleStart);
             for e = 1:nEle
-                r0=eleStart(e); r1=eleEnd(e);
-                if r0==0||r1<r0, continue; end
-                base=basePts(r0:r1,:); tip=tipPts(r0:r1,:);
-                v=vals(r0:r1); n=size(base,1);
+                r0 = eleStart(e); r1 = eleEnd(e);
+                if r0 == 0 || r1 < r0, continue; end
 
-                s.nodes     = [base(1,:); tip; base(end,:)];
-                s.lines     = [(1:n+1)',(2:n+2)'];
+                base = basePts(r0:r1,:);
+                tip  = tipPts(r0:r1,:);
+                v    = vals(r0:r1);
+                n    = size(base,1);
+
+                i0 = size(tipNodes,1);
+                tipNodes = [tipNodes; base(1,:); tip; base(end,:)]; %#ok<AGROW>
+                tipLines = [tipLines; i0 + [(1:n+1)', (2:n+2)']]; %#ok<AGROW>
+                tipVals  = [tipVals; 0; v; 0]; %#ok<AGROW>
+
+                j0 = size(vertNodes,1);
+                vertNodes = [vertNodes; base; tip]; %#ok<AGROW>
+                vertLines = [vertLines; j0 + [(1:n)', (n+1:2*n)']]; %#ok<AGROW>
+                vertVals  = [vertVals; v; v]; %#ok<AGROW>
+            end
+
+            if ~isempty(tipNodes)
+                s.nodes     = tipNodes;
+                s.lines     = tipLines;
                 s.lineWidth = obj.Opts.color.wireWidth;
                 s.lineStyle = '-';
-                s.tag       = sprintf('DiagTip_%d',e);
-                tipV = [0;v;0];
+                s.tag       = 'DiagramTip';
                 if obj.Opts.color.useColormap
-                    s.values=tipV; s.cmap=obj.Opts.color.colormap;
-                    s.clim=obj.climVal(cmin,cmax);
-                    obj.Plotter.addColoredLine(s);
+                    s.values = tipVals;
+                    s.cmap   = obj.Opts.color.colormap;
+                    s.clim   = obj.climVal(cmin,cmax);
+                    obj.Handles.DiagramTip = obj.Plotter.addColoredLine(s);
                 else
-                    s.color=obj.Opts.color.wireColor;
-                    obj.Plotter.addLine(s);
+                    s.color = obj.Opts.color.wireColor;
+                    obj.Handles.DiagramTip = obj.Plotter.addLine(s);
                 end
+            end
 
-                sv.nodes=[base;tip]; sv.lines=[(1:n)',(n+1:2*n)'];
-                sv.lineWidth=obj.Opts.color.wireWidth*0.6;
-                sv.lineStyle='-'; sv.tag=sprintf('DiagVert_%d',e);
+            if ~isempty(vertNodes)
+                sv.nodes     = vertNodes;
+                sv.lines     = vertLines;
+                sv.lineWidth = obj.Opts.color.wireWidth * 0.6;
+                sv.lineStyle = '-';
+                sv.tag       = 'DiagramVert';
                 if obj.Opts.color.useColormap
-                    sv.values=[v;v]; sv.cmap=obj.Opts.color.colormap;
-                    sv.clim=obj.climVal(cmin,cmax);
-                    obj.Plotter.addColoredLine(sv);
+                    sv.values = vertVals;
+                    sv.cmap   = obj.Opts.color.colormap;
+                    sv.clim   = obj.climVal(cmin,cmax);
+                    obj.Handles.DiagramVert = obj.Plotter.addColoredLine(sv);
                 else
-                    sv.color=obj.Opts.color.wireColor;
-                    obj.Plotter.addLine(sv);
+                    sv.color = obj.Opts.color.wireColor;
+                    obj.Handles.DiagramVert = obj.Plotter.addLine(sv);
                 end
             end
         end
@@ -487,6 +614,26 @@ classdef PlotFrameResp < handle
             mode = lower(strtrim(char(string(v))));
             if ~ismember(mode, {'none','global','element','all'})
                 mode = 'global';
+            end
+        end
+
+        function tf = shouldAnnotate(obj, nEle)
+            mode = obj.resolveLabelMode();
+            tf = ~strcmp(mode, 'none');
+            if ~tf
+                return;
+            end
+
+            if obj.Opts.performance.fastMode
+                tf = strcmp(mode, 'global');
+                return;
+            end
+
+            maxElementLabels = obj.Opts.performance.maxElementLabels;
+            if isnumeric(maxElementLabels) && isscalar(maxElementLabels) && ...
+               isfinite(maxElementLabels) && nEle > maxElementLabels && ...
+               ismember(mode, {'element','all'})
+                tf = false;
             end
         end
 
@@ -609,10 +756,13 @@ classdef PlotFrameResp < handle
                 nEle = numel(beamTags);
             end
             perEle = cell(nEle,1);
+            respForUniform = [];
 
             function locs = uniform(e_)
-                re = obj.respPerEle(stepIdx);
-                n_ = max(numel(re{e_}),2);
+                if isempty(respForUniform)
+                    respForUniform = obj.respPerEle(stepIdx);
+                end
+                n_ = max(numel(respForUniform{e_}),2);
                 locs = linspace(0,1,n_).';
             end
 
@@ -1130,11 +1280,93 @@ classdef PlotFrameResp < handle
                 si = si + 1; % Convert from 0-based to 1-based index
                 si=max(1,min(obj.nSteps(),round(si))); return;
             end
-            key=obj.normalizeStepSelector(si);
+
+            key = obj.normalizeStepSelector(si);
             if isfield(obj.PeakCache,key)&&~isempty(obj.PeakCache.(key))
                 si=obj.PeakCache.(key); return;
             end
-            n=obj.nSteps(); vals=obj.initStepSelectorValues(key, n);
+
+            vals = obj.peakStepValues(key);
+            if isempty(vals)
+                si = 1;
+                obj.PeakCache.(key)=si;
+                return;
+            end
+
+            switch key
+                case {'absmax','max'}
+                    [~,si]=max(vals, [], 'omitnan');
+                case {'absmin','min'}
+                    [~,si]=min(vals, [], 'omitnan');
+                otherwise
+                    error('PlotFrameResp:BadStep', ...
+                        'Unknown key "%s". Use absmax|absmin|max|min or stepMax-style aliases.',key);
+            end
+
+            if isempty(si) || ~isfinite(si)
+                si = 1;
+            end
+            obj.PeakCache.(key)=si;
+        end
+
+        function vals = peakStepValues(obj, key)
+            vals = obj.peakStepValuesFast(key);
+            if isempty(vals)
+                vals = obj.peakStepValuesSlow(key);
+            end
+        end
+
+        function vals = peakStepValuesFast(obj, key)
+            vals = [];
+
+            % Keep model-update cases on the conservative path because active
+            % element rows can change by step.
+            if obj.ModelUpdateFlag
+                return;
+            end
+
+            rt   = obj.normalizeRespType(obj.Opts.respType);
+            comp = char(string(obj.Opts.component));
+            A    = obj.getRespData(rt);
+            if isempty(A)
+                return;
+            end
+
+            D = obj.selectRespComponentAllSteps(A, rt, comp);
+            if isempty(D)
+                return;
+            end
+
+            D = double(D);
+            if isempty(D) || size(D,1) == 0
+                return;
+            end
+
+            M = reshape(D, size(D,1), []);
+            M(~isfinite(M)) = NaN;
+
+            switch key
+                case {'absmax','absmin'}
+                    vals = max(abs(M), [], 2, 'omitnan');
+                case 'max'
+                    vals = max(M, [], 2, 'omitnan');
+                case 'min'
+                    vals = min(M, [], 2, 'omitnan');
+                otherwise
+                    vals = [];
+                    return;
+            end
+
+            vals = vals(:);
+            if all(~isfinite(vals))
+                vals = [];
+            end
+        end
+
+        function vals = peakStepValuesSlow(obj, key)
+            n = obj.nSteps();
+            vals = obj.initStepSelectorValues(key, n);
+
             for k=1:n
                 v=obj.respFlat(k); v=v(isfinite(v));
                 if isempty(v), continue; end
@@ -1147,11 +1379,29 @@ classdef PlotFrameResp < handle
                             'Unknown key "%s". Use absmax|absmin|max|min or stepMax-style aliases.',key);
                 end
             end
-            switch key
-                case {'absmax','max'}, [~,si]=max(vals, [], 'omitnan');
-                case {'absmin','min'}, [~,si]=min(vals, [], 'omitnan');
+
+            vals = vals(:);
+            if all(~isfinite(vals))
+                vals = [];
             end
-            obj.PeakCache.(key)=si;
+        end
+
+        function D = selectRespComponentAllSteps(obj, A, rt, comp)
+            D = [];
+            ci = obj.compIdx(rt, comp, obj.getRespDofs(rt));
+            nd = ndims(A);
+
+            if nd == 3
+                % [nStep x nEle x nComp]
+                if ci > 0 && ci <= size(A,3)
+                    D = A(:,:,ci);
+                end
+            elseif nd == 4
+                % [nStep x nEle x nSec x nComp]
+                if ci > 0 && ci <= size(A,4)
+                    D = A(:,:,:,ci);
+                end
+            end
         end
 
         function rt = normalizeRespType(obj, rt)
@@ -1292,7 +1542,7 @@ classdef PlotFrameResp < handle
             if ~obj.Opts.color.useColormap||~obj.Opts.cbar.show
                 colorbar(obj.Ax,'off'); return;
             end
-            [cmin,cmax]=obj.globalClim();
+            [cmin,cmax]=obj.colorLimits([]);
             clim(obj.Ax,obj.climVal(cmin,cmax));
             cb=colorbar(obj.Ax);
             cb.FontSize=11; cb.TickDirection='in';
@@ -1321,9 +1571,62 @@ classdef PlotFrameResp < handle
             end
         end
 
+        function [cmin, cmax] = colorLimits(obj, vals)
+            if ~isempty(obj.Opts.color.clim) && numel(obj.Opts.color.clim) == 2
+                cmin = obj.Opts.color.clim(1);
+                cmax = obj.Opts.color.clim(2);
+                return;
+            end
+
+            mode = lower(strtrim(char(string(obj.Opts.color.climMode))));
+            useCurrent = strcmp(mode, 'current') || obj.Opts.performance.fastMode;
+
+            if useCurrent && nargin >= 2 && ~isempty(vals)
+                v = vals(isfinite(vals));
+                if isempty(v)
+                    cmin = 0; cmax = 1;
+                else
+                    cmin = min(v);
+                    cmax = max(v);
+                    if cmin == cmax, cmax = cmin + 1; end
+                end
+                obj.CurrentClimCache = [cmin cmax];
+                return;
+            end
+
+            if useCurrent && ~isempty(obj.CurrentClimCache)
+                cmin = obj.CurrentClimCache(1);
+                cmax = obj.CurrentClimCache(2);
+                return;
+            end
+
+            [cmin, cmax] = obj.globalClim();
+        end
+
         % =================================================================
         % Utilities
         % =================================================================
+
+        function idx = sectionSampleIndex(obj, n)
+            if n <= 0
+                idx = zeros(0,1);
+                return;
+            end
+
+            maxN = obj.Opts.performance.maxSectionsPerElement;
+            if ~(isnumeric(maxN) && isscalar(maxN) && isfinite(maxN) && maxN >= 2) || n <= maxN
+                idx = (1:n).';
+                return;
+            end
+
+            idx = unique(round(linspace(1, n, maxN))).';
+            if idx(1) ~= 1
+                idx = [1; idx(:)];
+            end
+            if idx(end) ~= n
+                idx = [idx(:); n];
+            end
+        end
 
         function dim = modelDim(~, P)
             if isempty(P)||size(P,2)<3, dim=2; return; end
