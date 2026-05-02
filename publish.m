@@ -17,7 +17,7 @@ clc;
 %% =========================
 % User-specified version
 % =========================
-version = "3.8.0.0";   % <-- manually set toolbox version here
+version = "3.8.0.1";   % <-- manually set toolbox version here
 
 %% Project root
 projectRoot = fileparts(mfilename("fullpath"));
@@ -64,7 +64,15 @@ if isfile(generatedMltbxFile)
 end
 
 fprintf("Packaging toolbox from project...\n");
-matlab.addons.toolbox.packageToolbox(prjFile, generatedMltbxFile);
+
+opts = matlab.addons.toolbox.ToolboxOptions(prjFile);
+
+opts.ToolboxVersion = version;
+opts.MinimumMatlabRelease = "R2023a";
+opts.MaximumMatlabRelease = "";
+opts.OutputFile = generatedMltbxFile;
+
+matlab.addons.toolbox.packageToolbox(opts);
 
 if ~isfile(generatedMltbxFile)
     error("Failed to generate toolbox package: %s", generatedMltbxFile);
