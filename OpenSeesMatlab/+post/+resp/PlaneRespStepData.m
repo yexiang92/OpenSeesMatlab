@@ -19,6 +19,9 @@ classdef PlaneRespStepData < post.resp.ResponseBase
     %
     % Performance design
     % ------------------
+    %  * Raw MEX handle (mex_) cached at construction; passed to all local
+    %    helpers so every eleResponse / eleNodes call goes directly to MEX
+    %    without wrapper method-dispatch overhead.
     %  * Per-element metadata (nGP, nDof, classTag, nodeList) resolved once
     %    on first encounter and stored in typed caches.
     %  * Output arrays pre-allocated to known size before element loop.
@@ -42,36 +45,35 @@ classdef PlaneRespStepData < post.resp.ResponseBase
     properties
         eleTags             double    % [1 x nEle]
         computeNodalResp    logical   = false
-        nodalRespMethod     char      = 'extrapolation'  % 'extrapolation' (default), 'average', 'copy'
+        nodalRespMethod     char      = 'extrapolation'
         includePorePressure logical   = false
 
-        % Stress-measure flags (set any to true to enable)
         measurePrincipal    logical   = false
         measureVonMises     logical   = false
         measureTauMax       logical   = false
         measureOctahedral   logical   = false
-        % Advanced failure criteria (set params or leave empty to skip)
-        measureMohrCoulombSy   double = []  % [syc, syt]
-        measureMohrCoulombCPhi double = []  % [c, phi_rad]
-        measureDruckerPragerSy double = []  % [syc, syt]
-        measureDruckerPragerCPhi cell = {}  % {c, phi, kind}
+        measureMohrCoulombSy   double = []
+        measureMohrCoulombCPhi double = []
+        measureDruckerPragerSy double = []
+        measureDruckerPragerCPhi cell = {}
 
-        % Populated on first step
         gaussPoints         double
         stressDofs          cell
         strainDofs          cell
-        nodeTags            double    % [1 x nNode]
-        measureDofs         cell      % labels for StressMeasures
+        nodeTags            double
+        measureDofs         cell
 
-        % ---- per-element caches ----------------------------------------
-        eleClassCache       containers.Map   % eleTag -> int32
-        eleNGPCache         containers.Map   % eleTag -> int32  (0 = no data)
-        eleNStressCache     containers.Map   % eleTag -> int32  nStressDof
-        eleNStrainCache     containers.Map   % eleTag -> int32  nStrainDof
-        eleNodeCache        containers.Map   % eleTag -> [1 x nNode] double
+        eleClassCache       containers.Map
+        eleNGPCache         containers.Map
+        eleNStressCache     containers.Map
+        eleNStrainCache     containers.Map
+        eleNodeCache        containers.Map
 
-        % Global compact node-index map
-        nodeIndexMap        containers.Map   % nodeTag(double) -> int32
+        nodeIndexMap        containers.Map
+    end
+
+    % =====================================================================
+    properties (Access = private)
     end
 
     % =====================================================================
@@ -79,25 +81,16 @@ classdef PlaneRespStepData < post.resp.ResponseBase
 
         function obj = PlaneRespStepData(ops, eleTags, varargin)
             % PlaneRespStepData(ops, eleTags, Name, Value, ...)
-            %
-            % Name-Value options (consumed here; remainder forwarded to ResponseBase):
-            %   'computeNodalResp'      char method or '' (default: disabled)
-            %   'includePorePressure'   logical (default: false)
-            %   'measures'              char or cellstr: 'all' or subset of
-            %                           {'principal','von_mises','tau_max','octahedral'}
-            %   'measureMohrCoulombSy'  [syc, syt]
-            %   'measureMohrCoulombCPhi' [c, phi_rad]
-            %   'measureDruckerPragerSy' [syc, syt]
-            %   'measureDruckerPragerCPhi' cell = {c, phi, kind}
 
             [nodalMethod, porePressure, measureOpts, baseArgs] = ...
                 plane_parse_options(varargin{:});
 
             obj@post.resp.ResponseBase(ops, baseArgs{:});
 
-            obj.eleTags = double(eleTags(:).');
 
-            % Caches
+
+            obj.eleTags = eleTags(:).';
+
             obj.eleClassCache   = containers.Map('KeyType','double','ValueType','int32');
             obj.eleNGPCache     = containers.Map('KeyType','double','ValueType','int32');
             obj.eleNStressCache = containers.Map('KeyType','double','ValueType','int32');
@@ -106,12 +99,11 @@ classdef PlaneRespStepData < post.resp.ResponseBase
             obj.nodeIndexMap    = containers.Map('KeyType','double','ValueType','int32');
 
             if ~isempty(nodalMethod)
-                obj.computeNodalResp  = true;
-                obj.nodalRespMethod   = char(nodalMethod);
+                obj.computeNodalResp    = true;
+                obj.nodalRespMethod     = char(nodalMethod);
                 obj.includePorePressure = porePressure;
             end
 
-            % Measure flags
             obj = plane_apply_measure_opts(obj, measureOpts);
 
             obj.addRespDataOneStep(obj.eleTags);
@@ -122,11 +114,11 @@ classdef PlaneRespStepData < post.resp.ResponseBase
             if nargin < 2 || isempty(eleTags)
                 eleTags = obj.eleTags;
             end
-            eleTags = double(eleTags(:).');
+            eleTags = eleTags(:).';
             nEle    = numel(eleTags);
 
             % Fill caches; determine pre-alloc sizes
-            [maxGP, maxSdof, maxEdof] = plane_fill_caches(obj, eleTags);
+            [maxGP, maxSdof, maxEdof] = plane_fill_caches(obj, eleTags, obj.mex_);
 
             % ---- pre-allocate -------------------------------------------
             stresses = NaN(nEle, maxGP, maxSdof, 'double');
@@ -134,21 +126,18 @@ classdef PlaneRespStepData < post.resp.ResponseBase
 
             % ---- element loop -------------------------------------------
             for i = 1:nEle
-                tag  = eleTags(i);
-                nGP  = double(obj.eleNGPCache(tag));
+                tag = eleTags(i);
+                nGP = obj.eleNGPCache(tag);
                 if nGP == 0; continue; end
-                nSD  = double(obj.eleNStressCache(tag));
-                nED  = double(obj.eleNStrainCache(tag));
+                nSD = obj.eleNStressCache(tag);
+                nED = obj.eleNStrainCache(tag);
 
-                sf = plane_collect_resp(obj.ops, tag, 'stresses', nGP, nSD);
-                ef = plane_collect_resp(obj.ops, tag, 'strains',  nGP, nED);
+                sf = plane_collect_resp(obj.mex_, tag, 'stresses', nGP, nSD);
+                ef = plane_collect_resp(obj.mex_, tag, 'strains',  nGP, nED);
 
-                % reorder GPs if needed
                 ct = obj.eleClassCache(tag);
                 [sf, ef] = plane_reorder_gp(ct, nGP, sf, ef);
 
-                % swap columns 3 & 4 for elements with >= 4 stress dofs
-                % (sigma_zz / sigma_xy swap, matching Python _reshape_stress)
                 if nSD >= 4
                     sf(:, [3 4]) = sf(:, [4 3]);
                 end
@@ -157,13 +146,11 @@ classdef PlaneRespStepData < post.resp.ResponseBase
                 strains (i, 1:nGP, 1:nED) = ef;
             end
 
-            % ---- trim trailing all-NaN dof columns ----------------------
             stresses = plane_trim_dof(stresses);
             strains  = plane_trim_dof(strains);
             nSD = size(stresses, 3);
             nED = size(strains,  3);
 
-            % ---- initialise DOF / GP labels on first step ---------------
             if isempty(obj.gaussPoints)
                 obj.gaussPoints = 1:maxGP;
             end
@@ -174,7 +161,6 @@ classdef PlaneRespStepData < post.resp.ResponseBase
                 obj.strainDofs = plane_strain_dof_labels(nED);
             end
 
-            % ---- optional nodal projection ------------------------------
             nSecF = []; nSecD = []; nErrF = []; nErrD = [];
             nPore = []; nTags = [];
             if obj.computeNodalResp
@@ -182,11 +168,10 @@ classdef PlaneRespStepData < post.resp.ResponseBase
                     plane_get_nodal_resp(obj, eleTags, stresses, strains);
                 obj.nodeTags = nTags;
                 if obj.includePorePressure
-                    nPore = plane_get_pore_pressure(obj.ops, nTags);
+                    nPore = plane_get_pore_pressure(obj.mex_, nTags);
                 end
             end
 
-            % ---- stress measures ----------------------------------------
             SM = []; SMA = [];
             if obj.measurePrincipal || obj.measureVonMises || ...
                     obj.measureTauMax  || obj.measureOctahedral || ...
@@ -205,7 +190,6 @@ classdef PlaneRespStepData < post.resp.ResponseBase
                 end
             end
 
-            % ---- assemble step struct -----------------------------------
             S = struct( ...
                 'eleTags',    eleTags(:), ...
                 'stressDofs', {obj.stressDofs}, ...
@@ -272,14 +256,14 @@ classdef PlaneRespStepData < post.resp.ResponseBase
 
             respTypes = post.resp.ResponseBase.resolveRespTypes(allRespTypes, options.respType);
 
-            allEleTags = double(data.eleTags(:).');
+            allEleTags = data.eleTags(:).';
             [selectedTags, eleIdx] = post.resp.ResponseBase.resolveTagSelection( ...
                 allEleTags, options.eleTags, 'readResponse:InvalidEleTags', 'Element');
             selectAllEle = isempty(options.eleTags);
 
-            nodeTypes   = {'StressAtNode','StrainAtNode', ...
-                           'StressAtNodeErr','StrainAtNodeErr', ...
-                           'PorePressureAtNode','StressMeasureAtNode'};
+            nodeTypes = {'StressAtNode','StrainAtNode', ...
+                         'StressAtNodeErr','StrainAtNodeErr', ...
+                         'PorePressureAtNode','StressMeasureAtNode'};
             [hasNodeTags, selectedNodeTags, nodeIdx] = post.resp.ResponseBase.resolveOptionalDataTagSelection( ...
                 data, 'nodeTags', options.nodeTags, respTypes, nodeTypes, ...
                 'readResponse:MissingNodeTags', 'readResponse:InvalidNodeTags', 'Node');
@@ -298,7 +282,6 @@ classdef PlaneRespStepData < post.resp.ResponseBase
             strainTypes  = {'StrainAtGP','StrainAtNode','StrainAtNodeErr'};
             measureTypes = {'StressMeasureAtGP','StressMeasureAtNode'};
 
-            % Retrieve dof labels stored during collection
             stressDofs  = {};
             strainDofs  = {};
             measureDofs = {};
@@ -312,7 +295,6 @@ classdef PlaneRespStepData < post.resp.ResponseBase
                 d = data.(rt);
                 if isempty(d) || ~isnumeric(d); continue; end
 
-                % pick dof labels for this response type
                 if ismember(rt, measureTypes)
                     dofs = measureDofs;
                 elseif ismember(rt, strainTypes)
@@ -328,19 +310,14 @@ classdef PlaneRespStepData < post.resp.ResponseBase
                 end
 
                 if strcmp(rt, 'PorePressureAtNode')
-                    % plain [nTime x nNode] matrix, no DOF struct
                     S.(rt) = d;
-
                 elseif ismember(rt, nodeTypes)
-                    % [nTime x nNode x nDof] -> per-DOF fields
                     nDof = min(size(d, 3), numel(dofs));
                     S.(rt) = struct();
                     for di = 1:nDof
                         S.(rt).(dofs{di}) = d(:, :, di);
                     end
-
                 else
-                    % ele-based: [nTime x nEle x nGP x nDof]
                     if ~selectAllEle && ismember(rt, eleTypes)
                         d = post.resp.ResponseBase.subsetSecondDim(d, eleIdx);
                     end
@@ -364,50 +341,45 @@ end
 % Cache population
 % =========================================================================
 
-function [maxGP, maxSdof, maxEdof] = plane_fill_caches(obj, eleTags)
+function [maxGP, maxSdof, maxEdof] = plane_fill_caches(obj, eleTags, mex_)
     % Resolve per-element metadata for first-seen tags.
-    % Returns maximum GP count and DOF counts across ALL cached elements.
-
+    % mex_ : raw MEX handle — avoids ops wrapper dispatch on every eleResponse call.
     prefixes = {'material','integrPoint'};
 
     for i = 1:numel(eleTags)
         tag = eleTags(i);
 
-        % Element connectivity can change under model-update analyses, so
-        % refresh the current-step node list every time even when the
-        % GP/DOF metadata is already cached.
-        nds = double(obj.ops.eleNodes(tag));
+        % Node connectivity can change under model-update analyses;
+        % refresh every step even when GP/DOF metadata is already cached.
+        nds = mex_('eleNodes', tag);
         obj.eleNodeCache(tag) = nds(:).';
 
-        if isKey(obj.eleNGPCache, tag); continue; end
+        if obj.eleNGPCache.isKey(tag); continue; end
 
-        % class tag
-        ct = int32(obj.ops.getEleClassTags(tag));
+        ct = int32(mex_('getEleClassTags', tag));
         obj.eleClassCache(tag) = ct(1);
 
-        % probe number of GPs and DOFs via the 'material'/'integrPoint' path
-        nGP    = int32(0);
-        nSDof  = int32(0);
-        nEDof  = int32(0);
+        nGP   = int32(0);
+        nSDof = int32(0);
+        nEDof = int32(0);
 
         for gIdx = 1:2000
             gStr = num2str(gIdx);
             s = []; e = [];
             for p = 1:numel(prefixes)
-                s = double(obj.ops.eleResponse(tag, prefixes{p}, gStr, 'stresses'));
+                s = mex_('eleResponse', tag, prefixes{p}, gStr, 'stresses');
                 if ~isempty(s); break; end
             end
             if isempty(s)
-                % try flat 'stresses' for single-GP elements
                 if gIdx == 1
-                    s = double(obj.ops.eleResponse(tag, 'stresses'));
+                    s = mex_('eleResponse', tag, 'stresses');
                     if ~isempty(s)
                         for p = 1:numel(prefixes)
-                            e = double(obj.ops.eleResponse(tag, prefixes{p}, gStr, 'strains'));
+                            e = mex_('eleResponse', tag, prefixes{p}, gStr, 'strains');
                             if ~isempty(e); break; end
                         end
                         if isempty(e)
-                            e = double(obj.ops.eleResponse(tag, 'strains'));
+                            e = mex_('eleResponse', tag, 'strains');
                         end
                         nGP   = int32(1);
                         nSDof = int32(numel(s));
@@ -417,12 +389,12 @@ function [maxGP, maxSdof, maxEdof] = plane_fill_caches(obj, eleTags)
                 break;
             end
             for p = 1:numel(prefixes)
-                e = double(obj.ops.eleResponse(tag, prefixes{p}, gStr, 'strains'));
+                e = mex_('eleResponse', tag, prefixes{p}, gStr, 'strains');
                 if ~isempty(e); break; end
             end
             nGP   = int32(gIdx);
-            nSDof = int32(max(numel(s), double(nSDof)));
-            nEDof = int32(max(numel(e), double(nEDof)));
+            nSDof = int32(max(numel(s), nSDof));
+            nEDof = int32(max(numel(e), nEDof));
         end
 
         obj.eleNGPCache(tag)     = nGP;
@@ -430,22 +402,22 @@ function [maxGP, maxSdof, maxEdof] = plane_fill_caches(obj, eleTags)
         obj.eleNStrainCache(tag) = nEDof;
     end
 
-    % Max dimensions over ALL cached elements
-    allNGP  = cell2mat(values(obj.eleNGPCache));
-    allNSD  = cell2mat(values(obj.eleNStressCache));
-    allNED  = cell2mat(values(obj.eleNStrainCache));
+    allNGP  = cell2mat(obj.eleNGPCache.values());
+    allNSD  = cell2mat(obj.eleNStressCache.values());
+    allNED  = cell2mat(obj.eleNStrainCache.values());
 
-    maxGP   = double(max([allNGP(:);  int32(0)]));
-    maxSdof = double(max([allNSD(:);  int32(1)]));
-    maxEdof = double(max([allNED(:);  int32(1)]));
+    maxGP   = max([allNGP(:);  int32(0)]);
+    maxSdof = max([allNSD(:);  int32(1)]);
+    maxEdof = max([allNED(:);  int32(1)]);
 end
 
 % =========================================================================
 % Per-element GP response collection
 % =========================================================================
 
-function out = plane_collect_resp(ops, tag, key, nGP, nDof)
-    % Returns [nGP x nDof] pre-allocated, filled via material/integrPoint paths.
+function out = plane_collect_resp(mex_, tag, key, nGP, nDof)
+    % Returns [nGP x nDof], filled via material/integrPoint paths.
+    % mex_ : raw MEX handle — no ops wrapper overhead per GP query.
     out      = zeros(nGP, nDof, 'double');
     prefixes = {'material','integrPoint'};
 
@@ -453,11 +425,11 @@ function out = plane_collect_resp(ops, tag, key, nGP, nDof)
         gStr = num2str(g);
         val  = [];
         for p = 1:numel(prefixes)
-            val = double(ops.eleResponse(tag, prefixes{p}, gStr, key));
+            val = mex_('eleResponse', tag, prefixes{p}, gStr, key);
             if ~isempty(val); break; end
         end
         if isempty(val) && nGP == 1
-            val = double(ops.eleResponse(tag, key));
+            val = mex_('eleResponse', tag, key);
         end
         if ~isempty(val)
             n = min(numel(val), nDof);
@@ -487,8 +459,6 @@ end
 % =========================================================================
 
 function out = plane_trim_dof(arr)
-    % arr: [nEle x nGP x nDof]
-    % Remove trailing dof columns that are entirely NaN.
     nDof = size(arr, 3);
     last = 0;
     for d = nDof:-1:1
@@ -498,69 +468,59 @@ function out = plane_trim_dof(arr)
         end
     end
     if last == 0
-        out = arr(:,:,1);   % keep at least one column
+        out = arr(:,:,1);
     else
         out = arr(:,:,1:last);
     end
 end
 
 % =========================================================================
-% GP -> Node projection  (dense accumulators, no Map-of-struct)
+% GP -> Node projection  (dense accumulators)
 % =========================================================================
 
 function [nStressAvg, nStressErr, nStrainAvg, nStrainErr, nodeTags] = ...
         plane_get_nodal_resp(obj, eleTags, stresses, strains)
-    %
-    % Accumulates:  sum, max, min, count  (all pre-allocated dense arrays).
-    % Relative error = (max-min) / (|mean| + eps).
 
     method = obj.nodalRespMethod;
     nEle   = numel(eleTags);
     nSD    = size(stresses, 3);
     nED    = size(strains,  3);
 
-    % Pass 1: build the node set for the current step only.
-    % Model-update runs may add/remove elements and nodes between steps, so
-    % the nodal projection must be indexed by the current-step connectivity
-    % instead of a cross-step accumulated node map.
     nodeIndexMap = containers.Map('KeyType','double','ValueType','int32');
     nodeTags = zeros(0,1);
 
     for i = 1:nEle
         tag = eleTags(i);
-        if ~isKey(obj.eleNodeCache, tag); continue; end
+        if ~obj.eleNodeCache.isKey(tag); continue; end
         nds = obj.eleNodeCache(tag);
         for j = 1:numel(nds)
             nt = nds(j);
-            if ~isKey(nodeIndexMap, nt)
+            if ~nodeIndexMap.isKey(nt)
                 nodeIndexMap(nt) = int32(numel(nodeTags) + 1);
                 nodeTags(end+1,1) = nt; %#ok<AGROW>
             end
         end
     end
 
-    nNodes   = numel(nodeTags);
+    nNodes = numel(nodeTags);
 
-    % Pre-allocate accumulation arrays
-    accSS  = zeros(nNodes, nSD, 'double');
-    accES  = zeros(nNodes, nED, 'double');
-    maxSS  = -inf(nNodes, nSD, 'double');
-    minSS  =  inf(nNodes, nSD, 'double');
-    maxES  = -inf(nNodes, nED, 'double');
-    minES  =  inf(nNodes, nED, 'double');
-    cntS   = zeros(nNodes, nSD, 'uint32');
-    cntE   = zeros(nNodes, nED, 'uint32');
+    accSS = zeros(nNodes, nSD, 'double');
+    accES = zeros(nNodes, nED, 'double');
+    maxSS = -inf(nNodes, nSD, 'double');
+    minSS =  inf(nNodes, nSD, 'double');
+    maxES = -inf(nNodes, nED, 'double');
+    minES =  inf(nNodes, nED, 'double');
+    cntS  = zeros(nNodes, nSD);
+    cntE  = zeros(nNodes, nED);
 
-    % Pass 2: project and accumulate
     for i = 1:nEle
         tag   = eleTags(i);
-        nGP   = double(obj.eleNGPCache(tag));
+        nGP   = obj.eleNGPCache(tag);
         if nGP == 0; continue; end
 
         nds   = obj.eleNodeCache(tag);
         nNode = numel(nds);
 
-        % Valid GP rows only (no squeeze; explicit reshape)
         sf_i = reshape(stresses(i, 1:nGP, :), nGP, nSD);
         ef_i = reshape(strains (i, 1:nGP, :), nGP, nED);
 
@@ -572,26 +532,19 @@ function [nStressAvg, nStressErr, nStrainAvg, nStrainErr, nodeTags] = ...
             ef_i = ef_i(gpMask, :);
         end
 
-        eleType  = plane_ele_type_from_n(nNode);
+        eleType   = plane_ele_type_from_n(nNode);
         projFuncS = post.utils.FEShapeLibrary.getGP2NodeFunc(eleType, nNode, nGPv);
 
-        % Project stress
         if isempty(projFuncS)
             nSF = repmat(mean(sf_i, 1), nNode, 1);
-        else
-            nSF = projFuncS(method, sf_i);   % [nNode x nSD]
-        end
-
-        % Project strain (same topology -> same projection matrix)
-        if isempty(projFuncS)
             nEF = repmat(mean(ef_i, 1), nNode, 1);
         else
-            nEF = projFuncS(method, ef_i);   % [nNode x nED]
+            nSF = projFuncS(method, sf_i);
+            nEF = projFuncS(method, ef_i);
         end
 
-        % Accumulate
         for j = 1:nNode
-            idx = double(nodeIndexMap(nds(j)));
+            idx = nodeIndexMap(nds(j));
 
             validS = isfinite(nSF(j,:));
             if any(validS)
@@ -611,9 +564,8 @@ function [nStressAvg, nStressErr, nStrainAvg, nStrainErr, nodeTags] = ...
         end
     end
 
-    % Compute mean and relative error
-    safeNS = double(max(cntS, 1));
-    safeNE = double(max(cntE, 1));
+    safeNS = max(cntS, 1);
+    safeNE = max(cntE, 1);
 
     nStressAvg = accSS ./ safeNS;
     nStrainAvg = accES ./ safeNE;
@@ -630,7 +582,6 @@ function [nStressAvg, nStressErr, nStrainAvg, nStrainErr, nodeTags] = ...
     nStressErr(cntS == 0) = NaN;
     nStrainErr(cntE == 0) = NaN;
 
-    % Zero out relative error where mean is near zero (matches Python)
     nStressErr(abs(nStressAvg) < 1e-8) = 0.0;
     nStrainErr(abs(nStrainAvg) < 1e-8) = 0.0;
 end
@@ -639,11 +590,12 @@ end
 % Pore pressure at nodes
 % =========================================================================
 
-function pore = plane_get_pore_pressure(ops, nodeTags)
+function pore = plane_get_pore_pressure(mex_, nodeTags)
+    % mex_ : raw MEX handle — no ops wrapper overhead per node query.
     nNodes = numel(nodeTags);
     pore   = zeros(nNodes, 1, 'double');
     for k = 1:nNodes
-        vel = double(ops.nodeVel(nodeTags(k)));
+        vel = mex_('nodeVel', nodeTags(k));
         if numel(vel) >= 3
             pore(k) = vel(3);
         end
@@ -655,8 +607,6 @@ end
 % =========================================================================
 
 function [SM, dofs] = plane_compute_measures(stresses, obj)
-    % stresses : [nEle x nGP x nSD]  (may be reshaped for nodal data)
-    % Returns SM [nEle x nGP x nMeasure], dofs {1 x nMeasure}
     nSD = size(stresses, 3);
     if nSD < 3
         SM = zeros(size(stresses,1), size(stresses,2), 0);
@@ -668,15 +618,12 @@ function [SM, dofs] = plane_compute_measures(stresses, obj)
     s33 = zeros(size(s11), 'double');
 
     if nSD >= 4
-        % Internal plane stress order is [sigma11, sigma22, sigma33, sigma12]
-        % after the earlier column swap that normalizes OpenSees output.
         s33 = stresses(:,:,3);
         s12 = stresses(:,:,4);
     else
         s12 = stresses(:,:,3);
     end
 
-    % Principal stresses (vectorised)
     [p1, p2, p3, theta] = plane_principal(s11, s22, s12, s33);
 
     dataCols = {};
@@ -696,8 +643,8 @@ function [SM, dofs] = plane_compute_measures(stresses, obj)
         dofs     = [dofs,     {'tauMax'}];
     end
     if obj.measureOctahedral
-        I1  = p1 + p2 + p3;
-        J2  = ((p1-p2).^2 + (p2-p3).^2 + (p3-p1).^2) / 6;
+        I1 = p1 + p2 + p3;
+        J2 = ((p1-p2).^2 + (p2-p3).^2 + (p3-p1).^2) / 6;
         dataCols = [dataCols, {I1/3, sqrt(2/3*J2)}];
         dofs     = [dofs,     {'sigmaOct','tauOct'}];
     end
@@ -723,8 +670,8 @@ function [SM, dofs] = plane_compute_measures(stresses, obj)
         dofs     = [dofs,     {'sigmaDruckerPragerSyEq','sigmaDruckerPragerSyIntensity'}];
     end
     if ~isempty(obj.measureDruckerPragerCPhi)
-        c = obj.measureDruckerPragerCPhi(1);
-        phi = obj.measureDruckerPragerCPhi(2);
+        c    = obj.measureDruckerPragerCPhi(1);
+        phi  = obj.measureDruckerPragerCPhi(2);
         kind = 'circumscribed';
         if numel(obj.measureDruckerPragerCPhi) >= 3
             kind = obj.measureDruckerPragerCPhi(3);
@@ -740,11 +687,8 @@ function [SM, dofs] = plane_compute_measures(stresses, obj)
         return;
     end
 
-    % Stack along dim-3: each cell is [nEle x nGP]
-    SM = cat(3, dataCols{:});   % [nEle x nGP x nMeasure]
+    SM = cat(3, dataCols{:});
 end
-
-% ---- principal stress kernel -------------------------------------------
 
 function [p1, p2, p3, theta_deg] = plane_principal(s11, s22, s12, s33)
     avg    = (s11 + s22) * 0.5;
@@ -752,23 +696,19 @@ function [p1, p2, p3, theta_deg] = plane_principal(s11, s22, s12, s33)
     p1_2d  = avg + rad;
     p2_2d  = avg - rad;
 
-    % principal angle
-    theta = zeros(size(s11), 'double');
-    mask  = abs(s11 - s22) > 1e-10;
+    theta  = zeros(size(s11), 'double');
+    mask   = abs(s11 - s22) > 1e-10;
     theta(mask)  = 0.5 * atan2(2*s12(mask), s11(mask) - s22(mask));
-    mask2 = (~mask) & (abs(s12) > 1e-10);
+    mask2  = (~mask) & (abs(s12) > 1e-10);
     theta(mask2) = 0.25 * pi * sign(s12(mask2));
     theta_deg    = rad2deg(theta);
 
-    % sort [p1_2d, p2_2d, s33] -> descending order
-    p_all  = cat(3, p1_2d, p2_2d, s33);             % [... x 3]
+    p_all  = cat(3, p1_2d, p2_2d, s33);
     p_sort = sort(p_all, 3, 'descend');
     p1     = p_sort(:,:,1);
     p2     = p_sort(:,:,2);
     p3     = p_sort(:,:,3);
 end
-
-% ---- failure criterion kernels (vectorised) ----------------------------
 
 function [sigma_eq, sigma_y] = plane_mc_sy(p1, p2, p3, syc, syt)
     m   = syc / (syt + 1e-10);
@@ -849,14 +789,11 @@ function [nodalMethod, porePressure, measureOpts, rest] = plane_parse_options(va
                 measures = varargin{i+1};
                 i = i + 2;
 
-                if isempty(measures)
-                    continue;
-                end
+                if isempty(measures), continue; end
 
                 if ischar(measures) || isstring(measures)
                     measures = cellstr(string(measures));
                 end
-
                 if ~iscell(measures)
                     error('plane_parse_options:InvalidMeasures', ...
                         'computeMechanicalMeasures must be a string, string array, or cell array.');
@@ -864,35 +801,25 @@ function [nodalMethod, porePressure, measureOpts, rest] = plane_parse_options(va
 
                 for j = 1:numel(measures)
                     item = measures{j};
-
                     if ischar(item) || isstring(item)
                         m = lower(char(string(item)));
                         switch m
-                            case 'principal'
-                                measureOpts.principal = true;
-                            case 'vonmises'
-                                measureOpts.vonmises = true;
-                            case 'taumax'
-                                measureOpts.taumax = true;
-                            case 'octahedral'
-                                measureOpts.octahedral = true;
+                            case 'principal',   measureOpts.principal  = true;
+                            case 'vonmises',    measureOpts.vonmises   = true;
+                            case 'taumax',      measureOpts.taumax     = true;
+                            case 'octahedral',  measureOpts.octahedral = true;
                             otherwise
                                 error('plane_parse_options:UnknownMeasure', ...
                                     'Unknown mechanical measure: %s', char(string(item)));
                         end
                     elseif iscell(item)
-                        if isempty(item)
-                            continue;
-                        end
-
+                        if isempty(item), continue; end
                         name = item{1};
                         if ~(ischar(name) || isstring(name))
                             error('plane_parse_options:InvalidMeasureName', ...
                                 'The first entry of a measure cell must be a string.');
                         end
-
                         m = lower(char(string(name)));
-
                         switch m
                             case 'mohrcoulombsy'
                                 if numel(item) < 3
@@ -900,21 +827,18 @@ function [nodalMethod, porePressure, measureOpts, rest] = plane_parse_options(va
                                         'mohrCoulombSy requires {name, syc, syt}.');
                                 end
                                 measureOpts.mohrcoulombsy = [double(item{2}), double(item{3})];
-
                             case 'mohrcoulombcphi'
                                 if numel(item) < 3
                                     error('plane_parse_options:InvalidMohrCoulombCPhi', ...
                                         'mohrCoulombCPhi requires {name, c, phi}.');
                                 end
                                 measureOpts.mohrcoulombcphi = [double(item{2}), double(item{3})];
-
                             case 'druckerpragersy'
                                 if numel(item) < 3
                                     error('plane_parse_options:InvalidDruckerPragerSy', ...
                                         'druckerPragerSy requires {name, syc, syt}.');
                                 end
                                 measureOpts.druckerpragersy = [double(item{2}), double(item{3})];
-
                             case 'druckerpragercphi'
                                 if numel(item) < 3
                                     error('plane_parse_options:InvalidDruckerPragerCPhi', ...
@@ -925,12 +849,10 @@ function [nodalMethod, porePressure, measureOpts, rest] = plane_parse_options(va
                                 else
                                     measureOpts.druckerpragercphi = {double(item{2}), double(item{3}), 'circumscribed'};
                                 end
-
                             otherwise
                                 error('plane_parse_options:UnknownAdvancedMeasure', ...
                                     'Unknown advanced mechanical measure: %s', m);
                         end
-
                     else
                         error('plane_parse_options:InvalidMeasureItem', ...
                             'Each mechanical measure entry must be a string or a cell.');
@@ -948,22 +870,14 @@ function obj = plane_apply_measure_opts(obj, opts)
     fields = fieldnames(opts);
     for k = 1:numel(fields)
         switch lower(char(fields{k}))
-            case 'principal'
-                obj.measurePrincipal = true;
-            case 'vonmises'
-                obj.measureVonMises = true;
-            case 'taumax'
-                obj.measureTauMax = true;
-            case 'octahedral'
-                obj.measureOctahedral = true;
-            case 'mohrcoulombsy'
-                obj.measureMohrCoulombSy = double(opts.mohrcoulombsy(:).');
-            case 'mohrcoulombcphi'
-                obj.measureMohrCoulombCPhi = double(opts.mohrcoulombcphi(:).');
-            case 'druckerpragersy'
-                obj.measureDruckerPragerSy = double(opts.druckerpragersy(:).');
-            case 'druckerpragercphi'
-                obj.measureDruckerPragerCPhi = opts.druckerpragercphi;  % cell with fields 'c', 'phi', optional 'kind'
+            case 'principal',          obj.measurePrincipal        = true;
+            case 'vonmises',           obj.measureVonMises         = true;
+            case 'taumax',             obj.measureTauMax           = true;
+            case 'octahedral',         obj.measureOctahedral       = true;
+            case 'mohrcoulombsy',      obj.measureMohrCoulombSy    = double(opts.mohrcoulombsy(:).');
+            case 'mohrcoulombcphi',    obj.measureMohrCoulombCPhi  = double(opts.mohrcoulombcphi(:).');
+            case 'druckerpragersy',    obj.measureDruckerPragerSy  = double(opts.druckerpragersy(:).');
+            case 'druckerpragercphi',  obj.measureDruckerPragerCPhi = opts.druckerpragercphi;
         end
     end
 end

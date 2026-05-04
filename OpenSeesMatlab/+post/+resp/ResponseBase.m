@@ -43,6 +43,7 @@ classdef (Abstract) ResponseBase < handle
 
     properties (Access = protected)
         ops
+        mex_
         respDataInternal
         stepData          % cell(maxSteps,1) or growing cell
         stepWritePos      % next write index (used only when stepSize set)
@@ -59,6 +60,7 @@ classdef (Abstract) ResponseBase < handle
     methods
         function obj = ResponseBase(ops, varargin)
             obj.ops = ops;
+            obj.mex_ = ops.getMexHandle();
             obj.initialize(varargin{:});
         end
 
@@ -255,7 +257,7 @@ classdef (Abstract) ResponseBase < handle
         end
 
         function t = getCurrentOpsTime(obj)
-            t = obj.ops.getTime();
+            t = obj.mex_('getTime');
         end
 
         function out = get.respData(obj)
@@ -420,7 +422,8 @@ classdef (Abstract) ResponseBase < handle
             for i = 1:numel(parts)
                 p = parts{i};
                 if ~isfield(p, tagField) || isempty(p.(tagField)); continue; end
-                localTags = double(p.(tagField)(:).');
+                tmp = p.(tagField);
+                localTags = double(tmp(:).');
                 if isempty(allTags)
                     allTags = localTags;
                 else
@@ -457,7 +460,8 @@ classdef (Abstract) ResponseBase < handle
                     continue;
                 end
 
-                localTags  = double(p.(tagField)(:).');
+                tmp = p.(tagField);
+                localTags  = double(tmp(:).');
                 [~, globalIdx] = ismember(localTags, allTags);
                 nLocal     = numel(localTags);
                 fieldNames = fieldnames(p);
@@ -527,7 +531,8 @@ classdef (Abstract) ResponseBase < handle
                     continue;
                 end
 
-                localTags = double(p.(tagField)(:).');
+                tmp = p.(tagField);
+                localTags = double(tmp(:).');
                 if isempty(localTags)
                     p = rmfield(p, tagField);
                     parts{i} = p;
@@ -554,7 +559,8 @@ classdef (Abstract) ResponseBase < handle
                     continue;
                 end
 
-                localTags = double(p.(tagField)(:).');
+                tmp = p.(tagField);
+                localTags = double(tmp(:).');
                 if isempty(allTags)
                     allTags = localTags;
                     continue;
@@ -682,7 +688,8 @@ classdef (Abstract) ResponseBase < handle
             for fn = {'tags','nodeTags','eleTags'}
                 f = fn{1};
                 if isfield(out,f) && ~isempty(out.(f))
-                    out.(f) = out.(f)(idx);
+                    tmp = out.(f);
+                    out.(f) = tmp(idx);
                 end
             end
         end
@@ -758,7 +765,8 @@ classdef (Abstract) ResponseBase < handle
                 return;
             end
 
-            allTags = double(data.(tagField)(:).');
+            tmp = data.(tagField);
+            allTags = double(tmp(:).');
             [selectedTags, tagIdx] = post.resp.ResponseBase.resolveTagSelection( ...
                 allTags, queryTags, invalidQueryId, entityLabel);
         end

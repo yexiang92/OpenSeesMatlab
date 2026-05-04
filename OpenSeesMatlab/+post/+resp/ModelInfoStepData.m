@@ -133,12 +133,12 @@ classdef ModelInfoStepData < post.resp.ResponseBase
 
             obj.currentNodeTags = modelInfo.Nodes.Tags;
             if ~isempty(modelInfo.Nodes.UnusedTags)
-                unusedTags = double(modelInfo.Nodes.UnusedTags(:));
+                unusedTags = modelInfo.Nodes.UnusedTags;
                 unusedTags = unique(unusedTags(isfinite(unusedTags)));
                 obj.currentNodeTags = obj.currentNodeTags(~ismember(obj.currentNodeTags, unusedTags));
                 modelInfo.Nodes.Tags = obj.currentNodeTags;
             end
-            
+
             obj.currentEleTags = modelInfo.Elements.Summary.Tags;
             obj.currentEleClassTags = modelInfo.Elements.Summary.ClassTags;
 

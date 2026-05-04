@@ -37,6 +37,9 @@ classdef EigenDataCollector < handle
     end
 
     properties (Access = private)
+        % Raw MEX handle for zero-overhead OpenSees calls.
+        mex_
+
         % Cached node information extracted once from modelInfo.
         CacheNodeTags double = []
         CacheNodeCoords double = []
@@ -55,6 +58,7 @@ classdef EigenDataCollector < handle
                     'An OpenSees interface object ''ops'' is required.');
             end
             obj.ops = ops;
+            obj.mex_ = ops.getMexHandle();
 
             if nargin >= 2 && ~isempty(modelInfo)
                 obj.setModelInfo(modelInfo);
@@ -153,11 +157,11 @@ classdef EigenDataCollector < handle
                 solver = '-genBandArpack';
             end
 
-            obj.ops.wipeAnalysis();
+            obj.mex_('wipeAnalysis');
             if modeTag == 1
-                obj.ops.eigen(solver, 2);
+                obj.mex_('eigen', solver, 2);
             else
-                obj.ops.eigen(solver, modeTag);
+                obj.mex_('eigen', solver, modeTag);
             end
         end
 
@@ -167,7 +171,7 @@ classdef EigenDataCollector < handle
                 modeTag = 1;
             end
 
-            raw = obj.ops.modalProperties('-return');
+            raw = obj.mex_('modalProperties', '-return');
             raw = obj.toStruct(raw);
 
             attrNames = {'domainSize', 'totalMass', 'totalFreeMass', 'centerOfMass'};
@@ -221,7 +225,7 @@ classdef EigenDataCollector < handle
             for iMode = 1:modeTag
                 for iNode = 1:nNode
                     tag = nodeTags(iNode);
-                    eigv = obj.ops.nodeEigenvector(tag, iMode);
+                    eigv = obj.mex_('nodeEigenvector', tag, iMode);
                     data(iMode, iNode, :) = obj.normalizeEigenvector(eigv, nodeNdm(iNode), nodeNdf(iNode));
                 end
             end

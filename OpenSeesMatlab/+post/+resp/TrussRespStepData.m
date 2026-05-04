@@ -7,6 +7,12 @@ classdef TrussRespStepData < post.resp.ResponseBase
     %   axialDefo   [nEle x 1]
     %   Stress      [nEle x 1]
     %   Strain      [nEle x 1]
+    %
+    % Performance
+    % -----------
+    %   The raw MEX handle (mex_) is cached at construction time. All
+    %   eleResponse calls in the element loop use mex_('eleResponse', ...)
+    %   directly, bypassing the ops wrapper method-dispatch overhead.
 
     % =====================================================================
     properties (Constant)
@@ -19,10 +25,17 @@ classdef TrussRespStepData < post.resp.ResponseBase
     end
 
     % =====================================================================
+    properties (Access = private)
+    end
+
+    % =====================================================================
     methods
 
         function obj = TrussRespStepData(ops, eleTags, varargin)
             obj@post.resp.ResponseBase(ops, varargin{:});
+
+
+
             obj.eleTags = double(eleTags(:).');
             obj.addRespDataOneStep(obj.eleTags);
         end
@@ -35,23 +48,24 @@ classdef TrussRespStepData < post.resp.ResponseBase
             eleTags = double(eleTags(:).');
             nEle    = numel(eleTags);
 
-            % Pre-allocate – all scalar per element
-            forces  = zeros(nEle, 1, 'double');
-            defos   = zeros(nEle, 1, 'double');
+            forces   = zeros(nEle, 1, 'double');
+            defos    = zeros(nEle, 1, 'double');
             stresses = zeros(nEle, 1, 'double');
             strains  = zeros(nEle, 1, 'double');
+
+            mex_ = obj.mex_;   % local alias avoids repeated property lookup
 
             for i = 1:nEle
                 tag = eleTags(i);
 
-                forces(i)   = truss_scalar(obj.ops.eleResponse(tag, 'axialForce'));
-                defos(i)    = truss_scalar(obj.ops.eleResponse(tag, 'basicDeformation'));
-                stresses(i) = truss_scalar(obj.ops.eleResponse(tag, 'material', '1', 'stress'));
+                forces(i)   = truss_scalar(mex_('eleResponse', tag, 'axialForce'));
+                defos(i)    = truss_scalar(mex_('eleResponse', tag, 'basicDeformation'));
+                stresses(i) = truss_scalar(mex_('eleResponse', tag, 'material', '1', 'stress'));
 
                 % strain: try material first, fall back to section deformation
-                sv = double(obj.ops.eleResponse(tag, 'material', '1', 'strain'));
+                sv = mex_('eleResponse', tag, 'material', '1', 'strain');
                 if isempty(sv)
-                    sv = double(obj.ops.eleResponse(tag, 'section', '1', 'deformation'));
+                    sv = mex_('eleResponse', tag, 'section', '1', 'deformation');
                 end
                 strains(i) = truss_scalar(sv);
             end
@@ -146,7 +160,7 @@ end
 % =========================================================================
 
 function v = truss_scalar(raw)
-    raw = double(raw);
+    raw = raw;
     if isempty(raw)
         v = 0.0;
     else

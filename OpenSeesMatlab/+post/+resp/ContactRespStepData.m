@@ -10,6 +10,13 @@ classdef ContactRespStepData < post.resp.ResponseBase
     %
     % Print output from OpenSees is suppressed during collection because
     % some contact element implementations emit diagnostic text.
+    %
+    % Performance
+    % -----------
+    %   The raw MEX handle (mex_) is cached at construction time. All
+    %   eleResponse calls in the element loop use mex_ directly, bypassing
+    %   ops wrapper method-dispatch overhead. suppressPrint stays on ops
+    %   as it is a control command called once per step.
 
     % =====================================================================
     properties (Constant)
@@ -25,10 +32,17 @@ classdef ContactRespStepData < post.resp.ResponseBase
     end
 
     % =====================================================================
+    properties (Access = private)
+    end
+
+    % =====================================================================
     methods
 
         function obj = ContactRespStepData(ops, eleTags, varargin)
             obj@post.resp.ResponseBase(ops, varargin{:});
+
+
+
             obj.eleTags = double(eleTags(:).');
             obj.addRespDataOneStep(obj.eleTags);
         end
@@ -41,30 +55,31 @@ classdef ContactRespStepData < post.resp.ResponseBase
             eleTags = double(eleTags(:).');
             nEle    = numel(eleTags);
 
-            % Pre-allocate
             globalForces = zeros(nEle, 3, 'double');
             localForces  = zeros(nEle, 3, 'double');
             localDisp    = zeros(nEle, 3, 'double');
             slips        = zeros(nEle, 2, 'double');
 
-            % Suppress OpenSees print output during contact queries
+            % suppressPrint is a control command — stays on ops.
             obj.ops.suppressPrint(true);
             cleaner = onCleanup(@() obj.ops.suppressPrint(false));
+
+            mex_ = obj.mex_;   % local alias avoids repeated property lookup
 
             for i = 1:nEle
                 tag = eleTags(i);
 
                 globalForces(i,:) = contact_format_global( ...
-                    contact_try_resp(obj.ops, tag, {'force','forces'}));
+                    contact_try_resp(mex_, tag, {'force','forces'}));
 
                 localDisp(i,:) = contact_format_local( ...
-                    contact_try_resp(obj.ops, tag, {'localDisplacement','localDispJump'}));
+                    contact_try_resp(mex_, tag, {'localDisplacement','localDispJump'}));
 
                 localForces(i,:) = contact_format_local( ...
-                    contact_try_resp(obj.ops, tag, {'localForce','localForces','forcescalars','forcescalar'}));
+                    contact_try_resp(mex_, tag, {'localForce','localForces','forcescalars','forcescalar'}));
 
                 slips(i,:) = contact_format_slip( ...
-                    contact_try_resp(obj.ops, tag, {'slip'}));
+                    contact_try_resp(mex_, tag, {'slip'}));
             end
 
             S = struct( ...
@@ -133,7 +148,6 @@ classdef ContactRespStepData < post.resp.ResponseBase
             S.time        = data.time;
             S.eleTags     = selectedTags(:);
 
-            % DOF labels per response type
             dofsMap = struct( ...
                 'globalForces', {{post.resp.ContactRespStepData.GLOBAL_DOFS}}, ...
                 'localForces',  {{post.resp.ContactRespStepData.LOCAL_DOFS}}, ...
@@ -168,10 +182,11 @@ end
 % Response query helpers
 % =========================================================================
 
-function raw = contact_try_resp(ops, tag, names)
+function raw = contact_try_resp(mex_, tag, names)
+    % mex_ : raw MEX handle — no ops wrapper overhead per eleResponse call.
     % Try each name in order; return first non-empty result (as double row).
     for k = 1:numel(names)
-        raw = double(ops.eleResponse(tag, names{k}));
+        raw = mex_('eleResponse', tag, names{k});
         if ~isempty(raw)
             raw = raw(:).';
             return;
@@ -183,38 +198,25 @@ end
 % -------------------------------------------------------------------------
 
 function out = contact_format_local(raw)
-    % Map to [N, Tx, Ty]
     n = numel(raw);
-    if n == 0
-        out = [0, 0, 0];
-    elseif n == 2
-        out = [raw(1), raw(2), 0];
-    else
-        out = [raw(1), raw(2), raw(3)];
+    if     n == 0, out = [0, 0, 0];
+    elseif n == 2, out = [raw(1), raw(2), 0];
+    else,          out = [raw(1), raw(2), raw(3)];
     end
 end
 
 function out = contact_format_global(raw)
-    % Map to [Px, Py, Pz]
-    % For 4- or 6-component outputs the last 3 entries are used.
     n = numel(raw);
-    if n == 0
-        out = [0, 0, 0];
-    elseif n == 2
-        out = [raw(1), raw(2), 0];
-    elseif n >= 3
-        out = [raw(n-2), raw(n-1), raw(n)];   % last 3 components
+    if     n == 0, out = [0, 0, 0];
+    elseif n == 2, out = [raw(1), raw(2), 0];
+    elseif n >= 3, out = [raw(n-2), raw(n-1), raw(n)];
     end
 end
 
 function out = contact_format_slip(raw)
-    % Map to [Tx, Ty]
     n = numel(raw);
-    if n == 0
-        out = [0, 0];
-    elseif n == 1
-        out = [raw(1), raw(1)];   % isotropic slip: duplicate
-    else
-        out = [raw(1), raw(2)];
+    if     n == 0, out = [0, 0];
+    elseif n == 1, out = [raw(1), raw(1)];
+    else,          out = [raw(1), raw(2)];
     end
 end

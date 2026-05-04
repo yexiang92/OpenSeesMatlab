@@ -13,17 +13,15 @@ classdef FrameRespStepData < post.resp.ResponseBase
     % ----------------
     % All quantities that never change at runtime are cached per element tag.
     %
-    %   eleClassCache         eleTag -> logical
-    %   eleStartCoords        eleTag -> [1x3] double
-    %   eleEndCoords          eleTag -> [1x3] double
-    %   eleLengths            eleTag -> double
-    %   localRespNameCache    eleTag -> char
-    %   basicForceNameCache   eleTag -> char
-    %   basicDefoNameCache    eleTag -> char
-    %   plasticRespNameCache  eleTag -> char
-    %   secLocCache           eleTag -> double row vector
-    %   secColMapCache        eleTag -> cell{1 x nSec} of int8 colMap
-    %   eleParamCache         eleTag -> struct(E,Iz,Iy,G,Avy,Avz)
+    % Performance
+    % -----------
+    %   The raw MEX handle (mex_) is cached at construction time and passed
+    %   to all local helper functions. Data-query calls (eleResponse,
+    %   eleNodes, nodeCoord, getEleClassTags, sectionLocation, sectionTag,
+    %   classType) go through mex_ directly, bypassing ops wrapper overhead.
+    %   Control commands (parameter, getParamValue, remove, suppressPrint,
+    %   getLoadFactor, sectionResponseType) stay on ops because they are
+    %   infrequent and benefit from the wrapper's error handling.
 
     properties (Constant)
         RESP_NAME = 'FrameResponses'
@@ -45,11 +43,9 @@ classdef FrameRespStepData < post.resp.ResponseBase
         sectionTypeMap                  struct
         hassectionResponseTypeMethod    logical
 
-        % Section metadata (determined on the first step)
         secPoints
         secLocDofs
 
-        % ---- Per-element caches -----------------------------------------
         eleClassCache
         eleStartCoords
         eleEndCoords
@@ -63,6 +59,9 @@ classdef FrameRespStepData < post.resp.ResponseBase
         secLocCache
         secColMapCache
         eleParamCache
+    end
+
+    properties (Access = private)
     end
 
     methods
@@ -111,17 +110,17 @@ classdef FrameRespStepData < post.resp.ResponseBase
                 beamLoadData = obj.beamLoadData;
             end
 
-            eleTags = double(eleTags(:).');
+            eleTags = eleTags(:).';
 
             [localF, basicF, basicD, plasticD] = frame_get_force_defo( ...
-                obj.ops, eleTags, ...
+                obj.mex_, eleTags, ...
                 obj.localRespNameCache, ...
                 obj.basicForceNameCache, ...
                 obj.basicDefoNameCache, ...
                 obj.plasticRespNameCache);
 
             [secF, secD, secLocs] = frame_get_section_resp( ...
-                obj.ops, eleTags, beamLoadData, localF, basicD, ...
+                obj.ops, obj.mex_, eleTags, beamLoadData, localF, basicD, ...
                 obj.elasticFrameSecPoints, obj.sectionTypeMap, ...
                 obj.hassectionResponseTypeMethod, ...
                 obj.eleClassCache, obj.eleStartCoords, ...
@@ -134,16 +133,12 @@ classdef FrameRespStepData < post.resp.ResponseBase
                 obj.secPoints = 1:nPts;
                 nLoc          = size(secLocs, 3);
                 switch nLoc
-                    case 2
-                        obj.secLocDofs = {'alpha','X'};
-                    case 3
-                        obj.secLocDofs = {'alpha','X','Y'};
-                    case 4
-                        obj.secLocDofs = {'alpha','X','Y','Z'};
+                    case 2,  obj.secLocDofs = {'alpha','X'};
+                    case 3,  obj.secLocDofs = {'alpha','X','Y'};
+                    case 4,  obj.secLocDofs = {'alpha','X','Y','Z'};
                     otherwise
                         obj.secLocDofs = arrayfun( ...
-                            @(i) sprintf('loc%d', i), 1:nLoc, ...
-                            'UniformOutput', false);
+                            @(i) sprintf('loc%d', i), 1:nLoc, 'UniformOutput', false);
                 end
             end
 
@@ -180,18 +175,12 @@ classdef FrameRespStepData < post.resp.ResponseBase
                 return;
             end
 
-
             respTypes = { ...
-                'localForces', ...
-                'basicForces', ...
-                'basicDeformations', ...
-                'plasticDeformation', ...
-                'sectionForces', ...
-                'sectionDeformations', ...
-                'sectionLocs'};
+                'localForces','basicForces','basicDeformations', ...
+                'plasticDeformation','sectionForces','sectionDeformations','sectionLocs'};
 
             localDofs = {'FxI','FyI','FzI','MxI','MyI','MzI', ...
-                        'FxJ','FyJ','FzJ','MxJ','MyJ','MzJ'};
+                         'FxJ','FyJ','FzJ','MxJ','MyJ','MzJ'};
             basicDofs = {'N','MzI','MzJ','MyI','MyJ','T'};
             secDofs   = {'N','Mz','Vy','My','Vz','T'};
 
@@ -205,42 +194,36 @@ classdef FrameRespStepData < post.resp.ResponseBase
                 respTypes = {rt};
             end
 
-            allEleTags = double(data.eleTags(:).');
-            selectAll = isempty(options.eleTags);
+            allEleTags = data.eleTags(:).';
+            selectAll  = isempty(options.eleTags);
 
             if selectAll
-                eleIdx = [];
+                eleIdx       = [];
                 selectedTags = allEleTags;
             else
-                queryTags = double(options.eleTags(:).');
+                queryTags = options.eleTags(:).';
                 [tf, eleIdx] = ismember(queryTags, allEleTags);
                 if ~all(tf)
-                    missing = queryTags(~tf);
                     error('readResponse:InvalidEleTags', ...
-                        'Element tags not found in data: %s', mat2str(missing));
+                        'Element tags not found in data: %s', mat2str(queryTags(~tf)));
                 end
                 selectedTags = allEleTags(eleIdx);
             end
 
-            S = struct();
+            S             = struct();
             S.ModelUpdate = data.ModelUpdate;
-            S.time = data.time;
-            S.eleTags = selectedTags(:);
+            S.time        = data.time;
+            S.eleTags     = selectedTags(:);
 
             for k = 1:numel(respTypes)
                 rt = respTypes{k};
-                if ~isfield(data, rt)
-                    continue;
-                end
-
+                if ~isfield(data, rt); continue; end
                 d = data.(rt);
-                if isempty(d) || ~isnumeric(d)
-                    continue;
-                end
+                if isempty(d) || ~isnumeric(d); continue; end
 
                 switch rt
                     case 'localForces'
-                        if ndims(d) ~= 3, continue; end
+                        if ndims(d) ~= 3; continue; end
                         if ~selectAll, d = d(:, eleIdx, :); end
                         nDof = min(size(d, 3), numel(localDofs));
                         S.(rt) = struct();
@@ -248,8 +231,8 @@ classdef FrameRespStepData < post.resp.ResponseBase
                             S.(rt).(localDofs{di}) = d(:, :, di);
                         end
 
-                    case {'basicForces', 'basicDeformations', 'plasticDeformation'}
-                        if ndims(d) ~= 3, continue; end
+                    case {'basicForces','basicDeformations','plasticDeformation'}
+                        if ndims(d) ~= 3; continue; end
                         if ~selectAll, d = d(:, eleIdx, :); end
                         nDof = min(size(d, 3), numel(basicDofs));
                         S.(rt) = struct();
@@ -257,8 +240,8 @@ classdef FrameRespStepData < post.resp.ResponseBase
                             S.(rt).(basicDofs{di}) = d(:, :, di);
                         end
 
-                    case {'sectionForces', 'sectionDeformations'}
-                        if ndims(d) ~= 4, continue; end
+                    case {'sectionForces','sectionDeformations'}
+                        if ndims(d) ~= 4; continue; end
                         if ~selectAll, d = d(:, eleIdx, :, :); end
                         nDof = min(size(d, 4), numel(secDofs));
                         S.(rt) = struct();
@@ -267,7 +250,7 @@ classdef FrameRespStepData < post.resp.ResponseBase
                         end
 
                     case 'sectionLocs'
-                        if ndims(d) ~= 4, continue; end
+                        if ndims(d) ~= 4; continue; end
                         if ~selectAll, d = d(:, eleIdx, :, :); end
                         if isfield(data, 'secLocDofs') && ~isempty(data.secLocDofs)
                             locDofs = data.secLocDofs;
@@ -275,8 +258,7 @@ classdef FrameRespStepData < post.resp.ResponseBase
                         else
                             nLoc = size(d, 4);
                             locDofs = arrayfun( ...
-                                @(i) sprintf('loc%d', i), 1:nLoc, ...
-                                'UniformOutput', false);
+                                @(i) sprintf('loc%d', i), 1:nLoc, 'UniformOutput', false);
                         end
                         S.sectionLocs = struct();
                         for di = 1:nLoc
@@ -322,20 +304,13 @@ end
 
 function idx = frame_section_dof_index(name)
     switch name
-        case 'P'
-            idx = 1;
-        case 'MZ'
-            idx = 2;
-        case 'VY'
-            idx = 3;
-        case 'MY'
-            idx = 4;
-        case 'VZ'
-            idx = 5;
-        case 'T'
-            idx = 6;
-        otherwise
-            idx = 0;
+        case 'P',  idx = 1;
+        case 'MZ', idx = 2;
+        case 'VY', idx = 3;
+        case 'MY', idx = 4;
+        case 'VZ', idx = 5;
+        case 'T',  idx = 6;
+        otherwise, idx = 0;
     end
 end
 
@@ -344,8 +319,9 @@ end
 % =========================================================================
 
 function [localF, basicF, basicD, plasticD] = frame_get_force_defo( ...
-        ops, eleTags, localNameCache, basicFNameCache, ...
+        mex_, eleTags, localNameCache, basicFNameCache, ...
         basicDNameCache, plasticNameCache)
+    % mex_ : raw MEX handle — no ops wrapper overhead per element call.
 
     nEle     = numel(eleTags);
     localF   = zeros(nEle, 12);
@@ -361,15 +337,15 @@ function [localF, basicF, basicD, plasticD] = frame_get_force_defo( ...
 
     for i = 1:nEle
         tag = eleTags(i);
-        localF(i,:)   = frame_get_local_force(ops, tag, localNames,   localNameCache);
-        basicF(i,:)   = frame_get_basic_resp( ops, tag, basicFNames,  basicFNameCache);
-        basicD(i,:)   = frame_get_basic_resp( ops, tag, basicDNames,  basicDNameCache);
-        plasticD(i,:) = frame_get_basic_resp( ops, tag, plasticNames, plasticNameCache);
+        localF(i,:)   = frame_get_local_force(mex_, tag, localNames,   localNameCache);
+        basicF(i,:)   = frame_get_basic_resp( mex_, tag, basicFNames,  basicFNameCache);
+        basicD(i,:)   = frame_get_basic_resp( mex_, tag, basicDNames,  basicDNameCache);
+        plasticD(i,:) = frame_get_basic_resp( mex_, tag, plasticNames, plasticNameCache);
     end
 end
 
-function f = frame_get_local_force(ops, tag, names, nameCache)
-    raw = frame_try_ele_response(ops, tag, names, nameCache);
+function f = frame_get_local_force(mex_, tag, names, nameCache)
+    raw = frame_try_ele_response(mex_, tag, names, nameCache);
     n   = numel(raw);
 
     if n == 0
@@ -377,19 +353,19 @@ function f = frame_get_local_force(ops, tag, names, nameCache)
         return;
     elseif n == 6
         tmp = zeros(1, 12);
-        tmp([1 2 6 7 8 12]) = double(raw(1:6));
+        tmp([1 2 6 7 8 12]) = raw(1:6);
         raw = tmp;
     elseif n > 12
         raw = raw([1:6, 8:13]);
     else
-        raw = double(raw(1:12));
+        raw = raw(1:12);
     end
 
-    f = [-1,-1,-1,-1,1,-1, 1,1,1,1,-1,1] .* double(raw(1:12));
+    f = [-1,-1,-1,-1,1,-1, 1,1,1,1,-1,1] .* raw(1:12);
 end
 
-function r = frame_get_basic_resp(ops, tag, names, nameCache)
-    raw = frame_try_ele_response(ops, tag, names, nameCache);
+function r = frame_get_basic_resp(mex_, tag, names, nameCache)
+    raw = frame_try_ele_response(mex_, tag, names, nameCache);
     n   = numel(raw);
 
     if n == 0
@@ -397,7 +373,7 @@ function r = frame_get_basic_resp(ops, tag, names, nameCache)
         return;
     end
 
-    raw = double(raw(:).');
+    raw = raw(:).';
     if n == 3
         tmp = zeros(1, 6);
         tmp(1:3) = raw;
@@ -410,23 +386,23 @@ function r = frame_get_basic_resp(ops, tag, names, nameCache)
         raw = raw(1:6);
     end
 
-    r = [raw(1), -raw(2), raw(3), raw(4), -raw(5), raw(6)];  % 'N','MZ1','MZ2','MY1','MY2','T'
+    r = [raw(1), -raw(2), raw(3), raw(4), -raw(5), raw(6)];
 end
 
-function raw = frame_try_ele_response(ops, tag, names, nameCache)
-    if ~isKey(nameCache, tag)
-        % First encounter: find the winning name and cache it.
+function raw = frame_try_ele_response(mex_, tag, names, nameCache)
+    % mex_ : raw MEX handle for eleResponse calls.
+    if ~nameCache.isKey(tag)
         for i = 1:numel(names)
-            out = ops.eleResponse(tag, names{i});
+            out = mex_('eleResponse', tag, names{i});
             if ~isempty(out)
-                nameCache(tag) = names{i};   % handle — modifies caller's Map
+                nameCache(tag) = names{i};
                 break;
             end
         end
     end
 
-    if isKey(nameCache, tag)
-        raw = ops.eleResponse(tag, nameCache(tag));
+    if nameCache.isKey(tag)
+        raw = mex_('eleResponse', tag, nameCache(tag));
     else
         raw = [];
     end
@@ -437,53 +413,57 @@ end
 % =========================================================================
 
 function [secF, secD, secLocs] = frame_get_section_resp( ...
-        ops, eleTags, beamLoadData, localF, basicD, nSecElastic, ...
+        ops, mex_, eleTags, beamLoadData, localF, basicD, nSecElastic, ...
         sectionTypeMap, hasSRT, ...
         eleClassCache, eleStartCoords, eleEndCoords, eleLengths, ...
         secLocCache, secColMapCache, eleParamCache, elasticClasses)
+    % ops  : kept for control commands (suppressPrint, parameter, …)
+    % mex_ : raw MEX handle for all data queries
 
     nEle = numel(eleTags);
 
     [patternTags, loadEleTags, loadData] = frame_extract_pattern_info(beamLoadData);
     patternFactorMap = frame_build_pattern_factor_map(ops, patternTags);
 
-    maxPts = nSecElastic;
+    maxPts      = nSecElastic;
     needSuppress = false;
 
     % First pass: fill caches for first-seen tags.
     for i = 1:nEle
         tag = eleTags(i);
 
-        if ~isKey(eleLengths, tag)
-            nodes = double(ops.eleNodes(tag));
-            c1    = frame_pad_coord3(double(ops.nodeCoord(nodes(1))));
-            c2    = frame_pad_coord3(double(ops.nodeCoord(nodes(2))));
+        if ~eleLengths.isKey(tag)
+            nodes = mex_('eleNodes', tag);
+            c1    = frame_pad_coord3(mex_('nodeCoord', nodes(1)));
+            c2    = frame_pad_coord3(mex_('nodeCoord', nodes(2)));
             eleStartCoords(tag) = c1;
             eleEndCoords(tag)   = c2;
             eleLengths(tag)     = norm(c2 - c1);
         end
 
-        if ~isKey(eleClassCache, tag)
-            eleClassCache(tag) = ismember(int32(ops.getEleClassTags(tag)), elasticClasses);
+        if ~eleClassCache.isKey(tag)
+            eleClassCache(tag) = ismember( ...
+                int32(mex_('getEleClassTags', tag)), elasticClasses);
         end
 
         if eleClassCache(tag)
-            if ~isKey(eleParamCache, tag)
+            if ~eleParamCache.isKey(tag)
                 needSuppress = true;
             end
         else
             L = eleLengths(tag);
 
-            if ~isKey(secLocCache, tag)
-                secLocCache(tag) = frame_get_section_locs(ops, tag, L);
+            if ~secLocCache.isKey(tag)
+                secLocCache(tag) = frame_get_section_locs(mex_, tag, L);
             end
 
-            if ~isKey(secColMapCache, tag)
-                locs = secLocCache(tag);
-                nSec = numel(locs);
+            if ~secColMapCache.isKey(tag)
+                locs    = secLocCache(tag);
+                nSec    = numel(locs);
                 colMaps = cell(1, nSec);
 
-                secTags = double(ops.sectionTag(tag));
+                % sectionTag / classType stay on ops (control / metadata)
+                secTags  = ops.sectionTag(tag);
                 secTypes = cell(1, numel(secTags));
                 for j = 1:numel(secTags)
                     secTypes{j} = char(ops.classType('section', secTags(j)));
@@ -505,7 +485,7 @@ function [secF, secD, secLocs] = frame_get_section_resp( ...
         cleaner = onCleanup(@() ops.suppressPrint(false));
         for i = 1:nEle
             tag = eleTags(i);
-            if eleClassCache(tag) && ~isKey(eleParamCache, tag)
+            if eleClassCache(tag) && ~eleParamCache.isKey(tag)
                 eleParamCache(tag) = frame_cache_elastic_params_no_toggle(ops, tag);
             end
         end
@@ -549,24 +529,20 @@ function [secF, secD, secLocs] = frame_get_section_resp( ...
             nPts    = numel(xi);
 
             if nPts == 0
-                xi = 0;
-                sf = nan(1, 6);
-                sd = nan(1, 6);
+                xi   = 0;
+                sf   = nan(1, 6);
+                sd   = nan(1, 6);
                 nPts = 1;
             else
                 sf = zeros(nPts, 6);
                 sd = zeros(nPts, 6);
                 for k = 1:nPts
-                    raw = ops.eleResponse(tag, 'section', k, 'forceAndDeformation');
+                    % eleResponse for section data — goes through mex_
+                    raw = mex_('eleResponse', tag, 'section', k, 'forceAndDeformation');
                     [sd(k,:), sf(k,:)] = frame_apply_col_map(raw, colMaps{k});
                 end
             end
         end
-
-        % sf(:,2) = -sf(:,2);
-        % sf(:,3) = -sf(:,3);
-        % sd(:,2) = -sd(:,2);
-        % sd(:,3) = -sd(:,3);
 
         secF(i,1:nPts,:) = sf;
         secD(i,1:nPts,:) = sd;
@@ -582,7 +558,7 @@ end
 
 function colMap = frame_build_col_map_cached( ...
         ops, tag, secNum, secTags, secTypes, sectionTypeMap, hasSRT)
-
+    % Uses ops for sectionResponseType / sectionForce (metadata only).
     if hasSRT
         dofs   = ops.sectionResponseType(tag, secNum);
         nDof   = numel(dofs);
@@ -620,6 +596,7 @@ function colMap = frame_build_col_map_cached( ...
 end
 
 function p = frame_cache_elastic_params_no_toggle(ops, tag)
+    % Uses ops for parameter / getParamValue / remove (control commands).
     p.E   = frame_get_param(ops, tag, 'E');
     p.Iz  = frame_get_param(ops, tag, 'Iz');
     p.Iy  = frame_get_param(ops, tag, 'Iy');
@@ -629,13 +606,13 @@ function p = frame_cache_elastic_params_no_toggle(ops, tag)
 end
 
 function value = frame_get_param(ops, eleTag, paramName)
-    existingTags = double(ops.getParamTags());
+    existingTags = ops.getParamTags();
     newTag = 1;
     if ~isempty(existingTags)
         newTag = max(existingTags) + 1;
     end
     ops.parameter(newTag, 'element', eleTag, paramName);
-    value = double(ops.getParamValue(newTag));
+    value = ops.getParamValue(newTag);
     ops.remove('parameter', newTag);
 end
 
@@ -656,9 +633,7 @@ function [defo, force] = frame_apply_col_map(raw, colMap)
     nHalf = floor(nRaw / 2);
     n     = min(nHalf, nMap);
 
-    if n == 0
-        return;
-    end
+    if n == 0; return; end
 
     rawDefo  = raw(1:n);
     rawForce = raw(nHalf + (1:n));
@@ -672,22 +647,20 @@ function [defo, force] = frame_apply_col_map(raw, colMap)
     end
 end
 
-function locs = frame_get_section_locs(ops, tag, length_)
-    raw = ops.sectionLocation(tag);
+function locs = frame_get_section_locs(mex_, tag, length_)
+    % mex_ : raw MEX handle for sectionLocation query.
+    raw = mex_('sectionLocation', tag);
     if ~isempty(raw)
-        locs = double(raw(:).') / length_;
+        locs = raw(:).' / length_;
         return;
     end
 
-    secTags = double(ops.sectionTag(tag));
-    nSec = numel(secTags);
+    secTags = mex_('sectionTag', tag);
+    nSec    = numel(secTags);
 
-    if nSec == 0
-        locs = [];
-    elseif nSec == 1
-        locs = 0.5;
-    else
-        locs = linspace(0, 1, nSec);
+    if     nSec == 0, locs = [];
+    elseif nSec == 1, locs = 0.5;
+    else,             locs = linspace(0, 1, nSec);
     end
 end
 
@@ -699,57 +672,43 @@ function secF = frame_elastic_sec_forces( ...
         tag, length_, xi, localF, ...
         patternTags, loadEleTags, loadData, patternFactorMap)
 
-    % secF columns:
-    % [N1, Mz1, Vy1, My1, Vz1, T1]
-
     secX = xi(:) * length_;
     nPts = numel(secX);
     secF = zeros(nPts, 6);
 
-    % Restore original sign convention from OpenSees localForce
     signFix = [-1,-1,-1,-1, 1,-1, 1,1,1,1,-1,1];
-    origF   = signFix(:).' .* double(localF(:).');
+    origF   = signFix(:).' .* localF(:).';
 
-    % Base field from element end forces
-    secF(:,1) = -origF(1);                  % N1
-    secF(:,2) = -origF(6) + origF(2)*secX; % Mz1
-    secF(:,3) =  origF(2);                  % Vy1
-    secF(:,4) = -origF(5) - origF(3)*secX; % My1
-    secF(:,5) = -origF(3);                  % Vz1
-    secF(:,6) = -origF(4);                  % T1
+    secF(:,1) = -origF(1);
+    secF(:,2) = -origF(6) + origF(2)*secX;
+    secF(:,3) =  origF(2);
+    secF(:,4) = -origF(5) - origF(3)*secX;
+    secF(:,5) = -origF(3);
+    secF(:,6) = -origF(4);
 
     if isempty(loadEleTags) || isempty(loadData)
         return;
     end
 
-    tagMask = abs(double(loadEleTags(:)) - double(tag)) < 1e-12;
-    if ~any(tagMask)
-        return;
-    end
+    tagMask = abs(loadEleTags(:)) - tag < 1e-12;
+    if ~any(tagMask); return; end
 
-    matchData    = double(loadData(tagMask, :));
-    matchPattern = double(patternTags(tagMask));
+    matchData    = loadData(tagMask, :);
+    matchPattern = patternTags(tagMask);
 
     for iLoad = 1:size(matchData,1)
         ptag = matchPattern(iLoad);
-        if isKey(patternFactorMap, ptag)
-            factor = double(patternFactorMap(ptag));
+        if patternFactorMap.isKey(ptag)
+            factor = patternFactorMap(ptag);
         else
             factor = 0.0;
         end
 
-        d = matchData(iLoad,:);
-
-        % Expected format:
-        % [wya, wyb, wza, wzb, wxa, wxb, xa, xb, ...]
-        %
-        % For now, keep the same effective behavior as your Python reference:
-        % use the "a-end" values.
-        wya = getcol(d,1);  wyb = getcol(d,2);
-        wza = getcol(d,3);  wzb = getcol(d,4);
-        wxa = getcol(d,5);  wxb = getcol(d,6);
-        xa  = getcol(d,7);
-        xb  = getcol(d,8);
+        d   = matchData(iLoad,:);
+        wya = getcol(d,1); wyb = getcol(d,2);
+        wza = getcol(d,3); wzb = getcol(d,4);
+        wxa = getcol(d,5); wxb = getcol(d,6);
+        xa  = getcol(d,7); xb  = getcol(d,8);
 
         wy = wya * factor;
         wz = wza * factor;
@@ -757,18 +716,10 @@ function secF = frame_elastic_sec_forces( ...
 
         hasDistributed = any(abs([wya wyb wza wzb wxa wxb]) > 1e-12);
 
-        % ------------------------------------------------------------
-        % Normalize malformed storage:
-        % distributed load present, but xa=0 and xb=0 -> treat as full-span
-        % ------------------------------------------------------------
         if hasDistributed && abs(xa) < 1e-12 && abs(xb) < 1e-12
-            xa = 0.0;
-            xb = 1.0;
+            xa = 0.0; xb = 1.0;
         end
 
-        % ------------------------------------------------------------
-        % Case 1: full uniform load over full element
-        % ------------------------------------------------------------
         if xb > xa && abs((xb - xa) - 1.0) < 1e-2
             secF(:,1) = secF(:,1) - wx .* secX;
             secF(:,2) = secF(:,2) + 0.5 * wy .* secX.^2;
@@ -778,18 +729,10 @@ function secF = frame_elastic_sec_forces( ...
             continue;
         end
 
-        % ------------------------------------------------------------
-        % Case 2: point load (same convention as your Python version)
-        % xb < xa means point load located at xa
-        % ------------------------------------------------------------
         if xb < xa
-            px = wx;
-            py = wy;
-            pz = wz;
-
+            px = wx; py = wy; pz = wz;
             xaAbs = xa * length_;
             past  = secX > xaAbs;
-
             secF(past,1) = secF(past,1) - px;
             secF(past,2) = secF(past,2) + py .* (secX(past) - xaAbs);
             secF(past,3) = secF(past,3) + py;
@@ -798,21 +741,14 @@ function secF = frame_elastic_sec_forces( ...
             continue;
         end
 
-        % ------------------------------------------------------------
-        % Case 3: partial uniform load on [xa, xb]
-        % ------------------------------------------------------------
-        xaAbs = xa * length_;
-        xbAbs = xb * length_;
+        xaAbs   = xa * length_;
+        xbAbs   = xb * length_;
         fullLen = xbAbs - xaAbs;
-
-        if fullLen <= 0
-            continue;
-        end
+        if fullLen <= 0; continue; end
 
         in   = (secX > xaAbs) & (secX < xbAbs);
         past = secX >= xbAbs;
-
-        dx = secX(in) - xaAbs;
+        dx   = secX(in) - xaAbs;
 
         secF(in,1) = secF(in,1) - wx .* dx;
         secF(in,2) = secF(in,2) + 0.5 * wy .* dx.^2;
@@ -829,17 +765,10 @@ function secF = frame_elastic_sec_forces( ...
 end
 
 function v = getcol(row, j)
-    if numel(row) >= j
-        v = row(j);
-    else
-        v = 0.0;
-    end
+    if numel(row) >= j, v = row(j); else, v = 0.0; end
 end
 
 function secD = frame_elastic_sec_defo_cached(secF, basicD, length_, xi, p)
-    % secD columns:
-    % [eps, kappa_z, gamma_y, kappa_y, gamma_z, theta_x/L]
-
     nPts = size(secF, 1);
     secD = zeros(nPts, 6);
 
@@ -847,27 +776,23 @@ function secD = frame_elastic_sec_defo_cached(secF, basicD, length_, xi, p)
     oneL = 1.0 / length_;
     xi6  = 6.0 * xi(:);
 
-    basicD = double(basicD(:)).';
+    basicD = basicD(:).';
 
-    % axial strain / torsional twist rate
     secD(:,1) = basicD(1) * oneL;
     secD(:,6) = basicD(6) * oneL;
 
-    % bending about z -> Mz
     if p.E * p.Iz > eps_
         secD(:,2) = secF(:,2) / (p.E * p.Iz);
     else
         secD(:,2) = oneL * ((xi6 - 4.0) .* (-basicD(2)) + (xi6 - 2.0) .* basicD(3));
     end
 
-    % bending about y -> My
     if p.E * p.Iy > eps_
         secD(:,4) = secF(:,4) / (p.E * p.Iy);
     else
         secD(:,4) = oneL * ((xi6 - 4.0) .* basicD(4) + (xi6 - 2.0) .* (-basicD(5)));
     end
 
-    % shear
     if p.G * p.Avy > eps_
         secD(:,3) = secF(:,3) / (p.G * p.Avy);
     end
@@ -882,8 +807,8 @@ end
 % =========================================================================
 
 function c3 = frame_pad_coord3(c)
-    c3 = zeros(1, 3);
-    n  = min(numel(c), 3);
+    c3    = zeros(1, 3);
+    n     = min(numel(c), 3);
     c3(1:n) = c(1:n);
 end
 
@@ -891,7 +816,7 @@ function secLocs = frame_build_sec_coords(startCoords, endCoords, xlocs)
     nEle = size(startCoords, 1);
     nPts = size(xlocs, 2);
 
-    dir_ = endCoords - startCoords;
+    dir_   = endCoords - startCoords;
     coords = reshape(startCoords, nEle, 1, 3) + ...
              reshape(dir_,       nEle, 1, 3) .* reshape(xlocs, nEle, nPts, 1);
 
@@ -903,14 +828,6 @@ end
 % =========================================================================
 
 function [patternTags, loadEleTags, loadData] = frame_extract_pattern_info(beamLoadData)
-    % Output:
-    % patternTags : [nLoad x 1]
-    % loadEleTags : [nLoad x 1]
-    % loadData    : [nLoad x 8]
-    %
-    % loadData columns:
-    % [wya, wyb, wza, wzb, wxa, wxb, xa, xb]
-
     patternTags = zeros(0,1);
     loadEleTags = zeros(0,1);
     loadData    = zeros(0,8);
@@ -923,17 +840,13 @@ function [patternTags, loadEleTags, loadData] = frame_extract_pattern_info(beamL
         return;
     end
 
-    pairTags = double(beamLoadData.PatternElementTags);
-    vals     = double(beamLoadData.Values);
+    pairTags = beamLoadData.PatternElementTags;
+    vals     = beamLoadData.Values;
 
     if isempty(pairTags) || isempty(vals)
         return;
     end
 
-    % ----------------------------
-    % normalize PatternElementTags
-    % expected: [patternTag, eleTag]
-    % ----------------------------
     if isvector(pairTags)
         if numel(pairTags) ~= 2
             error('frame_extract_pattern_info:InvalidPatternElementTags', ...
@@ -951,18 +864,13 @@ function [patternTags, loadEleTags, loadData] = frame_extract_pattern_info(beamL
             'PatternElementTags must be n-by-2.');
     end
 
-    % ----------------------------
-    % normalize Values
-    % ----------------------------
     if isvector(vals)
         vals = reshape(vals, 1, []);
     end
 
     nLoad = size(pairTags,1);
     if size(vals,1) ~= nLoad
-        if size(vals,1) == 1 && nLoad == 1
-            % okay
-        else
+        if ~(size(vals,1) == 1 && nLoad == 1)
             error('frame_extract_pattern_info:SizeMismatch', ...
                 'PatternElementTags row count and Values row count do not match.');
         end
@@ -971,33 +879,23 @@ function [patternTags, loadEleTags, loadData] = frame_extract_pattern_info(beamL
     patternTags = pairTags(:,1);
     loadEleTags = pairTags(:,2);
 
-    % Only first 8 entries are used here:
-    % [wya, wyb, wza, wzb, wxa, wxb, xa, xb]
-    nCols = min(size(vals,2), 8);
+    nCols    = min(size(vals,2), 8);
     loadData = zeros(size(vals,1), 8);
     loadData(:,1:nCols) = vals(:,1:nCols);
 
-    % Defaults:
-    % if xa/xb are absent, interpret as full-span load
-    if nCols < 7
-        loadData(:,7) = 0.0;
-    end
-    if nCols < 8
-        loadData(:,8) = 1.0;
-    end
+    if nCols < 7, loadData(:,7) = 0.0; end
+    if nCols < 8, loadData(:,8) = 1.0; end
 end
 
 function factorMap = frame_build_pattern_factor_map(ops, patternTags)
-    factorMap = containers.Map('KeyType', 'double', 'ValueType', 'double');
+    % Uses ops.getLoadFactor — a control query, stays on ops.
+    factorMap = containers.Map('KeyType','double','ValueType','double');
+    if isempty(patternTags); return; end
 
-    if isempty(patternTags)
-        return;
-    end
-
-    uTags = unique(double(patternTags(:)));
+    uTags = unique(patternTags(:));
     for i = 1:numel(uTags)
         try
-            factorMap(uTags(i)) = double(ops.getLoadFactor(uTags(i)));
+            factorMap(uTags(i)) = ops.getLoadFactor(uTags(i));
         catch
             factorMap(uTags(i)) = 0.0;
         end

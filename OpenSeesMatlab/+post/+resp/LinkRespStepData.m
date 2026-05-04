@@ -12,10 +12,13 @@ classdef LinkRespStepData < post.resp.ResponseBase
     %   Fewer than 6 components: zero-padded to 6.
     %   More than 6 components: truncated to 6.
     %
-    % Performance notes
-    % -----------------
-    %   * Both response arrays are pre-allocated [nEle x 6] before the loop.
-    %   * eleNodes / nodeCoord queries for ndim are cached on first encounter.
+    % Performance
+    % -----------
+    %   The raw MEX handle (mex_) is cached at construction time. All
+    %   eleResponse / eleNodes / nodeCoord calls in the element loop use
+    %   mex_('cmd', ...) directly, bypassing the ops wrapper overhead.
+    %   eleNodes / nodeCoord for ndim determination are also cached so
+    %   each node query fires at most once per element tag.
 
     % =====================================================================
     properties (Constant)
@@ -25,10 +28,14 @@ classdef LinkRespStepData < post.resp.ResponseBase
 
     % =====================================================================
     properties
-        eleTags     double   % [1 x nEle]
+        eleTags      double   % [1 x nEle]
 
         % Per-element cache: eleTag -> int32 ndim (2 or 3)
         eleNdimCache  containers.Map
+    end
+
+    % =====================================================================
+    properties (Access = private)
     end
 
     % =====================================================================
@@ -36,6 +43,8 @@ classdef LinkRespStepData < post.resp.ResponseBase
 
         function obj = LinkRespStepData(ops, eleTags, varargin)
             obj@post.resp.ResponseBase(ops, varargin{:});
+
+
 
             obj.eleTags      = double(eleTags(:).');
             obj.eleNdimCache = containers.Map('KeyType','double','ValueType','int32');
@@ -48,10 +57,9 @@ classdef LinkRespStepData < post.resp.ResponseBase
             if nargin < 2 || isempty(eleTags)
                 eleTags = obj.eleTags;
             end
-            eleTags = double(eleTags(:).');
+            eleTags = eleTags(:).';
             nEle    = numel(eleTags);
 
-            % ---- pre-allocate [nEle x 6] --------------------------------
             defos  = zeros(nEle, 6, 'double');
             forces = zeros(nEle, 6, 'double');
 
@@ -60,20 +68,21 @@ classdef LinkRespStepData < post.resp.ResponseBase
                           'basicDisplacements','basicDisplacement'};
             forceNames = {'basicForces','basicForce'};
 
-            % ---- element loop -------------------------------------------
+            mex_ = obj.mex_;   % local alias avoids repeated property lookup
+
             for i = 1:nEle
                 tag = eleTags(i);
 
-                % cache ndim
-                if ~isKey(obj.eleNdimCache, tag)
-                    nds  = double(obj.ops.eleNodes(tag));
-                    crd  = double(obj.ops.nodeCoord(nds(1)));
+                % ndim: cached after first encounter
+                if ~obj.eleNdimCache.isKey(tag)
+                    nds  = mex_('eleNodes', tag);
+                    crd  = mex_('nodeCoord', nds(1));
                     obj.eleNdimCache(tag) = int32(numel(crd));
                 end
-                ndim = double(obj.eleNdimCache(tag));
+                ndim = obj.eleNdimCache(tag);
 
-                defos(i,:)  = link_get_resp(obj.ops, tag, defoNames,  ndim);
-                forces(i,:) = link_get_resp(obj.ops, tag, forceNames, ndim);
+                defos(i,:)  = link_get_resp(mex_, tag, defoNames,  ndim);
+                forces(i,:) = link_get_resp(mex_, tag, forceNames, ndim);
             end
 
             S = struct( ...
@@ -119,14 +128,14 @@ classdef LinkRespStepData < post.resp.ResponseBase
                 respTypes = allRespTypes;
             end
 
-            allEleTags = double(data.eleTags(:).');
+            allEleTags = data.eleTags(:).';
             selectAll  = isempty(options.eleTags);
 
             if selectAll
                 eleIdx       = [];
                 selectedTags = allEleTags;
             else
-                queryTags = double(options.eleTags(:).');
+                queryTags = options.eleTags(:).';
                 [tf, eleIdx] = ismember(queryTags, allEleTags);
                 if ~all(tf)
                     error('readResponse:InvalidEleTags', ...
@@ -169,11 +178,12 @@ end
 % Single-element response fetch with padding / truncation
 % =========================================================================
 
-function out = link_get_resp(ops, tag, names, ndim)
+function out = link_get_resp(mex_, tag, names, ndim)
+    % mex_ : raw MEX handle — no ops wrapper overhead per call.
     % Try each name in order; use the first non-empty response.
     raw = [];
     for k = 1:numel(names)
-        raw = double(ops.eleResponse(tag, names{k}));
+        raw = mex_('eleResponse', tag, names{k});
         if ~isempty(raw); break; end
     end
 
@@ -194,7 +204,7 @@ function out = link_get_resp(ops, tag, names, ndim)
     end
 
     % General: pad or truncate to exactly 6
-    out = zeros(1, 6);
-    m   = min(n, 6);
+    out    = zeros(1, 6);
+    m      = min(n, 6);
     out(1:m) = raw(1:m);
 end

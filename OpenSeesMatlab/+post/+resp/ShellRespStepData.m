@@ -17,6 +17,9 @@ classdef ShellRespStepData < post.resp.ResponseBase
     %
     % Performance design
     % ------------------
+    %  * Raw MEX handle (mex_) cached at construction; passed to all local
+    %    helpers so every eleResponse / eleNodes call goes directly to MEX
+    %    without wrapper method-dispatch overhead.
     %  * All per-element metadata (nGP, nFib, nodeTags, classTag, elastic
     %    params) is resolved once on the first call and stored in typed caches.
     %  * Output arrays are pre-allocated to the known final size before the
@@ -40,37 +43,37 @@ classdef ShellRespStepData < post.resp.ResponseBase
 
     % =====================================================================
     properties
-        eleTags          double    % [1 x nEle]
+        eleTags          double
         computeNodalResp logical   = false
         nodalRespMethod  char      = 'extrapolation'
 
-        % Populated on first step
         gaussPoints      double
         fiberPoints      double
-        nodeTags         double    % [1 x nNode]
+        nodeTags         double
 
-        % ---- per-element caches (filled once on first encounter) --------
-        % All keyed by eleTag (double).
-        eleClassCache    containers.Map   % -> int32  class tag
-        eleNGPCache      containers.Map   % -> int32  number of GPs (0 = no data)
-        eleNFibCache     containers.Map   % -> int32  nFib (0=elastic, -1=no stress)
-        eleParamCache    containers.Map   % -> struct(E,nu,h)  elastic elements only
-        eleNodeCache     containers.Map   % -> [1 x nNode] double
+        eleClassCache    containers.Map
+        eleNGPCache      containers.Map
+        eleNFibCache     containers.Map
+        eleParamCache    containers.Map
+        eleNodeCache     containers.Map
 
-        % Global node-index map: nodeTag(double) -> compact 1-based index(int32)
-        % Built on first addRespDataOneStep; extended if model updates.
         nodeIndexMap     containers.Map
+    end
+
+    % =====================================================================
+    properties (Access = private)
     end
 
     % =====================================================================
     methods
 
         function obj = ShellRespStepData(ops, eleTags, varargin)
-            % ShellRespStepData(ops, eleTags, 'computeNodalResp', method, ...)
             [computeNodalResp, baseArgs] = shell_parse_options(varargin{:});
             obj@post.resp.ResponseBase(ops, baseArgs{:});
 
-            obj.eleTags = double(eleTags(:).');
+
+
+            obj.eleTags = eleTags(:).';
 
             obj.eleClassCache = containers.Map('KeyType','double','ValueType','int32');
             obj.eleNGPCache   = containers.Map('KeyType','double','ValueType','int32');
@@ -92,27 +95,24 @@ classdef ShellRespStepData < post.resp.ResponseBase
             if nargin < 2 || isempty(eleTags)
                 eleTags = obj.eleTags;
             end
-            eleTags = double(eleTags(:).');
+            eleTags = eleTags(:).';
             nEle    = numel(eleTags);
 
-            % Populate caches for first-seen elements; get array dimensions.
-            [maxGP, maxFib] = shell_fill_caches(obj, eleTags);
+            [maxGP, maxFib] = shell_fill_caches(obj, eleTags, obj.mex_);
 
-            % ---- pre-allocate output arrays (known size, single alloc) --
             secF     = NaN(nEle, maxGP, 8,         'double');
             secD     = NaN(nEle, maxGP, 8,         'double');
             stresses = NaN(nEle, maxGP, maxFib, 5, 'double');
             strains  = NaN(nEle, maxGP, maxFib, 5, 'double');
 
-            % ---- element loop -------------------------------------------
             for i = 1:nEle
                 tag = eleTags(i);
-                nGP = double(obj.eleNGPCache(tag));
+                nGP = obj.eleNGPCache(tag);
                 if nGP == 0; continue; end
 
-                % section forces / deformations
-                rawF = double(obj.ops.eleResponse(tag, 'stresses'));
-                rawD = double(obj.ops.eleResponse(tag, 'strains'));
+                % Direct MEX calls — no ops wrapper overhead
+                rawF = obj.mex_('eleResponse', tag, 'stresses');
+                rawD = obj.mex_('eleResponse', tag, 'strains');
 
                 sf = reshape(rawF, nGP, 8);
                 sd = reshape(rawD, nGP, 8);
@@ -126,25 +126,23 @@ classdef ShellRespStepData < post.resp.ResponseBase
                 secF(i, 1:nGP, :) = sf;
                 secD(i, 1:nGP, :) = sd;
 
-                % stress / strain
-                nFib = double(obj.eleNFibCache(tag));
+                nFib = obj.eleNFibCache(tag);
 
                 if nFib > 0
                     [ss, se] = shell_get_fiber_resp_prealloc( ...
-                        obj.ops, tag, nGP, nFib);
+                        obj.mex_, tag, nGP, nFib);
                 elseif nFib == 0
                     p = obj.eleParamCache(tag);
                     [ss, se] = shell_elastic_stress_vec(sf, p);
-                    nFib = size(ss, 2);    % always 5 for elastic
+                    nFib = size(ss, 2);
                 else
-                    continue;              % nFib == -1: no stress data
+                    continue;
                 end
 
                 stresses(i, 1:nGP, 1:nFib, :) = ss;
                 strains (i, 1:nGP, 1:nFib, :) = se;
             end
 
-            % ---- initialise coordinate arrays on first step -------------
             if isempty(obj.gaussPoints)
                 obj.gaussPoints = 1:maxGP;
             end
@@ -152,7 +150,6 @@ classdef ShellRespStepData < post.resp.ResponseBase
                 obj.fiberPoints = 1:maxFib;
             end
 
-            % ---- optional GP -> node projection -------------------------
             if obj.computeNodalResp
                 [nSecF, nSecD, nStress, nStrain, nTags] = ...
                     shell_get_nodal_resp(obj, eleTags, ...
@@ -160,20 +157,19 @@ classdef ShellRespStepData < post.resp.ResponseBase
                 obj.nodeTags = nTags;
             end
 
-            % ---- assemble step struct -----------------------------------
             S = struct( ...
-                'eleTags',          eleTags(:), ...
-                'SecForceAtGP',     secF, ...
-                'SecDefoAtGP',      secD, ...
-                'StressAtGP',       stresses, ...
-                'StrainAtGP',       strains);
+                'eleTags',      eleTags(:), ...
+                'SecForceAtGP', secF, ...
+                'SecDefoAtGP',  secD, ...
+                'StressAtGP',   stresses, ...
+                'StrainAtGP',   strains);
 
             if obj.computeNodalResp
-                S.SecForceAtNode  = nSecF;
-                S.SecDefoAtNode   = nSecD;
-                S.StressAtNode    = nStress;
-                S.StrainAtNode    = nStrain;
-                S.nodeTags        = nTags(:);
+                S.SecForceAtNode = nSecF;
+                S.SecDefoAtNode  = nSecD;
+                S.StressAtNode   = nStress;
+                S.StrainAtNode   = nStrain;
+                S.nodeTags       = nTags(:);
             end
 
             obj.addStepData(S);
@@ -218,7 +214,7 @@ classdef ShellRespStepData < post.resp.ResponseBase
 
             respTypes = post.resp.ResponseBase.resolveRespTypes(allRespTypes, options.respType);
 
-            allEleTags = double(data.eleTags(:).');
+            allEleTags = data.eleTags(:).';
             [selectedTags, eleIdx] = post.resp.ResponseBase.resolveTagSelection( ...
                 allEleTags, options.eleTags, 'readResponse:InvalidEleTags', 'Element');
             selectAllEle = isempty(options.eleTags);
@@ -238,7 +234,7 @@ classdef ShellRespStepData < post.resp.ResponseBase
                 S.nodeTags = selectedNodeTags(:);
             end
 
-            eleTypes  = {'SecForceAtGP','SecDefoAtGP','StressAtGP','StrainAtGP'};
+            eleTypes = {'SecForceAtGP','SecDefoAtGP','StressAtGP','StrainAtGP'};
 
             for k = 1:numel(respTypes)
                 rt = respTypes{k};
@@ -259,7 +255,6 @@ classdef ShellRespStepData < post.resp.ResponseBase
                 if ~selectAllNode && ismember(rt, nodeTypes)
                     d = post.resp.ResponseBase.subsetSecondDim(d, nodeIdx);
                 end
-
                 if ~selectAllEle && ismember(rt, eleTypes)
                     d = post.resp.ResponseBase.subsetSecondDim(d, eleIdx);
                 end
@@ -278,35 +273,26 @@ classdef ShellRespStepData < post.resp.ResponseBase
 end
 
 % =========================================================================
-% Cache population  (one-time per element, determines array pre-alloc sizes)
+% Cache population
 % =========================================================================
 
-function [maxGP, maxFib] = shell_fill_caches(obj, eleTags)
-    % Fills eleClassCache, eleNGPCache, eleNFibCache, eleParamCache,
-    % eleNodeCache for every tag not yet seen.
-    %
-    % Returns maxGP and maxFib across ALL cached elements so that
-    % pre-allocated arrays remain consistent across steps.
-
+function [maxGP, maxFib] = shell_fill_caches(obj, eleTags, mex_)
+    % mex_ : raw MEX handle — all eleResponse / eleNodes calls go direct.
     needParam = false;
 
     for i = 1:numel(eleTags)
         tag = eleTags(i);
 
-        % Shell connectivity may change under model-update analyses, so
-        % refresh the current-step node list every pass while keeping the
-        % GP/fiber metadata cached.
-        nds = double(obj.ops.eleNodes(tag));
+        % Refresh node connectivity every step (model-update support).
+        nds = mex_('eleNodes', tag);
         obj.eleNodeCache(tag) = nds(:).';
 
-        if isKey(obj.eleNGPCache, tag); continue; end   % already resolved
+        if obj.eleNGPCache.isKey(tag); continue; end
 
-        % class tag
-        ct = int32(ops_scalar(obj.ops.getEleClassTags(tag)));
-        obj.eleClassCache(tag) = ct;
+        ct = int32(mex_('getEleClassTags', tag));
+        obj.eleClassCache(tag) = ct(1);
 
-        % probe nGP via stresses
-        rawF = double(obj.ops.eleResponse(tag, 'stresses'));
+        rawF = mex_('eleResponse', tag, 'stresses');
         if isempty(rawF)
             obj.eleNGPCache(tag)  = int32(0);
             obj.eleNFibCache(tag) = int32(-1);
@@ -315,13 +301,12 @@ function [maxGP, maxFib] = shell_fill_caches(obj, eleTags)
         nGP = int32(numel(rawF) / 8);
         obj.eleNGPCache(tag) = nGP;
 
-        % probe fiber count at GP-1, fiber-1
-        s1 = obj.ops.eleResponse(tag, 'Material', 1, 'fiber', 1, 'stresses');
+        % Probe fiber count via Material-1 / fiber-1
+        s1 = mex_('eleResponse', tag, 'Material', 1, 'fiber', 1, 'stresses');
         if ~isempty(s1)
-            % count remaining fibers
             nFib = int32(1);
             for k = 2:2000
-                if isempty(obj.ops.eleResponse(tag, 'Material', 1, ...
+                if isempty(mex_('eleResponse', tag, 'Material', 1, ...
                         'fiber', k, 'stresses'))
                     break;
                 end
@@ -329,56 +314,55 @@ function [maxGP, maxFib] = shell_fill_caches(obj, eleTags)
             end
             obj.eleNFibCache(tag) = nFib;
         else
-            obj.eleNFibCache(tag) = int32(0);   % elastic: compute analytically
+            obj.eleNFibCache(tag) = int32(0);  % elastic
             needParam = true;
         end
     end
 
-    % Retrieve elastic parameters under print suppression
+    % Retrieve elastic parameters (suppressPrint still goes through ops wrapper
+    % since it is a control command, not a data query).
     if needParam
         obj.ops.suppressPrint(true);
         cleaner = onCleanup(@() obj.ops.suppressPrint(false));
         for i = 1:numel(eleTags)
             tag = eleTags(i);
             if obj.eleNFibCache(tag) ~= 0; continue; end
-            if isKey(obj.eleParamCache, tag); continue; end
+            if obj.eleParamCache.isKey(tag); continue; end
             p.E  = shell_get_param(obj.ops, tag, 'E');
             p.nu = shell_get_param(obj.ops, tag, 'nu');
             p.h  = shell_get_param(obj.ops, tag, 'h');
             if p.E <= 0 || p.nu < 0 || p.h <= 0
-                obj.eleNFibCache(tag) = int32(-1);  % override: no stress
+                obj.eleNFibCache(tag) = int32(-1);
             else
                 obj.eleParamCache(tag) = p;
             end
         end
     end
 
-    % Compute max dimensions over all cached elements
-    allNGP  = cell2mat(values(obj.eleNGPCache));    % int32 vector
-    allNFib = cell2mat(values(obj.eleNFibCache));   % int32 vector
+    allNGP  = cell2mat(obj.eleNGPCache.values());
+    allNFib = cell2mat(obj.eleNFibCache.values());
 
-    maxGP  = double(max([allNGP(:);  int32(0)]));
-    % elastic elements use 5 through-thickness points
+    maxGP  = max([allNGP(:);  int32(0)]);
     hasElastic = any(allNFib == 0);
     validFibs  = allNFib(allNFib > 0);
-    maxFib = double(max([validFibs(:); int32(5 * hasElastic); int32(1)]));
+    maxFib = max([validFibs(:); int32(5 * hasElastic); int32(1)]);
 end
 
 % =========================================================================
 % Fiber stress query  (pre-allocated, no cell arrays)
 % =========================================================================
 
-function [ss, se] = shell_get_fiber_resp_prealloc(ops, tag, nGP, nFib)
-    % ss, se : [nGP x nFib x 5]  NaN-initialised
+function [ss, se] = shell_get_fiber_resp_prealloc(mex_, tag, nGP, nFib)
+    % mex_ : raw MEX handle — no ops wrapper overhead per GP/fiber query.
     ss = NaN(nGP, nFib, 5, 'double');
     se = NaN(nGP, nFib, 5, 'double');
 
     for j = 1:nGP
         for k = 1:nFib
-            s = double(ops.eleResponse(tag, 'Material', j, ...
-                                        'fiber', k, 'stresses'));
-            e = double(ops.eleResponse(tag, 'Material', j, ...
-                                        'fiber', k, 'strains'));
+            s = mex_('eleResponse', tag, 'Material', j, ...
+                             'fiber', k, 'stresses');
+            e = mex_('eleResponse', tag, 'Material', j, ...
+                             'fiber', k, 'strains');
             if isempty(s); break; end
             ss(j, k, :) = s;
             se(j, k, :) = e;
@@ -391,20 +375,13 @@ end
 % =========================================================================
 
 function [ss, se] = shell_elastic_stress_vec(sf, p)
-    % sf : [nGP x 8]  section forces
-    % p  : struct(E, nu, h)
-    % ss, se : [nGP x 5 x 5]
-    %   dim-2  = 5 through-thickness points (xs = linspace(-h/2, h/2, 5))
-    %   dim-3  = [sigma11, sigma22, sigma12, sigma23, sigma13]
-
     G    = 0.5 * p.E / (1.0 + p.nu);
-    xs   = linspace(-p.h/2, p.h/2, 5);   % [1 x 5]
+    xs   = linspace(-p.h/2, p.h/2, 5);
     invH = 1.0 / p.h;
     w    = 12.0 / (p.h ^ 3);
     invE = 1.0 / p.E;
     invG = 1.0 / G;
 
-    % sf(:,col) is [nGP x 1]; xs is [1 x 5] -> outer product -> [nGP x 5]
     s11 = sf(:,1)*invH - w * (sf(:,4) * xs);
     s22 = sf(:,2)*invH - w * (sf(:,5) * xs);
     s12 = sf(:,3)*invH - w * (sf(:,6) * xs);
@@ -412,7 +389,6 @@ function [ss, se] = shell_elastic_stress_vec(sf, p)
     s13 = repmat(sf(:,7)*invH, 1, 5);
     s23 = repmat(sf(:,8)*invH, 1, 5);
 
-    % Stack: reshape to [nGP x 5 x 1] then cat along dim-3 -> [nGP x 5 x 5]
     ss = cat(3, reshape(s11,nGP,5,1), reshape(s22,nGP,5,1), ...
                 reshape(s12,nGP,5,1), reshape(s23,nGP,5,1), ...
                 reshape(s13,nGP,5,1));
@@ -423,77 +399,59 @@ function [ss, se] = shell_elastic_stress_vec(sf, p)
 end
 
 % =========================================================================
-% GP -> Node projection  (dense pre-allocated accumulation, no Map copies)
+% GP -> Node projection
 % =========================================================================
 
 function [nSecF, nSecD, nStress, nStrain, nodeTags] = shell_get_nodal_resp( ...
         obj, eleTags, secF, secD, stresses, strains)
-    %
-    % Strategy
-    % --------
-    %  Pass 1 (light): register any new node tags into obj.nodeIndexMap.
-    %  Pre-allocate dense accumulation arrays (sum + count).
-    %  Pass 2 (heavy): project GP -> node and accumulate by compact index.
-    %  Final: divide sum by count.
-    %
-    % All intermediate storage is plain numeric arrays; no Map-of-struct.
 
     method = obj.nodalRespMethod;
     nEle   = numel(eleTags);
     nFib   = size(stresses, 3);
-
-    % Determine whether any real stress data exists (avoid NaN-only work)
     hasStress = any(~isnan(stresses(:)));
 
-    % ---- pass 1: build the current-step node set ------------------------
-    % Model-update runs may add/remove shell elements and nodes, so nodal
-    % projection must be indexed by the nodes referenced by the current
-    % step only rather than a cross-step accumulated node map.
+    % Pass 1: build current-step node set
     nodeIndexMap = containers.Map('KeyType','double','ValueType','int32');
     nodeTags = zeros(0,1);
 
     for i = 1:nEle
         tag = eleTags(i);
-        if ~isKey(obj.eleNodeCache, tag); continue; end
+        if ~obj.eleNodeCache.isKey(tag); continue; end
         nds = obj.eleNodeCache(tag);
         for j = 1:numel(nds)
             nt = nds(j);
-            if ~isKey(nodeIndexMap, nt)
+            if ~nodeIndexMap.isKey(nt)
                 nodeIndexMap(nt) = int32(numel(nodeTags) + 1);
                 nodeTags(end+1,1) = nt; %#ok<AGROW>
             end
         end
     end
 
-    nNodes   = numel(nodeTags);
-
-    % ---- pre-allocate accumulators (zeroed, single allocation) ----------
-    accSecF  = zeros(nNodes, 8,        'double');
-    accSecD  = zeros(nNodes, 8,        'double');
-    cntSecF  = zeros(nNodes, 8,        'uint32');
-    cntSecD  = zeros(nNodes, 8,        'uint32');
+    nNodes  = numel(nodeTags);
+    accSecF = zeros(nNodes, 8, 'double');
+    accSecD = zeros(nNodes, 8, 'double');
+    cntSecF = zeros(nNodes, 8);
+    cntSecD = zeros(nNodes, 8);
 
     if hasStress
-        accSS  = zeros(nNodes, nFib, 5, 'double');
-        accSE  = zeros(nNodes, nFib, 5, 'double');
-        cntSS  = zeros(nNodes, nFib, 5, 'uint32');
-        cntSE  = zeros(nNodes, nFib, 5, 'uint32');
+        accSS = zeros(nNodes, nFib, 5, 'double');
+        accSE = zeros(nNodes, nFib, 5, 'double');
+        cntSS = zeros(nNodes, nFib, 5);
+        cntSE = zeros(nNodes, nFib, 5);
     end
 
-    % ---- pass 2: project and accumulate ---------------------------------
+    % Pass 2: project and accumulate
     for i = 1:nEle
         tag   = eleTags(i);
-        nGP   = double(obj.eleNGPCache(tag));
+        nGP   = obj.eleNGPCache(tag);
         if nGP == 0; continue; end
 
         nds   = obj.eleNodeCache(tag);
         nNode = numel(nds);
 
-        % Extract section force/defo slice without squeeze (explicit reshape)
         sf_i = reshape(secF(i, 1:nGP, :), nGP, 8);
         sd_i = reshape(secD(i, 1:nGP, :), nGP, 8);
 
-        % Drop all-NaN GP rows (defensive; typically zero cost)
         gpMask = ~all(isnan(sf_i), 2);
         nGPv   = sum(gpMask);
         if nGPv == 0; continue; end
@@ -506,22 +464,20 @@ function [nSecF, nSecD, nStress, nStrain, nodeTags] = shell_get_nodal_resp( ...
         projFunc = post.utils.FEShapeLibrary.getShellGP2NodeFunc(eleType, nNode, nGPv);
 
         if isempty(projFunc)
-            nodeSecF = repmat(mean(sf_i, 1), nNode, 1);   % [nNode x 8]
+            nodeSecF = repmat(mean(sf_i, 1), nNode, 1);
             nodeSecD = repmat(mean(sd_i, 1), nNode, 1);
         else
-            nodeSecF = projFunc(method, sf_i);             % [nNode x 8]
+            nodeSecF = projFunc(method, sf_i);
             nodeSecD = projFunc(method, sd_i);
         end
 
-        % Accumulate section responses (inner loop over nNode, typically 3-9)
         for j = 1:nNode
-            idx = double(nodeIndexMap(nds(j)));
+            idx = nodeIndexMap(nds(j));
             validF = isfinite(nodeSecF(j,:));
             if any(validF)
                 accSecF(idx,validF) = accSecF(idx,validF) + nodeSecF(j,validF);
                 cntSecF(idx,validF) = cntSecF(idx,validF) + 1;
             end
-
             validD = isfinite(nodeSecD(j,:));
             if any(validD)
                 accSecD(idx,validD) = accSecD(idx,validD) + nodeSecD(j,validD);
@@ -529,7 +485,6 @@ function [nSecF, nSecD, nStress, nStrain, nodeTags] = shell_get_nodal_resp( ...
             end
         end
 
-        % Stress / strain accumulation
         if hasStress
             ns_i = reshape(stresses(i, 1:nGP, :, :), nGP, nFib, 5);
             ne_i = reshape(strains (i, 1:nGP, :, :), nGP, nFib, 5);
@@ -539,18 +494,17 @@ function [nSecF, nSecD, nStress, nStrain, nodeTags] = shell_get_nodal_resp( ...
             end
 
             if isempty(projFunc)
-                % mean over GP dim -> [1 x nFib x 5], replicate to [nNode x nFib x 5]
                 mS = reshape(mean(ns_i, 1), 1, nFib, 5);
                 mE = reshape(mean(ne_i, 1), 1, nFib, 5);
                 nodeStress = repmat(mS, nNode, 1, 1);
                 nodeStrain = repmat(mE, nNode, 1, 1);
             else
-                nodeStress = projFunc(method, ns_i);   % [nNode x nFib x 5]
+                nodeStress = projFunc(method, ns_i);
                 nodeStrain = projFunc(method, ne_i);
             end
 
             for j = 1:nNode
-                idx = double(nodeIndexMap(nds(j)));
+                idx = nodeIndexMap(nds(j));
                 validS = isfinite(squeeze(nodeStress(j,:,:)));
                 validE = isfinite(squeeze(nodeStrain(j,:,:)));
 
@@ -563,28 +517,27 @@ function [nSecF, nSecD, nStress, nStrain, nodeTags] = shell_get_nodal_resp( ...
 
                 sliceS(validS) = sliceS(validS) + nodeS(validS);
                 sliceE(validE) = sliceE(validE) + nodeE(validE);
-                cntS(validS) = cntS(validS) + 1;
-                cntE(validE) = cntE(validE) + 1;
+                cntS(validS)   = cntS(validS)   + 1;
+                cntE(validE)   = cntE(validE)   + 1;
 
-                accSS(idx,:,:)  = reshape(sliceS, 1, nFib, 5);
-                accSE(idx,:,:)  = reshape(sliceE, 1, nFib, 5);
-                cntSS(idx,:,:)  = reshape(cntS, 1, nFib, 5);
-                cntSE(idx,:,:)  = reshape(cntE, 1, nFib, 5);
+                accSS(idx,:,:) = reshape(sliceS, 1, nFib, 5);
+                accSE(idx,:,:) = reshape(sliceE, 1, nFib, 5);
+                cntSS(idx,:,:) = reshape(cntS,   1, nFib, 5);
+                cntSE(idx,:,:) = reshape(cntE,   1, nFib, 5);
             end
         end
     end
 
-    % ---- divide by count to get mean ------------------------------------
-    safeNF = double(max(cntSecF, 1));
-    safeND = double(max(cntSecD, 1));
+    safeNF = max(cntSecF, 1);
+    safeND = max(cntSecD, 1);
     nSecF  = accSecF ./ safeNF;
     nSecD  = accSecD ./ safeND;
     nSecF(cntSecF == 0) = NaN;
     nSecD(cntSecD == 0) = NaN;
 
     if hasStress
-        safeNS = double(max(cntSS, 1));
-        safeNE = double(max(cntSE, 1));
+        safeNS  = max(cntSS, 1);
+        safeNE  = max(cntSE, 1);
         nStress = accSS ./ safeNS;
         nStrain = accSE ./ safeNE;
         nStress(cntSS == 0) = NaN;
@@ -596,18 +549,18 @@ function [nSecF, nSecD, nStress, nStrain, nodeTags] = shell_get_nodal_resp( ...
 end
 
 % =========================================================================
-% Elastic parameter query (via OpenSees parameter mechanism)
+% Elastic parameter query (uses ops wrapper — control command, not data)
 % =========================================================================
 
 function value = shell_get_param(ops, eleTag, paramName)
-    existingTags = double(ops.getParamTags());
+    existingTags = ops.getParamTags();
     newTag = 1;
     if ~isempty(existingTags)
         newTag = max(existingTags) + 1;
     end
     try
         ops.parameter(newTag, 'element', eleTag, paramName);
-        value = double(ops.getParamValue(newTag));
+        value = ops.getParamValue(newTag);
         ops.remove('parameter', newTag);
     catch
         value = 0;
@@ -638,13 +591,8 @@ function [computeNodalResp, rest] = shell_parse_options(varargin)
 end
 
 % =========================================================================
-% Tiny utilities
+% Utilities
 % =========================================================================
-
-function v = ops_scalar(x)
-    % Safe scalar extraction from potentially array output
-    v = x(1);
-end
 
 function t = shell_ele_type_from_n(nNode)
     if ismember(nNode, [3, 6])
@@ -655,22 +603,4 @@ function t = shell_ele_type_from_n(nNode)
         error('ShellRespStepData:UnsupportedShellNodeCount', ...
             'Unsupported shell element node count: %d.', nNode);
     end
-end
-
-function names = shell_ele_dim_names(nd, isStress)
-    if isStress
-        base = {'time','element','GaussPoints','fiberPoints','dof'};
-    else
-        base = {'time','element','GaussPoints','dof'};
-    end
-    names = base(1:min(nd, numel(base)));
-end
-
-function names = shell_node_dim_names(nd, isStress)
-    if isStress
-        base = {'time','node','fiberPoints','dof'};
-    else
-        base = {'time','node','dof'};
-    end
-    names = base(1:min(nd, numel(base)));
 end

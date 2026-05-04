@@ -21,6 +21,13 @@ classdef NodalRespStepData < post.resp.ResponseBase
     % ndim is collected once per step into a plain double vector before the
     % reaction loops, so the cache is queried exactly nNode times per step
     % instead of 3*nNode times.
+    %
+    % Performance
+    % -----------
+    % The raw MEX handle (mex_) is cached at construction time and passed
+    % to all local helper functions.  This bypasses the ops wrapper's method
+    % dispatch overhead (~2-5 µs per call) on every nodeDisp, nodeVel,
+    % nodeAccel, nodeReaction, nodePressure, and nodeCoord query.
 
     properties (Constant)
         RESP_NAME = 'NodalResponses'
@@ -38,6 +45,9 @@ classdef NodalRespStepData < post.resp.ResponseBase
         nodeNdimCache
     end
 
+    properties (Access = private)
+    end
+
     methods
 
         % -----------------------------------------------------------------
@@ -47,9 +57,10 @@ classdef NodalRespStepData < post.resp.ResponseBase
             obj@post.resp.ResponseBase(ops, varargin{:});
 
             if nargin < 2 || isempty(node_tags)
-                obj.node_tags = double(ops.getNodeTags(:).');
+                tmp = obj.mex_('getNodeTags');
+                obj.node_tags = tmp(:).';
             else
-                obj.node_tags = double(node_tags(:).');
+                obj.node_tags = node_tags(:).';
             end
 
             if nargin < 3 || isempty(interpolate_beam)
@@ -99,21 +110,22 @@ classdef NodalRespStepData < post.resp.ResponseBase
                 model_info = obj.model_info;
             end
 
-            node_tags = double(node_tags(:).');
+            node_tags = node_tags(:).';
 
             if ~isempty(model_info) && isstruct(model_info) && ...
                isfield(model_info, 'Nodes') && isfield(model_info.Nodes, 'UnusedTags') && ...
                ~isempty(model_info.Nodes.UnusedTags)
-                unusedTags = double(model_info.Nodes.UnusedTags(:));
+                unusedTags = model_info.Nodes.UnusedTags;
                 unusedTags = unique(unusedTags(isfinite(unusedTags))).';
-                node_tags = node_tags(~ismember(node_tags, unusedTags));
+                node_tags  = node_tags(~ismember(node_tags, unusedTags));
             end
 
+            % Pass mex_ to all local helpers — zero method-dispatch overhead
             [disp_, vel_, accel_, pressure_] = ...
-                local_get_nodal_resp(obj.ops, node_tags, obj.dtype, obj.nodeNdimCache);
+                local_get_nodal_resp(obj.mex_, node_tags, obj.dtype, obj.nodeNdimCache);
 
             [reacts_, reacts_inertia_, rayleigh_forces_] = ...
-                local_get_nodal_react(obj.ops, node_tags, obj.dtype, obj.nodeNdimCache);
+                local_get_nodal_react(obj.mex_, node_tags, obj.dtype, obj.nodeNdimCache);
 
             % nodeTags stored as a column vector so StructMerger treats it
             % as a meta field (shape [nNode x 1]) and does not try to concat
@@ -173,9 +185,6 @@ classdef NodalRespStepData < post.resp.ResponseBase
 
         function S = readResponse(data, options)
             %READRESPONSE Read merged nodal response data using an array-oriented interface.
-            %
-            % Output format
-            % -------------
 
             arguments
                 data
@@ -203,8 +212,8 @@ classdef NodalRespStepData < post.resp.ResponseBase
             end
 
             % Resolve requested node subset
-            allNodeTags = double(data.nodeTags(:).');
-            selectAll = isempty(options.nodeTags);
+            allNodeTags = data.nodeTags(:).';
+            selectAll   = isempty(options.nodeTags);
 
             if selectAll
                 selectedTags = allNodeTags;
@@ -220,45 +229,30 @@ classdef NodalRespStepData < post.resp.ResponseBase
                 selectedTags = allNodeTags(nodeIdx);
             end
 
-            % Basic metadata
             S = struct();
             S.ModelUpdate = data.ModelUpdate;
-            S.time = data.time.';
-            S.nodeTags = selectedTags(:);
+            S.time        = data.time.';
+            S.nodeTags    = selectedTags(:);
 
-            % Extract each response type
             for k = 1:numel(respTypes)
                 rt = respTypes{k};
-                if ~isfield(data, rt)
-                    continue;
-                end
+                if ~isfield(data, rt), continue; end
 
                 d = data.(rt);
 
                 if strcmp(rt, 'pressure')
-                    % pressure: return as plain [nTime x nNode] matrix
                     if ismatrix(d)
-                        if ~selectAll
-                            d = d(:, nodeIdx);
-                        end
+                        if ~selectAll, d = d(:, nodeIdx); end
                     elseif ndims(d) == 3
-                        if ~selectAll
-                            d = d(:, nodeIdx, :);
-                        end
+                        if ~selectAll, d = d(:, nodeIdx, :); end
                         d = d(:, :, 1);
                     else
                         continue;
                     end
                     S.pressure = d;
-
                 else
-                    if ndims(d) ~= 3
-                        continue;
-                    end
-
-                    if ~selectAll
-                        d = d(:, nodeIdx, :);
-                    end
+                    if ndims(d) ~= 3, continue; end
+                    if ~selectAll, d = d(:, nodeIdx, :); end
 
                     nDOF = min(size(d, 3), numel(DOFs));
                     S.(rt) = struct();
@@ -271,15 +265,9 @@ classdef NodalRespStepData < post.resp.ResponseBase
             % Pass through interpolation arrays without node filtering
             if isfield(data, 'interpolatePoints')
                 S.interpolatePoints = data.interpolatePoints;
-                if isfield(data, 'interpolateDisp')
-                    S.interpolateDisp = data.interpolateDisp;
-                end
-                if isfield(data, 'interpolateCells')
-                    S.interpolateCells = data.interpolateCells;
-                end
-                if isfield(data, 'interpolateCoords')
-                    S.interpolateCoords = data.interpolateCoords;
-                end
+                if isfield(data, 'interpolateDisp'),   S.interpolateDisp   = data.interpolateDisp;   end
+                if isfield(data, 'interpolateCells'),  S.interpolateCells  = data.interpolateCells;  end
+                if isfield(data, 'interpolateCoords'), S.interpolateCoords = data.interpolateCoords; end
             end
         end
 
@@ -287,26 +275,27 @@ classdef NodalRespStepData < post.resp.ResponseBase
 
 end % classdef
 
+
 % ============================================================================
 % ndim cache helpers
 % ============================================================================
 
-function ndim = local_get_ndim(ops, tag, ndimCache)
-% Return cached ndim for tag; query ops.nodeCoord on first encounter only.
-    if ~isKey(ndimCache, tag)
-        ndimCache(tag) = numel(ops.nodeCoord(tag));
+function ndim = local_get_ndim(mex_, tag, ndimCache)
+% Return cached ndim for tag; call mex_('nodeCoord', tag) on first encounter.
+    if ~ndimCache.isKey(tag)
+        ndimCache(tag) = numel(mex_('nodeCoord', tag));
     end
     ndim = ndimCache(tag);
 end
 
 
-function ndims = local_collect_ndims(ops, node_tags, ndimCache)
+function ndims = local_collect_ndims(mex_, node_tags, ndimCache)
 % Collect ndim for all node tags into a plain double vector.
 % Querying once before the reaction loops avoids 3*nNode Map lookups.
     n     = numel(node_tags);
     ndims = zeros(1, n);
     for i = 1:n
-        ndims(i) = local_get_ndim(ops, node_tags(i), ndimCache);
+        ndims(i) = local_get_ndim(mex_, node_tags(i), ndimCache);
     end
 end
 
@@ -316,8 +305,9 @@ end
 % ============================================================================
 
 function [node_disp, node_vel, node_accel, node_pressure] = ...
-        local_get_nodal_resp(ops, node_tags, dtype, ndimCache)
+        local_get_nodal_resp(mex_, node_tags, dtype, ndimCache)
 % Retrieve nodal displacements, velocities, accelerations, and pressures.
+% mex_ is the raw MEX function handle — no wrapper method dispatch overhead.
 
     n             = numel(node_tags);
     node_disp     = zeros(n, 6);
@@ -327,18 +317,20 @@ function [node_disp, node_vel, node_accel, node_pressure] = ...
 
     for i = 1:n
         tag  = node_tags(i);
-        ndim = local_get_ndim(ops, tag, ndimCache);
+        ndim = local_get_ndim(mex_, tag, ndimCache);
 
         [d, v, a] = local_dof_to_6( ...
-            ops.nodeDisp(tag), ops.nodeVel(tag), ops.nodeAccel(tag), ndim);
+            mex_('nodeDisp',  tag), ...
+            mex_('nodeVel',   tag), ...
+            mex_('nodeAccel', tag), ndim);
 
         node_disp(i, :)  = d;
         node_vel(i, :)   = v;
         node_accel(i, :) = a;
 
-        p = ops.nodePressure(tag);
+        p = mex_('nodePressure', tag);
         if ~isempty(p)
-            node_pressure(i) = p;
+            node_pressure(i) = p(1);
         end
     end
 
@@ -350,7 +342,7 @@ end
 
 
 function [reacts, reacts_inertia, rayleigh_forces] = ...
-        local_get_nodal_react(ops, node_tags, dtype, ndimCache)
+        local_get_nodal_react(mex_, node_tags, dtype, ndimCache)
 % Retrieve standard, Rayleigh, and inertia reaction forces.
 %
 % ndims is pre-collected once and shared across the three reaction loops,
@@ -361,21 +353,24 @@ function [reacts, reacts_inertia, rayleigh_forces] = ...
     reacts_inertia  = zeros(n, 6);
     rayleigh_forces = zeros(n, 6);
 
-    ndims = local_collect_ndims(ops, node_tags, ndimCache);
+    ndims = local_collect_ndims(mex_, node_tags, ndimCache);
 
-    ops.reactions();
+    mex_('reactions');
     for i = 1:n
-        reacts(i, :) = local_react_to_6(ops.nodeReaction(node_tags(i)), ndims(i));
+        reacts(i, :) = local_react_to_6( ...
+            mex_('nodeReaction', node_tags(i)), ndims(i));
     end
 
-    ops.reactions('-rayleigh');
+    mex_('reactions', '-rayleigh');
     for i = 1:n
-        rayleigh_forces(i, :) = local_react_to_6(ops.nodeReaction(node_tags(i)), ndims(i));
+        rayleigh_forces(i, :) = local_react_to_6( ...
+            mex_('nodeReaction', node_tags(i)), ndims(i));
     end
 
-    ops.reactions('-dynamic');
+    mex_('reactions', '-dynamic');
     for i = 1:n
-        reacts_inertia(i, :) = local_react_to_6(ops.nodeReaction(node_tags(i)), ndims(i));
+        reacts_inertia(i, :) = local_react_to_6( ...
+            mex_('nodeReaction', node_tags(i)), ndims(i));
     end
 
     reacts          = cast(reacts,          dtype.floatType);
@@ -434,7 +429,7 @@ end
 
 
 % ============================================================================
-% Beam interpolation
+% Beam interpolation  (pure MATLAB — no MEX calls, unchanged)
 % ============================================================================
 
 function [points, response, cells, coords] = local_interpolator_nodal_disp( ...
@@ -446,8 +441,8 @@ function [points, response, cells, coords] = local_interpolator_nodal_disp( ...
     if nargin < 4 || isempty(npts_per_ele), npts_per_ele = 6; end
     if isempty(model_info) || ~isstruct(model_info), return; end
 
-    allNodeTags = double(model_info.Nodes.Tags(:));
-    nodeCoord   = double(model_info.Nodes.Coords);
+    allNodeTags = model_info.Nodes.Tags(:);
+    nodeCoord   = model_info.Nodes.Coords;
     if isempty(allNodeTags) || isempty(nodeCoord), return; end
 
     nCols = size(nodeCoord, 2);
