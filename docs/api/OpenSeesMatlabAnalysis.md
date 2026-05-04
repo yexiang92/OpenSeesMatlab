@@ -27,6 +27,7 @@
       signature_crossrefs: true
       docstring_section_style: list
       members:
+        - initialize
         - configure
         - reset
         - setTotalSteps
