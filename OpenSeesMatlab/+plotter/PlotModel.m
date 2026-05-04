@@ -774,7 +774,7 @@ classdef PlotModel < handle
             end
 
             fam = obj.getFamilies();
-            famNames = {'Beam','Link','Truss','Line','Plane','Shell','Solid','Contact'};
+            famNames = {'Beam','Link','Truss', 'Plane','Shell','Solid','Contact'};
             for i = 1:numel(famNames)
                 name = famNames{i};
                 if ~isfield(fam, name)
