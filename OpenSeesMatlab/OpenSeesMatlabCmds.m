@@ -12,11 +12,6 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
     %       opsmat = OpenSeesMatlab();
     %       ops = opsmat.opensees;
     %
-    %   The methods section, fiber, patch, and layer are overridden in this class
-    %   so that OpenSees commands are still forwarded to the MEX module while
-    %   optional section-geometry information is recorded for pre-processing,
-    %   post-processing, and visualization workflows.
-    %
     % References
     % ----------
     %   OpenSeesPy documentation:
@@ -34,10 +29,6 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
         function obj = OpenSeesMatlabCmds(parentObj, mexName, mexDir)
             % Construct an OpenSees command interface object.
             %
-            %   The constructor is called by OpenSeesMatlab and usually does not
-            %   need to be called directly. It initializes the inherited MEX
-            %   command dispatcher and stores the parent OpenSeesMatlab object so
-            %   command overrides can access pre-processing utilities.
             %
             % Parameters
             % ----------
@@ -45,12 +36,15 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
             %       Parent OpenSeesMatlab object that owns this command interface.
             %
             % mexName : string or char, optional
-            %       Name of the OpenSees MATLAB MEX module. Default is
-            %       'OpenSeesMATLAB'.
+            %     Name of the OpenSees MATLAB MEX module. Default is 'OpenSeesMATLAB'.
             %
             % mexDir : string or char, optional
-            %       Directory containing the MEX module. Relative paths are
-            %       resolved by OpenSeesMatlabBase. Default is 'derived/'.
+            %     Directory containing the MEX module. Default is 'derived/'.
+            %
+            % Note
+            % ----
+            %    You can set the your own MEX name and directory using the
+            %    `mexName` and `mexDir` parameters.
             %
             % Example
             % -------
@@ -72,6 +66,360 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
     %   The overrides below add lightweight bookkeeping around section geometry
     %   commands and then delegate to the base implementation so the actual
     %   OpenSees command is still executed by the MEX module.
+    %
+    methods (Access = public)
+        function varargout = wipe(obj)
+            % Wipe the OpenSees model.
+            [varargout{1:nargout}] = obj.mexHandle('wipe');
+        end
+
+        function varargout = model(obj, modelType, varargin)
+            % Set the default model dimensions and number of dofs.
+            %
+            % Syntax
+            % ------
+            %     model()
+            %     model('basic', '-ndm', 2)
+            %     model('basic', '-ndm', 2, '-ndf', 3)
+            %
+            % Parameters
+            % ----------
+            % modelType : char | string
+            %   Model type (default: 'basic')
+            % ndm : int
+            %   Number of spatial dimensions. Style ('-ndm', ndm) is needed.
+            % ndf : int
+            %   Number of degrees of freedom (default sets it to ndm*(ndm+1)/2). Style ('-ndf', ndf) is needed.
+            %
+            arguments
+                obj
+                modelType (1,:) {mustBeTextScalar, mustBeMember(modelType, ...
+                                    {'basic','Basic','BasicBuilder','basicBuilder'})}
+            end
+            arguments (Repeating)
+                varargin
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('model', modelType, varargin{:});
+        end
+
+        function varargout = node(obj, nodeTag, varargin)
+            % Create an OpenSees node.
+            %
+            % Syntax
+            % ------
+            %     ops.node(nodeTag, x, y)
+            %     ops.node(nodeTag, x, y, z)
+            %     ops.node(nodeTag, x, y, z, '-ndf', ndf)
+            %     ops.node(nodeTag, x, y, z, '-mass', m1, m2, m3)
+            %     ops.node(nodeTag, [x, y, z], '-mass', [m1, m2, m3])
+            %
+            % Parameters
+            % ----------
+            % nodeTag: int
+            %   Node tag.
+            % crds: double
+            %   Nodal coordinates, multiple scalars or a double vector is supported.
+            % ndf: int (optional)
+            %   Number of degrees of freedom. Style ('-ndf', ndf) is needed.
+            % mass: double (optional)
+            %   Nodal mass vector. Style ('-mass', m1, m2, m3, ...) is needed.
+            % vel: double (optional)
+            %   Initial velocity vector. Style ('-vel', v1, v2, v3, ...) is needed.
+            % disp: double (optional)
+            %   Initial displacement vector. Style ('-disp', d1, d2, d3, ...) is needed.
+            % dispLoc: double (optional)
+            %   Displacement location. Style ('-dispLoc', loc1, loc2, loc3, ...) is needed.
+            % temp: double (optional)
+            %   Initial temperature. Style ('-temp', temp) is needed.
+            arguments
+                obj
+                nodeTag (1,1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                varargin
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('node', nodeTag, varargin{:});
+        end
+
+        function varargout = element(obj, eleType, eleTag, varargin)
+            % Define an OpenSees element.
+            % Every element has its own type, tag, nodes, and arguments.
+            %
+            % See also in [element commands](https://openseespydoc.readthedocs.io/en/latest/src/element.html)
+            %
+            % Example
+            % --------
+            %     eleType = 'truss';
+            %     eleTag = 1;
+            %     eleNodes = [iNode, jNode];
+            %     eleArgs = {A, matTag};
+            %     element(eleType, eleTag, eleNodes, eleArgs{:});
+            %     % Or
+            %     element(eleType, eleTag, iNode, jNode, A, matTag);
+            %
+            %
+            % Parameters
+            % -----------
+            % eleType: string
+            %   Element type.
+            % eleTag: double
+            %   Element tag.
+            % eleNodes: double
+            %   Element nodes.
+            % eleArgs: cell
+            %   Element arguments.
+
+            arguments
+                obj
+                eleType (1, :)   {mustBeTextScalar}
+                eleTag (1, 1)    {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                varargin
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('element', eleType, eleTag, varargin{:});
+        end
+
+        function varargout = fix(obj, nodeTag, constrValues)
+            % Create a homogeneous single-point (SP) constriant.
+            %
+            % Syntax
+            % ------
+            %     fix(nodeTag, 1, 1, 1)
+            %     fix(nodeTag, [1, 1, 1])
+            %
+            % Parameters
+            % ----------
+            % nodeTag: double
+            %   Tag of node to be constrained.
+            % constrValues: double
+            %   Constraint values to be applied.
+            %
+            %   - 0: free
+            %   - 1: fixed
+
+            arguments
+                obj
+                nodeTag (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                constrValues {mustBeNumeric}
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('fix', nodeTag, constrValues{:});
+        end
+
+        function varargout = fixX(obj, x, varargin)
+            % Fix a node along the X direction.
+            %
+            % Parameters
+            % ----------
+            % x: double
+            %   X coordinate of node to be constrained.
+            %
+            % constrValues: double
+            %   Constraint values to be applied.
+            %
+            %   - 0: free
+            %   - 1: fixed
+            %
+            % tol: double
+            %   Tolerance for constraint satisfaction. Style ("-tol", tol) is needed.
+
+            arguments
+                obj
+                x (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                varargin
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('fixX', x, varargin{:});
+        end
+
+        function varargout = fixY(obj, y, varargin)
+            % Fix a node along the Y direction.
+            %
+            % Parameters
+            % ----------
+            % y: double
+            %   Y coordinate of node to be constrained.
+            % constrValues: double
+            %   Constraint values to be applied.
+            %
+            %   - 0: free
+            %   - 1: fixed
+            % tol: double
+            %   Tolerance for constraint satisfaction. Style ("-tol", tol) is needed.
+
+            arguments
+                obj
+                y (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                varargin
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('fixY', y, varargin{:});
+        end
+
+        function varargout = fixZ(obj, z, varargin)
+            % Fix a node along the Z direction.
+            %
+            % Parameters
+            % ----------
+            % z: double
+            %   Z coordinate of node to be constrained.
+            % constrValues: double
+            %   Constraint values to be applied.
+            %
+            %   - 0: free
+            %   - 1: fixed
+            % tol: double
+            %   Tolerance for constraint satisfaction. Style ("-tol", tol) is needed.
+
+            arguments
+                obj
+                z (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                varargin
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('fixZ', z, varargin{:});
+        end
+
+        function varargout = equalDOF(obj, rNodeTag, cNodeTag, dofs)
+            % Create a multi-point constraint between nodes.
+            %
+            % Example
+            % -------
+            %     equalDOF(1, 2, [1 2 3 4 5 6]);
+            %     equalDOF(1, 3, 1, 2, 3);
+            %
+            % Parameters
+            % ----------
+            % rNodeTag: double
+            %   Integer tag identifying the retained, or primary node.
+            % cNodeTag: double
+            %   Integer tag identifying the constrained, or secondary node.
+            % dofs: double
+            %   Nodal degrees-of-freedom that are constrained at the cNode to be the same as those at the rNode. Valid range is **from 1 through ndf**, the number of nodal degrees-of-freedom.
+            %
+            arguments
+                obj
+                rNodeTag (1, 1) {mustBeNumeric}
+                cNodeTag (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                dofs
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('equalDOF', rNodeTag, cNodeTag, dofs{:});
+        end
+
+        function varargout = equalDOF_Mixed(obj, rNodeTag, cNodeTag, numDOF, rcdofs)
+            % Define a mixed equalDOF constraint between two nodes.
+            %
+            % Examples
+            % --------
+            %     equalDOF_Mixed(rNodeTag, cNodeTag, numDOF, [rdof1, cdof1, rdof2, cdof2, ...])
+            %     equalDOF_Mixed(rNodeTag, cNodeTag, numDOF, rdof1, cdof1, rdof2, cdof2, ...)
+            %
+            % Parameters
+            % ----------
+            % rNodeTag : double
+            %   Integer tag identifying the reference, or primary node.
+            % cNodeTag : double
+            %   Integer tag identifying the constrained, or secondary node.
+            % numDOF : double
+            %   Number of degrees-of-freedom to be constrained.
+            % rcdofs : double
+            %   Nodal degrees-of-freedom that are constrained at the cNode to be the same as those at the rNode. Valid range is from **1 through ndf**, the number of nodal degrees-of-freedom. ``rcdofs = [rdof1, cdof1, rdof2, cdof2, ...]``
+            arguments
+                obj
+                rNodeTag (1, 1) {mustBeNumeric}
+                cNodeTag (1, 1) {mustBeNumeric}
+                numDOF (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                rcdofs
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('equalDOF_Mixed', rNodeTag, cNodeTag, numDOF, rcdofs{:});
+        end
+
+        function varargout = rigidDiaphragm(obj, perpDirn, rNodeTag, cNodeTags)
+            % Define a rigid diaphragm constraint between a reference node and a set of constraint nodes.
+            %
+            % Example:
+            % ---------
+            %     rigidDiaphragm(1, 2, 3, 4, 5)
+            %
+            % Parameters
+            % ----------
+            % perpDirn: int
+            %   The direction perpendicular to the rigid plane (i.e. direction 3 corresponds to the 1-2 plane).
+            % rNodeTag: int
+            %   Integer tag identifying the retained (primary) node.
+            % cNodeTags: int
+            %   The integar tags identifying the constrained (secondary) nodes.
+            arguments
+                obj
+                perpDirn (1, 1) {mustBeNumeric, mustBeMember(perpDirn, {1, 2, 3})}
+                rNodeTag (1, 1) {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                cNodeTags
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('rigidDiaphragm', perpDirn, rNodeTag, cNodeTags{:});
+        end
+
+        function varargout = rigidLink(obj, linkType, rNodeTag, cNodeTag)
+            % Defines a rigid link between two nodes using the specified link type.
+            %
+            % Syntax:
+            % -------
+            %     rigidLink(linkType, rNodeTag, cNodeTag)
+            %
+            % Parameters
+            % ----------
+            % linkType: str
+            %   String-based argument for rigid-link type:
+            %
+            %   - 'bar': only the translational degree-of-freedom will be constrained to be exactly the same as those at the master node
+            %   - 'beam': both the translational and rotational degrees of freedom are constrained.
+            %
+            % rNodeTag: int
+            %   Integer tag identifying the retained (primary) node.
+            % cNodeTag: int
+            %   Integer tag identifying the constrained (secondary) node.
+            arguments
+                obj
+                linkType (1, 1) {mustBeMember(linkType, {'bar', 'beam'})}
+                rNodeTag (1, 1) {mustBeNumeric}
+                cNodeTag (1, 1) {mustBeNumeric}
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('rigidLink', linkType, rNodeTag, cNodeTag);
+        end
+
+    end
+
+    % Section geometry commands
     methods (Access = public)
         function varargout = section(obj, varargin)
             % Define an OpenSees section and optionally record its geometry tag.
@@ -114,7 +462,7 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
                 end
             end
 
-            [varargout{1:nargout}] = section@OpenSeesMatlabBase(obj, varargin{:});
+            [varargout{1:nargout}] = obj.mexHandle('section', varargin{:});
         end
 
         function varargout = fiber(obj, varargin)
@@ -148,7 +496,7 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
                 obj.parent.pre.secGeoRecorder.addFiber(varargin{:});
             end
 
-            [varargout{1:nargout}] = fiber@OpenSeesMatlabBase(obj, varargin{:});
+            [varargout{1:nargout}] = obj.mexHandle('fiber', varargin{:});
         end
 
         function varargout = patch(obj, varargin)
@@ -184,7 +532,7 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
                 obj.parent.pre.secGeoRecorder.addPatch(patchType, varargin{2:end});
             end
 
-            [varargout{1:nargout}] = patch@OpenSeesMatlabBase(obj, varargin{:});
+            [varargout{1:nargout}] = obj.mexHandle('patch', varargin{:});
 
         end
 
@@ -221,7 +569,7 @@ classdef OpenSeesMatlabCmds < OpenSeesMatlabBase
                 obj.parent.pre.secGeoRecorder.addLayer(layerType, varargin{2:end});
             end
 
-            [varargout{1:nargout}] = layer@OpenSeesMatlabBase(obj, varargin{:});
+            [varargout{1:nargout}] = obj.mexHandle('layer', varargin{:});
         end
     end
 
