@@ -38,3 +38,6 @@ OpenSeesMatlab uses a four-part version number in the format `MAJOR.MINOR.PATCH.
 MATLAB R2023a or later
 
 Windows operating system (currently only supported on Windows)
+
+## Changes Log
+[Changes Log](changelog.md)
