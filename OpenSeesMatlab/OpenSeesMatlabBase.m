@@ -140,6 +140,41 @@ classdef (Abstract) OpenSeesMatlabBase < handle
             tf = ~isempty(obj.mexHandle);
         end
 
+        function fn = getMexHandle(obj)
+            % Get the raw MEX function handle for direct low-overhead calls.
+            %
+            %   The returned handle bypasses MATLAB method dispatch entirely.
+            %   Use it in performance-critical loops where the same MEX commands
+            %   are called repeatedly (e.g. nodeDisp, eleForce, nodeVel).
+            %
+            %   The handle remains valid as long as the OpenSeesMatlabBase object
+            %   exists and the MEX module stays on the MATLAB path.
+            %
+            % Returns
+            % -------
+            % fn : function_handle
+            %     Direct handle to the OpenSees MEX entry point.
+            %     Call as: fn('command', arg1, arg2, ...)
+            %
+            % Example
+            % -------
+            %     % Slow: goes through method dispatch every call
+            %     for i = 1:npts
+            %         d = ops.nodeDisp(nodeTag, dof);
+            %     end
+            %
+            %     % Fast: direct MEX call, no dispatch overhead
+            %     ops_ = ops.getMexHandle();
+            %     for i = 1:npts
+            %         d = ops_('nodeDisp', nodeTag, dof);
+            %     end
+            %
+            %     % Batch: fetch all DOFs in one call instead of N calls
+            %     d = ops_('nodeDisp', nodeTag);   % returns full DOF vector
+            %     f = ops_('eleForce', eleTag);    % returns all force components
+            fn = obj.mexHandle;
+        end
+
         function p = mexPath(obj)
             % Get the path of the configured OpenSees MEX function.
             %
