@@ -6,6 +6,10 @@
 
 OpenSeesMatlab is a MATLAB-based platform for structural analysis and simulation. It aims to provide powerful modeling, analysis, post-processing, and visualization tools for research and engineering applications in structural, earthquake, and geotechnical engineering.
 
+![](docs/static/images/demo-readme.png)
+
+![](docs/static/images/demo-readme2.png)
+
 ## Documentation
 [https://openseesmatlab.readthedocs.io/en/latest/](https://openseesmatlab.readthedocs.io/en/latest/)
 
