@@ -10,8 +10,8 @@ copyright: Copyright &copy; 2026 - 2026 Yexiang Yan. All rights reserved.
 
 theme:
   name: material
-  logo: logo.png
-  favicon: logo2.png
+  logo: static/logo.png
+  favicon: static/logo2.png
   features:
     - announce.dismiss
     - content.action.edit
@@ -33,7 +33,7 @@ theme:
   font:
     text: Open Sans
     code: PT Mono
-  # custom_dir: docs/overrides
+  # custom_dir: docs/static/overrides
   palette:
     - media: "(prefers-color-scheme)"
       toggle:
@@ -52,7 +52,13 @@ theme:
         icon: material/weather-night
         name: Switch to system preference
 extra_css:
-  - stylesheets/extra.css
+  - static/stylesheets/extra.css
+  - https://unpkg.com/katex@0/dist/katex.min.css
+
+extra_javascript:
+  - static/javascripts/katex.js
+  - https://unpkg.com/katex@0/dist/katex.min.js
+  - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
 
 markdown_extensions:
   - abbr
@@ -87,6 +93,8 @@ markdown_extensions:
       slugify: !!python/object/apply:pymdownx.slugs.slugify
         kwds:
           case: lower
+  - pymdownx.arithmatex:
+        generic: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - toc:
@@ -159,8 +167,8 @@ nav:
     - Thermal Analysis: 'examples/thermal/index.md'
     - Sensitivity Analysis: 'examples/sensitivity/index.md'
     - Verification: 'examples/verify/index.md'
-  
-  - API Reference: 
+
+  - API Reference:
     - OpenSeesMatlab: 'api/OpenSeesMatlab.md'
     - OpenSeesMatlabCmds: 'api/OpenSeesMatlabCmds.md'
     - OpenSeesMatlabVis: 'api/OpenSeesMatlabVis.md'
@@ -168,6 +176,5 @@ nav:
     - OpenSeesMatlabPre: 'api/OpenSeesMatlabPre.md'
     - OpenSeesMatlabAnalysis: 'api/OpenSeesMatlabAnalysis.md'
     - OpenSeesMatlabTool: 'api/OpenSeesMatlabTool.md'
-  
+
   - About Author: 'aboutAuthor.md'
-  
