@@ -342,280 +342,303 @@ classdef (Abstract) OpenSeesMatlabBase < handle
     %     end
     % end
 
-    %-------------------------------------------------------------------------
+    %----------------------------------------------------------------------
     % Explicit OpenSees command wrappers
-    %-------------------------------------------------------------------------
+    %
+    % Query commands  — return a single 'result' variable (read-only).
+    % Action commands — use varargout; modify domain state or run analysis.
+    %----------------------------------------------------------------------
+
+    % =====================================================================
+    % Query commands
+    % =====================================================================
     methods
-        function varargout = uniaxialMaterial(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('uniaxialMaterial', varargin{:}); end
-        function varargout = testUniaxialMaterial(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('testUniaxialMaterial', varargin{:}); end
-        function varargout = setStrain(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setStrain', varargin{:}); end
-        function varargout = getStrain(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getStrain', varargin{:}); end
-        function varargout = getStress(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getStress', varargin{:}); end
-        function varargout = getTangent(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getTangent', varargin{:}); end
-        function varargout = getDampTangent(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getDampTangent', varargin{:}); end
 
-        function varargout = wipe(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('wipe', varargin{:}); end
-        function varargout = wipeReliability(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('wipeReliability', varargin{:}); end
+        % --- Nodal response -----------------------------------------------
+        function result = nodeDisp(obj, varargin),           result = obj.mexHandle('nodeDisp', varargin{:}); end
+        function result = nodeVel(obj, varargin),            result = obj.mexHandle('nodeVel', varargin{:}); end
+        function result = nodeAccel(obj, varargin),          result = obj.mexHandle('nodeAccel', varargin{:}); end
+        function result = nodeReaction(obj, varargin),       result = obj.mexHandle('nodeReaction', varargin{:}); end
+        function result = nodeUnbalance(obj, varargin),      result = obj.mexHandle('nodeUnbalance', varargin{:}); end
+        function result = nodeCoord(obj, varargin),          result = obj.mexHandle('nodeCoord', varargin{:}); end
+        function result = nodeResponse(obj, varargin),       result = obj.mexHandle('nodeResponse', varargin{:}); end
+        function result = nodeMass(obj, varargin),           result = obj.mexHandle('nodeMass', varargin{:}); end
+        function result = nodePressure(obj, varargin),       result = obj.mexHandle('nodePressure', varargin{:}); end
+        function result = nodeDOFs(obj, varargin),           result = obj.mexHandle('nodeDOFs', varargin{:}); end
+        function result = nodeBounds(obj, varargin),         result = obj.mexHandle('nodeBounds', varargin{:}); end
+        function result = nodeEigenvector(obj, varargin),    result = obj.mexHandle('nodeEigenvector', varargin{:}); end
+        function result = getNodeTemperature(obj, varargin), result = obj.mexHandle('getNodeTemperature', varargin{:}); end
 
-        function varargout = model(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('model', varargin{:}); end
-        function varargout = node(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('node', varargin{:}); end
-        function varargout = fix(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('fix', varargin{:}); end
-        function varargout = element(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('element', varargin{:}); end
+        % --- Element response ---------------------------------------------
+        function result = eleForce(obj, varargin),           result = obj.mexHandle('eleForce', varargin{:}); end
+        function result = eleDynamicalForce(obj, varargin),  result = obj.mexHandle('eleDynamicalForce', varargin{:}); end
+        function result = eleResponse(obj, varargin),        result = obj.mexHandle('eleResponse', varargin{:}); end
+        function result = eleNodes(obj, varargin),           result = obj.mexHandle('eleNodes', varargin{:}); end
+        function result = eleType(obj, varargin),            result = obj.mexHandle('eleType', varargin{:}); end
+        function result = classType(obj, varargin),          result = obj.mexHandle('classType', varargin{:}); end
 
-        function varargout = timeSeries(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('timeSeries', varargin{:}); end
-        function varargout = pattern(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('pattern', varargin{:}); end
-        function varargout = load(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('load', varargin{:}); end
+        % --- Section response ---------------------------------------------
+        function result = sectionForce(obj, varargin),       result = obj.mexHandle('sectionForce', varargin{:}); end
+        function result = sectionDeformation(obj, varargin), result = obj.mexHandle('sectionDeformation', varargin{:}); end
+        function result = sectionStiffness(obj, varargin),   result = obj.mexHandle('sectionStiffness', varargin{:}); end
+        function result = sectionFlexibility(obj, varargin), result = obj.mexHandle('sectionFlexibility', varargin{:}); end
+        function result = sectionLocation(obj, varargin),    result = obj.mexHandle('sectionLocation', varargin{:}); end
+        function result = sectionWeight(obj, varargin),      result = obj.mexHandle('sectionWeight', varargin{:}); end
+        function result = sectionTag(obj, varargin),         result = obj.mexHandle('sectionTag', varargin{:}); end
+        function result = sectionResponseType(obj, varargin),result = obj.mexHandle('sectionResponseType', varargin{:}); end
+        function result = sectionDisplacement(obj, varargin),result = obj.mexHandle('sectionDisplacement', varargin{:}); end
+        function result = cbdiDisplacement(obj, varargin),   result = obj.mexHandle('cbdiDisplacement', varargin{:}); end
+        function result = basicDeformation(obj, varargin),   result = obj.mexHandle('basicDeformation', varargin{:}); end
+        function result = basicForce(obj, varargin),         result = obj.mexHandle('basicForce', varargin{:}); end
+        function result = basicStiffness(obj, varargin),     result = obj.mexHandle('basicStiffness', varargin{:}); end
 
-        function varargout = system(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('system', varargin{:}); end
-        function varargout = numberer(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('numberer', varargin{:}); end
-        function varargout = constraints(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('constraints', varargin{:}); end
-        function varargout = integrator(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('integrator', varargin{:}); end
-        function varargout = algorithm(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('algorithm', varargin{:}); end
-        function varargout = analysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('analysis', varargin{:}); end
-        function varargout = analyze(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('analyze', varargin{:}); end
-        function varargout = test(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('test', varargin{:}); end
+        % --- Domain information -------------------------------------------
+        function result = getNodeTags(obj, varargin),        result = obj.mexHandle('getNodeTags', varargin{:}); end
+        function result = getEleTags(obj, varargin),         result = obj.mexHandle('getEleTags', varargin{:}); end
+        function result = getEleClassTags(obj, varargin),    result = obj.mexHandle('getEleClassTags', varargin{:}); end
+        function result = getEleLoadClassTags(obj, varargin),result = obj.mexHandle('getEleLoadClassTags', varargin{:}); end
+        function result = getEleLoadTags(obj, varargin),     result = obj.mexHandle('getEleLoadTags', varargin{:}); end
+        function result = getEleLoadData(obj, varargin),     result = obj.mexHandle('getEleLoadData', varargin{:}); end
+        function result = getNodeLoadTags(obj, varargin),    result = obj.mexHandle('getNodeLoadTags', varargin{:}); end
+        function result = getNodeLoadData(obj, varargin),    result = obj.mexHandle('getNodeLoadData', varargin{:}); end
+        function result = getCrdTransfTags(obj, varargin),   result = obj.mexHandle('getCrdTransfTags', varargin{:}); end
+        function result = getNumElements(obj, varargin),     result = obj.mexHandle('getNumElements', varargin{:}); end
+        function result = getNDM(obj, varargin),             result = obj.mexHandle('getNDM', varargin{:}); end
+        function result = getNDF(obj, varargin),             result = obj.mexHandle('getNDF', varargin{:}); end
+        function result = getPatterns(obj, varargin),        result = obj.mexHandle('getPatterns', varargin{:}); end
+        function result = getFixedNodes(obj, varargin),      result = obj.mexHandle('getFixedNodes', varargin{:}); end
+        function result = getFixedDOFs(obj, varargin),       result = obj.mexHandle('getFixedDOFs', varargin{:}); end
+        function result = getConstrainedNodes(obj, varargin),result = obj.mexHandle('getConstrainedNodes', varargin{:}); end
+        function result = getConstrainedDOFs(obj, varargin), result = obj.mexHandle('getConstrainedDOFs', varargin{:}); end
+        function result = getRetainedNodes(obj, varargin),   result = obj.mexHandle('getRetainedNodes', varargin{:}); end
+        function result = getRetainedDOFs(obj, varargin),    result = obj.mexHandle('getRetainedDOFs', varargin{:}); end
+        function result = getParamTags(obj, varargin),       result = obj.mexHandle('getParamTags', varargin{:}); end
+        function result = getParamValue(obj, varargin),      result = obj.mexHandle('getParamValue', varargin{:}); end
+        function result = getLoadFactor(obj, varargin),      result = obj.mexHandle('getLoadFactor', varargin{:}); end
+        function result = getTime(obj, varargin),            result = obj.mexHandle('getTime', varargin{:}); end
+        function result = getPID(obj, varargin),             result = obj.mexHandle('getPID', varargin{:}); end
+        function result = getNP(obj, varargin),              result = obj.mexHandle('getNP', varargin{:}); end
+        function result = getNumThreads(obj, varargin),      result = obj.mexHandle('getNumThreads', varargin{:}); end
+        function result = domainCommitTag(obj, varargin),    result = obj.mexHandle('domainCommitTag', varargin{:}); end
 
-        function varargout = section(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('section', varargin{:}); end
-        function varargout = fiber(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('fiber', varargin{:}); end
-        function varargout = patch(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('patch', varargin{:}); end
-        function varargout = layer(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('layer', varargin{:}); end
+        % --- Material state -----------------------------------------------
+        function result = getStrain(obj, varargin),          result = obj.mexHandle('getStrain', varargin{:}); end
+        function result = getStress(obj, varargin),          result = obj.mexHandle('getStress', varargin{:}); end
+        function result = getTangent(obj, varargin),         result = obj.mexHandle('getTangent', varargin{:}); end
+        function result = getDampTangent(obj, varargin),     result = obj.mexHandle('getDampTangent', varargin{:}); end
 
-        function varargout = geomTransf(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('geomTransf', varargin{:}); end
-        function varargout = damping(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('damping', varargin{:}); end
-        function varargout = beamIntegration(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('beamIntegration', varargin{:}); end
+        % --- Analysis state -----------------------------------------------
+        function result = testNorm(obj, varargin),           result = obj.mexHandle('testNorm', varargin{:}); end
+        function result = testNorms(obj, varargin),          result = obj.mexHandle('testNorms', varargin{:}); end
+        function result = testIter(obj, varargin),           result = obj.mexHandle('testIter', varargin{:}); end
+        function result = analyze(obj, varargin),            result = obj.mexHandle('analyze', varargin{:}); end
+        function result = eigen(obj, varargin),              result = obj.mexHandle('eigen', varargin{:}); end
+        function result = modalProperties(obj, varargin),    result = obj.mexHandle('modalProperties', varargin{:}); end
 
-        function varargout = loadConst(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('loadConst', varargin{:}); end
-        function varargout = eleLoad(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eleLoad', varargin{:}); end
+        % --- Performance timing -------------------------------------------
+        function result = totalCPU(obj, varargin),           result = obj.mexHandle('totalCPU', varargin{:}); end
+        function result = solveCPU(obj, varargin),           result = obj.mexHandle('solveCPU', varargin{:}); end
+        function result = accelCPU(obj, varargin),           result = obj.mexHandle('accelCPU', varargin{:}); end
+        function result = numFact(obj, varargin),            result = obj.mexHandle('numFact', varargin{:}); end
+        function result = numIter(obj, varargin),            result = obj.mexHandle('numIter', varargin{:}); end
+        function result = systemSize(obj, varargin),         result = obj.mexHandle('systemSize', varargin{:}); end
+        function result = version(obj, varargin),            result = obj.mexHandle('version', varargin{:}); end
+        function result = matlabversion(obj, varargin),      result = obj.mexHandle('matlabversion', varargin{:}); end
 
-        function varargout = reactions(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('reactions', varargin{:}); end
-        function varargout = nodeReaction(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeReaction', varargin{:}); end
+        % --- Sensitivity / reliability ------------------------------------
+        function result = sensNodeDisp(obj, varargin),       result = obj.mexHandle('sensNodeDisp', varargin{:}); end
+        function result = sensNodeVel(obj, varargin),        result = obj.mexHandle('sensNodeVel', varargin{:}); end
+        function result = sensNodeAccel(obj, varargin),      result = obj.mexHandle('sensNodeAccel', varargin{:}); end
+        function result = sensLambda(obj, varargin),         result = obj.mexHandle('sensLambda', varargin{:}); end
+        function result = sensSectionForce(obj, varargin),   result = obj.mexHandle('sensSectionForce', varargin{:}); end
+        function result = sensNodePressure(obj, varargin),   result = obj.mexHandle('sensNodePressure', varargin{:}); end
+        function result = sdfResponse(obj, varargin),        result = obj.mexHandle('sdfResponse', varargin{:}); end
+        function result = transformUtoX(obj, varargin),      result = obj.mexHandle('transformUtoX', varargin{:}); end
+        function result = getRVTags(obj, varargin),          result = obj.mexHandle('getRVTags', varargin{:}); end
+        function result = getRVParamTag(obj, varargin),      result = obj.mexHandle('getRVParamTag', varargin{:}); end
+        function result = getRVValue(obj, varargin),         result = obj.mexHandle('getRVValue', varargin{:}); end
+        function result = getMean(obj, varargin),            result = obj.mexHandle('getMean', varargin{:}); end
+        function result = getStdv(obj, varargin),            result = obj.mexHandle('getStdv', varargin{:}); end
+        function result = getPDF(obj, varargin),             result = obj.mexHandle('getPDF', varargin{:}); end
+        function result = getCDF(obj, varargin),             result = obj.mexHandle('getCDF', varargin{:}); end
+        function result = getInverseCDF(obj, varargin),      result = obj.mexHandle('getInverseCDF', varargin{:}); end
+        function result = getLSFTags(obj, varargin),         result = obj.mexHandle('getLSFTags', varargin{:}); end
 
-        function varargout = eigen(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eigen', varargin{:}); end
-        function varargout = modalProperties(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('modalProperties', varargin{:}); end
-        function varargout = responseSpectrumAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('responseSpectrumAnalysis', varargin{:}); end
+    end % query methods
 
-        function varargout = nDMaterial(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nDMaterial', varargin{:}); end
-        function varargout = block2D(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('block2D', varargin{:}); end
-        function varargout = block3D(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('block3D', varargin{:}); end
+    % =====================================================================
+    % Action commands
+    % =====================================================================
+    methods
 
-        function varargout = rayleigh(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('rayleigh', varargin{:}); end
+        % --- Model initialisation -----------------------------------------
+        function varargout = wipe(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('wipe', varargin{:}); end
+        function varargout = wipeReliability(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('wipeReliability', varargin{:}); end
+        function varargout = model(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('model', varargin{:}); end
 
-        function varargout = wipeAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('wipeAnalysis', varargin{:}); end
-        function varargout = setTime(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setTime', varargin{:}); end
-        function varargout = remove(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('remove', varargin{:}); end
-        function varargout = mass(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('mass', varargin{:}); end
-        function varargout = equalDOF(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('equalDOF', varargin{:}); end
-        function varargout = equationConstraint(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('equationConstraint', varargin{:}); end
-        function varargout = nodeEigenvector(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeEigenvector', varargin{:}); end
-        function varargout = getTime(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getTime', varargin{:}); end
-        function varargout = setCreep(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setCreep', varargin{:}); end
-        function varargout = eleResponse(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eleResponse', varargin{:}); end
-        function varargout = sp(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sp', varargin{:}); end
+        % --- Node / DOF definition ----------------------------------------
+        function varargout = node(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('node', varargin{:}); end
+        function varargout = fix(obj, varargin),               [varargout{1:nargout}] = obj.mexHandle('fix', varargin{:}); end
+        function varargout = fixX(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('fixX', varargin{:}); end
+        function varargout = fixY(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('fixY', varargin{:}); end
+        function varargout = fixZ(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('fixZ', varargin{:}); end
+        function varargout = mass(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('mass', varargin{:}); end
+        function varargout = equalDOF(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('equalDOF', varargin{:}); end
+        function varargout = equalDOF_Mixed(obj, varargin),    [varargout{1:nargout}] = obj.mexHandle('equalDOF_Mixed', varargin{:}); end
+        function varargout = equationConstraint(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('equationConstraint', varargin{:}); end
+        function varargout = rigidLink(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('rigidLink', varargin{:}); end
+        function varargout = rigidDiaphragm(obj, varargin),    [varargout{1:nargout}] = obj.mexHandle('rigidDiaphragm', varargin{:}); end
+        function varargout = sp(obj, varargin),                [varargout{1:nargout}] = obj.mexHandle('sp', varargin{:}); end
+        function varargout = pressureConstraint(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('pressureConstraint', varargin{:}); end
 
-        function varargout = fixX(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('fixX', varargin{:}); end
-        function varargout = fixY(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('fixY', varargin{:}); end
-        function varargout = fixZ(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('fixZ', varargin{:}); end
+        % --- Element / material / section definition ----------------------
+        function varargout = element(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('element', varargin{:}); end
+        function varargout = uniaxialMaterial(obj, varargin),  [varargout{1:nargout}] = obj.mexHandle('uniaxialMaterial', varargin{:}); end
+        function varargout = nDMaterial(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('nDMaterial', varargin{:}); end
+        function varargout = testUniaxialMaterial(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('testUniaxialMaterial', varargin{:}); end
+        function varargout = section(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('section', varargin{:}); end
+        function varargout = fiber(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('fiber', varargin{:}); end
+        function varargout = patch(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('patch', varargin{:}); end
+        function varargout = layer(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('layer', varargin{:}); end
+        function varargout = geomTransf(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('geomTransf', varargin{:}); end
+        function varargout = damping(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('damping', varargin{:}); end
+        function varargout = beamIntegration(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('beamIntegration', varargin{:}); end
+        function varargout = frictionModel(obj, varargin),     [varargout{1:nargout}] = obj.mexHandle('frictionModel', varargin{:}); end
+        function varargout = limitCurve(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('limitCurve', varargin{:}); end
+        function varargout = hystereticBackbone(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('hystereticBackbone', varargin{:}); end
+        function varargout = stiffnessDegradation(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('stiffnessDegradation', varargin{:}); end
+        function varargout = strengthDegradation(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('strengthDegradation', varargin{:}); end
+        function varargout = strengthControl(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('strengthControl', varargin{:}); end
+        function varargout = unloadingRule(obj, varargin),     [varargout{1:nargout}] = obj.mexHandle('unloadingRule', varargin{:}); end
 
-        function varargout = reset(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('reset', varargin{:}); end
-        function varargout = initialize(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('initialize', varargin{:}); end
-        function varargout = getLoadFactor(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getLoadFactor', varargin{:}); end
-        function varargout = build(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('build', varargin{:}); end
+        % --- Load / pattern definition ------------------------------------
+        function varargout = timeSeries(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('timeSeries', varargin{:}); end
+        function varargout = pattern(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('pattern', varargin{:}); end
+        function varargout = load(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('load', varargin{:}); end
+        function varargout = eleLoad(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('eleLoad', varargin{:}); end
+        function varargout = loadConst(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('loadConst', varargin{:}); end
+        function varargout = groundMotion(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('groundMotion', varargin{:}); end
+        function varargout = imposedMotion(obj, varargin),     [varargout{1:nargout}] = obj.mexHandle('imposedMotion', varargin{:}); end
+        function varargout = imposedSupportMotion(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('imposedSupportMotion', varargin{:}); end
 
-        function varargout = printModel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('printModel', varargin{:}); end
-        function varargout = printA(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('printA', varargin{:}); end
-        function varargout = printB(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('printB', varargin{:}); end
-        function varargout = printX(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('printX', varargin{:}); end
-        function varargout = printGID(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('printGID', varargin{:}); end
+        % --- Analysis object definition -----------------------------------
+        function varargout = system(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('system', varargin{:}); end
+        function varargout = numberer(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('numberer', varargin{:}); end
+        function varargout = constraints(obj, varargin),       [varargout{1:nargout}] = obj.mexHandle('constraints', varargin{:}); end
+        function varargout = integrator(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('integrator', varargin{:}); end
+        function varargout = algorithm(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('algorithm', varargin{:}); end
+        function varargout = analysis(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('analysis', varargin{:}); end
+        function varargout = test(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('test', varargin{:}); end
+        function varargout = rayleigh(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('rayleigh', varargin{:}); end
+        function varargout = modalDamping(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('modalDamping', varargin{:}); end
+        function varargout = modalDampingQ(obj, varargin),     [varargout{1:nargout}] = obj.mexHandle('modalDampingQ', varargin{:}); end
+        function varargout = setElementRayleighDampingFactors(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('setElementRayleighDampingFactors', varargin{:}); end
+        function varargout = setElementRayleighFactors(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('setElementRayleighFactors', varargin{:}); end
 
-        function varargout = testNorm(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('testNorm', varargin{:}); end
-        function varargout = testNorms(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('testNorms', varargin{:}); end
-        function varargout = testIter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('testIter', varargin{:}); end
+        % --- Analysis control ---------------------------------------------
+        function varargout = wipeAnalysis(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('wipeAnalysis', varargin{:}); end
+        function varargout = reset(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('reset', varargin{:}); end
+        function varargout = initialize(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('initialize', varargin{:}); end
+        function varargout = reactions(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('reactions', varargin{:}); end
+        function varargout = responseSpectrumAnalysis(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('responseSpectrumAnalysis', varargin{:}); end
+        function varargout = InitialStateAnalysis(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('InitialStateAnalysis', varargin{:}); end
+        function varargout = domainChange(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('domainChange', varargin{:}); end
+        function varargout = updateElementDomain(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('updateElementDomain', varargin{:}); end
+        function varargout = updateMaterialStage(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('updateMaterialStage', varargin{:}); end
 
-        function varargout = recorder(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('recorder', varargin{:}); end
-        function varargout = database(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('database', varargin{:}); end
-        function varargout = save(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('save', varargin{:}); end
-        function varargout = restore(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('restore', varargin{:}); end
+        % --- State setters ------------------------------------------------
+        function varargout = setTime(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('setTime', varargin{:}); end
+        function varargout = setStrain(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('setStrain', varargin{:}); end
+        function varargout = setNodeDisp(obj, varargin),       [varargout{1:nargout}] = obj.mexHandle('setNodeDisp', varargin{:}); end
+        function varargout = setNodeVel(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('setNodeVel', varargin{:}); end
+        function varargout = setNodeAccel(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('setNodeAccel', varargin{:}); end
+        function varargout = setNodeCoord(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('setNodeCoord', varargin{:}); end
+        function varargout = setNodePressure(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('setNodePressure', varargin{:}); end
+        function varargout = setNodeTemperature(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('setNodeTemperature', varargin{:}); end
+        function varargout = setCreep(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('setCreep', varargin{:}); end
+        function varargout = setNumThreads(obj, varargin),     [varargout{1:nargout}] = obj.mexHandle('setNumThreads', varargin{:}); end
+        function varargout = setMaxOpenFiles(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('setMaxOpenFiles', varargin{:}); end
+        function varargout = setStartNodeTag(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('setStartNodeTag', varargin{:}); end
+        function varargout = setPrecision(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('setPrecision', varargin{:}); end
+        function varargout = setParameter(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('setParameter', varargin{:}); end
 
-        function varargout = eleForce(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eleForce', varargin{:}); end
-        function varargout = eleDynamicalForce(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eleDynamicalForce', varargin{:}); end
+        % --- Parameter / region -------------------------------------------
+        function varargout = parameter(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('parameter', varargin{:}); end
+        function varargout = addToParameter(obj, varargin),    [varargout{1:nargout}] = obj.mexHandle('addToParameter', varargin{:}); end
+        function varargout = updateParameter(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('updateParameter', varargin{:}); end
+        function varargout = region(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('region', varargin{:}); end
+        function varargout = remove(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('remove', varargin{:}); end
 
-        function varargout = nodeUnbalance(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeUnbalance', varargin{:}); end
-        function varargout = nodeDisp(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeDisp', varargin{:}); end
-        function varargout = setNodeDisp(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNodeDisp', varargin{:}); end
-        function varargout = setNodeTemperature(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNodeTemperature', varargin{:}); end
-        function varargout = getNodeTemperature(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNodeTemperature', varargin{:}); end
-        function varargout = nodeVel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeVel', varargin{:}); end
-        function varargout = setNodeVel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNodeVel', varargin{:}); end
-        function varargout = nodeAccel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeAccel', varargin{:}); end
-        function varargout = setNodeAccel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNodeAccel', varargin{:}); end
-        function varargout = nodeResponse(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeResponse', varargin{:}); end
-        function varargout = nodeCoord(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeCoord', varargin{:}); end
-        function varargout = setNodeCoord(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNodeCoord', varargin{:}); end
+        % --- Output / recording -------------------------------------------
+        function varargout = recorder(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('recorder', varargin{:}); end
+        function varargout = record(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('record', varargin{:}); end
+        function varargout = database(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('database', varargin{:}); end
+        function varargout = save(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('save', varargin{:}); end
+        function varargout = restore(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('restore', varargin{:}); end
+        function varargout = printModel(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('printModel', varargin{:}); end
+        function varargout = printA(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('printA', varargin{:}); end
+        function varargout = printB(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('printB', varargin{:}); end
+        function varargout = printX(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('printX', varargin{:}); end
+        function varargout = printGID(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('printGID', varargin{:}); end
+        function varargout = logFile(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('logFile', varargin{:}); end
 
-        function varargout = getPatterns(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getPatterns', varargin{:}); end
-        function varargout = getFixedNodes(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getFixedNodes', varargin{:}); end
-        function varargout = getFixedDOFs(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getFixedDOFs', varargin{:}); end
-        function varargout = getConstrainedNodes(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getConstrainedNodes', varargin{:}); end
-        function varargout = getConstrainedDOFs(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getConstrainedDOFs', varargin{:}); end
-        function varargout = getRetainedNodes(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getRetainedNodes', varargin{:}); end
-        function varargout = getRetainedDOFs(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getRetainedDOFs', varargin{:}); end
-        function varargout = updateElementDomain(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('updateElementDomain', varargin{:}); end
-        function varargout = getNDM(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNDM', varargin{:}); end
-        function varargout = getNDF(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNDF', varargin{:}); end
-        function varargout = eleNodes(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eleNodes', varargin{:}); end
-        function varargout = eleType(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('eleType', varargin{:}); end
-        function varargout = classType(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('classType', varargin{:}); end
-        function varargout = nodeDOFs(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeDOFs', varargin{:}); end
-        function varargout = nodeMass(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeMass', varargin{:}); end
-        function varargout = nodePressure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodePressure', varargin{:}); end
-        function varargout = setNodePressure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNodePressure', varargin{:}); end
-        function varargout = nodeBounds(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('nodeBounds', varargin{:}); end
+        % --- Mesh generation ----------------------------------------------
+        function varargout = block2D(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('block2D', varargin{:}); end
+        function varargout = block3D(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('block3D', varargin{:}); end
+        function varargout = mesh(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('mesh', varargin{:}); end
+        function varargout = remesh(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('remesh', varargin{:}); end
+        function varargout = ShallowFoundationGen(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('ShallowFoundationGen', varargin{:}); end
 
-        function varargout = start(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('start', varargin{:}); end
-        function varargout = stop(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('stop', varargin{:}); end
-        function varargout = modalDamping(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('modalDamping', varargin{:}); end
-        function varargout = modalDampingQ(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('modalDampingQ', varargin{:}); end
-        function varargout = setElementRayleighDampingFactors(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setElementRayleighDampingFactors', varargin{:}); end
+        % --- Parallel / MPI -----------------------------------------------
+        function varargout = partition(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('partition', varargin{:}); end
+        function varargout = barrier(obj, varargin),           [varargout{1:nargout}] = obj.mexHandle('barrier', varargin{:}); end
+        function varargout = send(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('send', varargin{:}); end
+        function varargout = recv(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('recv', varargin{:}); end
+        function varargout = Bcast(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('Bcast', varargin{:}); end
 
-        function varargout = region(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('region', varargin{:}); end
-        function varargout = setPrecision(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setPrecision', varargin{:}); end
-        function varargout = searchPeerNGA(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('searchPeerNGA', varargin{:}); end
-        function varargout = domainChange(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('domainChange', varargin{:}); end
-        function varargout = record(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('record', varargin{:}); end
-        function varargout = metaData(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('metaData', varargin{:}); end
-        function varargout = defaultUnits(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('defaultUnits', varargin{:}); end
-        function varargout = stripXML(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('stripXML', varargin{:}); end
-        function varargout = convertBinaryToText(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('convertBinaryToText', varargin{:}); end
-        function varargout = convertTextToBinary(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('convertTextToBinary', varargin{:}); end
-        function varargout = getEleTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getEleTags', varargin{:}); end
-        function varargout = getCrdTransfTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getCrdTransfTags', varargin{:}); end
-        function varargout = getNodeTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNodeTags', varargin{:}); end
-        function varargout = getParamTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getParamTags', varargin{:}); end
-        function varargout = getParamValue(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getParamValue', varargin{:}); end
+        % --- Timing -------------------------------------------------------
+        function varargout = start(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('start', varargin{:}); end
+        function varargout = stop(obj, varargin),              [varargout{1:nargout}] = obj.mexHandle('stop', varargin{:}); end
 
-        function varargout = sectionForce(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionForce', varargin{:}); end
-        function varargout = sectionDeformation(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionDeformation', varargin{:}); end
-        function varargout = sectionStiffness(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionStiffness', varargin{:}); end
-        function varargout = sectionFlexibility(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionFlexibility', varargin{:}); end
-        function varargout = sectionLocation(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionLocation', varargin{:}); end
-        function varargout = sectionWeight(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionWeight', varargin{:}); end
-        function varargout = sectionTag(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionTag', varargin{:}); end
-        function varargout = sectionResponseType(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionResponseType', varargin{:}); end
-        function varargout = sectionDisplacement(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sectionDisplacement', varargin{:}); end
-        function varargout = cbdiDisplacement(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('cbdiDisplacement', varargin{:}); end
-        function varargout = basicDeformation(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('basicDeformation', varargin{:}); end
-        function varargout = basicForce(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('basicForce', varargin{:}); end
-        function varargout = basicStiffness(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('basicStiffness', varargin{:}); end
-
-        function varargout = InitialStateAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('InitialStateAnalysis', varargin{:}); end
-        function varargout = totalCPU(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('totalCPU', varargin{:}); end
-        function varargout = solveCPU(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('solveCPU', varargin{:}); end
-        function varargout = accelCPU(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('accelCPU', varargin{:}); end
-        function varargout = numFact(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('numFact', varargin{:}); end
-        function varargout = numIter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('numIter', varargin{:}); end
-        function varargout = systemSize(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('systemSize', varargin{:}); end
-        function varargout = version(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('version', varargin{:}); end
-        function varargout = matlabversion(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('matlabversion', varargin{:}); end
-
-        function varargout = setMaxOpenFiles(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setMaxOpenFiles', varargin{:}); end
-        function varargout = limitCurve(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('limitCurve', varargin{:}); end
-        function varargout = imposedMotion(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('imposedMotion', varargin{:}); end
-        function varargout = imposedSupportMotion(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('imposedSupportMotion', varargin{:}); end
-        function varargout = groundMotion(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('groundMotion', varargin{:}); end
-        function varargout = equalDOF_Mixed(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('equalDOF_Mixed', varargin{:}); end
-        function varargout = rigidLink(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('rigidLink', varargin{:}); end
-        function varargout = rigidDiaphragm(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('rigidDiaphragm', varargin{:}); end
-        function varargout = ShallowFoundationGen(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('ShallowFoundationGen', varargin{:}); end
-        function varargout = setElementRayleighFactors(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setElementRayleighFactors', varargin{:}); end
-        function varargout = mesh(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('mesh', varargin{:}); end
-        function varargout = remesh(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('remesh', varargin{:}); end
-
-        function varargout = parameter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('parameter', varargin{:}); end
-        function varargout = addToParameter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('addToParameter', varargin{:}); end
-        function varargout = updateParameter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('updateParameter', varargin{:}); end
-        function varargout = setParameter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setParameter', varargin{:}); end
-
-        function varargout = getPID(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getPID', varargin{:}); end
-        function varargout = getNP(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNP', varargin{:}); end
-        function varargout = barrier(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('barrier', varargin{:}); end
-        function varargout = send(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('send', varargin{:}); end
-        function varargout = recv(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('recv', varargin{:}); end
-        function varargout = Bcast(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('Bcast', varargin{:}); end
-
-        function varargout = frictionModel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('frictionModel', varargin{:}); end
-        function varargout = computeGradients(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('computeGradients', varargin{:}); end
-        function varargout = sensitivityAlgorithm(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensitivityAlgorithm', varargin{:}); end
-        function varargout = sensNodeDisp(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensNodeDisp', varargin{:}); end
-        function varargout = sensNodeVel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensNodeVel', varargin{:}); end
-        function varargout = sensNodeAccel(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensNodeAccel', varargin{:}); end
-        function varargout = sensLambda(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensLambda', varargin{:}); end
-        function varargout = sensSectionForce(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensSectionForce', varargin{:}); end
-        function varargout = sensNodePressure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sensNodePressure', varargin{:}); end
-
-        function varargout = getNumElements(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNumElements', varargin{:}); end
-        function varargout = getEleClassTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getEleClassTags', varargin{:}); end
-        function varargout = getEleLoadClassTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getEleLoadClassTags', varargin{:}); end
-        function varargout = getEleLoadTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getEleLoadTags', varargin{:}); end
-        function varargout = getEleLoadData(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getEleLoadData', varargin{:}); end
-        function varargout = getNodeLoadTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNodeLoadTags', varargin{:}); end
-        function varargout = getNodeLoadData(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNodeLoadData', varargin{:}); end
-
-        function varargout = randomVariable(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('randomVariable', varargin{:}); end
-        function varargout = filter(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('filter', varargin{:}); end
-        function varargout = modulatingFunction(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('modulatingFunction', varargin{:}); end
-        function varargout = spectrum(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('spectrum', varargin{:}); end
-        function varargout = getRVTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getRVTags', varargin{:}); end
-        function varargout = getRVParamTag(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getRVParamTag', varargin{:}); end
-        function varargout = getRVValue(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getRVValue', varargin{:}); end
-        function varargout = getMean(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getMean', varargin{:}); end
-        function varargout = getStdv(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getStdv', varargin{:}); end
-        function varargout = getPDF(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getPDF', varargin{:}); end
-        function varargout = getCDF(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getCDF', varargin{:}); end
-        function varargout = getInverseCDF(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getInverseCDF', varargin{:}); end
-        function varargout = correlate(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('correlate', varargin{:}); end
-        function varargout = performanceFunction(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('performanceFunction', varargin{:}); end
-        function varargout = gradPerformanceFunction(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('gradPerformanceFunction', varargin{:}); end
-        function varargout = transformUtoX(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('transformUtoX', varargin{:}); end
-        function varargout = probabilityTransformation(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('probabilityTransformation', varargin{:}); end
-        function varargout = startPoint(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('startPoint', varargin{:}); end
-        function varargout = randomNumberGenerator(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('randomNumberGenerator', varargin{:}); end
-        function varargout = reliabilityConvergenceCheck(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('reliabilityConvergenceCheck', varargin{:}); end
-        function varargout = searchDirection(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('searchDirection', varargin{:}); end
-        function varargout = meritFunctionCheck(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('meritFunctionCheck', varargin{:}); end
-        function varargout = stepSizeRule(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('stepSizeRule', varargin{:}); end
-        function varargout = rootFinding(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('rootFinding', varargin{:}); end
+        % --- Sensitivity / reliability ------------------------------------
+        function varargout = sensitivityAlgorithm(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('sensitivityAlgorithm', varargin{:}); end
+        function varargout = computeGradients(obj, varargin),  [varargout{1:nargout}] = obj.mexHandle('computeGradients', varargin{:}); end
+        function varargout = randomVariable(obj, varargin),    [varargout{1:nargout}] = obj.mexHandle('randomVariable', varargin{:}); end
+        function varargout = filter(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('filter', varargin{:}); end
+        function varargout = modulatingFunction(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('modulatingFunction', varargin{:}); end
+        function varargout = spectrum(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('spectrum', varargin{:}); end
+        function varargout = correlate(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('correlate', varargin{:}); end
+        function varargout = performanceFunction(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('performanceFunction', varargin{:}); end
+        function varargout = gradPerformanceFunction(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('gradPerformanceFunction', varargin{:}); end
+        function varargout = probabilityTransformation(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('probabilityTransformation', varargin{:}); end
+        function varargout = startPoint(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('startPoint', varargin{:}); end
+        function varargout = randomNumberGenerator(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('randomNumberGenerator', varargin{:}); end
+        function varargout = reliabilityConvergenceCheck(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('reliabilityConvergenceCheck', varargin{:}); end
+        function varargout = searchDirection(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('searchDirection', varargin{:}); end
+        function varargout = meritFunctionCheck(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('meritFunctionCheck', varargin{:}); end
+        function varargout = stepSizeRule(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('stepSizeRule', varargin{:}); end
+        function varargout = rootFinding(obj, varargin),       [varargout{1:nargout}] = obj.mexHandle('rootFinding', varargin{:}); end
         function varargout = functionEvaluator(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('functionEvaluator', varargin{:}); end
         function varargout = gradientEvaluator(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('gradientEvaluator', varargin{:}); end
+        function varargout = runFOSMAnalysis(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('runFOSMAnalysis', varargin{:}); end
+        function varargout = findDesignPoint(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('findDesignPoint', varargin{:}); end
+        function varargout = findCurvatures(obj, varargin),    [varargout{1:nargout}] = obj.mexHandle('findCurvatures', varargin{:}); end
+        function varargout = runFORMAnalysis(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('runFORMAnalysis', varargin{:}); end
+        function varargout = runSORMAnalysis(obj, varargin),   [varargout{1:nargout}] = obj.mexHandle('runSORMAnalysis', varargin{:}); end
+        function varargout = runImportanceSamplingAnalysis(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('runImportanceSamplingAnalysis', varargin{:}); end
 
-        function varargout = updateMaterialStage(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('updateMaterialStage', varargin{:}); end
-        function varargout = sdfResponse(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('sdfResponse', varargin{:}); end
+        % --- Miscellaneous ------------------------------------------------
+        function varargout = build(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('build', varargin{:}); end
+        function varargout = searchPeerNGA(obj, varargin),     [varargout{1:nargout}] = obj.mexHandle('searchPeerNGA', varargin{:}); end
+        function varargout = metaData(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('metaData', varargin{:}); end
+        function varargout = defaultUnits(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('defaultUnits', varargin{:}); end
+        function varargout = stripXML(obj, varargin),          [varargout{1:nargout}] = obj.mexHandle('stripXML', varargin{:}); end
+        function varargout = convertBinaryToText(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('convertBinaryToText', varargin{:}); end
+        function varargout = convertTextToBinary(obj, varargin),[varargout{1:nargout}] = obj.mexHandle('convertTextToBinary', varargin{:}); end
+        function varargout = IGA(obj, varargin),               [varargout{1:nargout}] = obj.mexHandle('IGA', varargin{:}); end
+        function varargout = NDTest(obj, varargin),            [varargout{1:nargout}] = obj.mexHandle('NDTest', varargin{:}); end
 
-        function varargout = getNumThreads(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getNumThreads', varargin{:}); end
-        function varargout = setNumThreads(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setNumThreads', varargin{:}); end
-        function varargout = logFile(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('logFile', varargin{:}); end
-        function varargout = setStartNodeTag(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('setStartNodeTag', varargin{:}); end
-
-        function varargout = hystereticBackbone(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('hystereticBackbone', varargin{:}); end
-        function varargout = stiffnessDegradation(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('stiffnessDegradation', varargin{:}); end
-        function varargout = strengthDegradation(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('strengthDegradation', varargin{:}); end
-        function varargout = strengthControl(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('strengthControl', varargin{:}); end
-        function varargout = unloadingRule(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('unloadingRule', varargin{:}); end
-
-        function varargout = partition(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('partition', varargin{:}); end
-        function varargout = pressureConstraint(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('pressureConstraint', varargin{:}); end
-        function varargout = domainCommitTag(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('domainCommitTag', varargin{:}); end
-
-        function varargout = runFOSMAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('runFOSMAnalysis', varargin{:}); end
-        function varargout = findDesignPoint(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('findDesignPoint', varargin{:}); end
-        function varargout = findCurvatures(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('findCurvatures', varargin{:}); end
-        function varargout = runFORMAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('runFORMAnalysis', varargin{:}); end
-        function varargout = runSORMAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('runSORMAnalysis', varargin{:}); end
-        function varargout = getLSFTags(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('getLSFTags', varargin{:}); end
-        function varargout = runImportanceSamplingAnalysis(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('runImportanceSamplingAnalysis', varargin{:}); end
-
-        function varargout = IGA(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('IGA', varargin{:}); end
-        function varargout = NDTest(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('NDTest', varargin{:}); end
-    end
+    end % action methods
     %-------------------------------------------------------------------------
     % Added by OpenSeesMatlab
     %-------------------------------------------------------------------------
