@@ -138,7 +138,7 @@ classdef SectionGeometryRecorder < handle
                             obj.drawLayer(ax, sec.Layers{A.Index}, [0 0 0]);
 
                         case 'Fiber'
-                            obj.drawFiber(ax, sec.Fibers{A.Index}, [0 0 0]);
+                            obj.drawFiber(ax, sec.Fibers{A.Index}, '#87ae73');
                     end
                 end
             end
