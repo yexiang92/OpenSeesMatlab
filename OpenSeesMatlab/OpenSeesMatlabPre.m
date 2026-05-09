@@ -46,6 +46,11 @@ classdef OpenSeesMatlabPre < handle
         secGeoRecorder = []    % pre.utils.SectionGeometryRecorder
         unitSystem    % Unit system information for the model, including length, force, time, etc. This can be used for unit conversions and ensuring consistency in model definitions and results interpretation. See pre.UnitSystem for details.
         Gmsh2OPS   % Gmsh2OPS object for converting Gmsh mesh files to OpenSees model definitions. This can be used to import complex geometries and meshes created in Gmsh into OpenSees for analysis. See pre.Gmsh2OPS for details.
+        fiberSectionMesh pre.FiberSectionMesh
+        % Stub instance of pre.FiberSectionMesh, pre-wired to this
+        % model's OpenSees interface.
+        %
+        % See pre.FiberSectionMesh for full documentation.
     end
 
     methods
@@ -77,6 +82,16 @@ classdef OpenSeesMatlabPre < handle
             obj.loadTools = pre.LoadTools(obj.parent.opensees);
 
             obj.Gmsh2OPS = pre.Gmsh2OPS(Ops=obj.parent.opensees);
+
+            % Fiber section mesh factory
+            % Create stub: a FiberSectionMesh with ops pre-wired.
+            % The stub itself is never meshed or built — it only serves
+            % as a handle for static helpers and new().
+            stubPart.name     = '__stub__';
+            stubPart.matTag   = 0;
+            stubPart.geometry = polyshape();
+            obj.fiberSectionMesh  = pre.FiberSectionMesh( ...
+                stubPart, [], NaN, obj.parent.opensees);
         end
     end
 
@@ -299,9 +314,9 @@ classdef OpenSeesMatlabPre < handle
             end
 
             nodeLoads = obj.loadTools.createGravityLoad(...
-                            excludeNodes=opts.excludeNodes,...
-                            direction=opts.direction,...
-                            factor=opts.factor);
+                excludeNodes=opts.excludeNodes,...
+                direction=opts.direction,...
+                factor=opts.factor);
         end
 
         function beamGlobalUniformLoad(obj, eleTags, opts)
@@ -384,8 +399,8 @@ classdef OpenSeesMatlabPre < handle
                 opts.pz double = 0.0
                 opts.xl double = 0.5
             end
-             obj.loadTools.BeamGlobalPointLoad(eleTags, px=opts.px, py=opts.py, pz=opts.pz, xl=opts.xl);
-         end
+            obj.loadTools.BeamGlobalPointLoad(eleTags, px=opts.px, py=opts.py, pz=opts.pz, xl=opts.xl);
+        end
 
         function surfaceGlobalPressureLoad(obj, eleTags, p)
             % Apply uniform pressure loads to surface elements.
@@ -421,4 +436,5 @@ classdef OpenSeesMatlabPre < handle
             obj.loadTools.SurfaceGlobalPressureLoad(eleTags, p);
         end
     end
+
 end
