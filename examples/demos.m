@@ -1,52 +1,48 @@
 % =========================================================================
-% Task definition: [category, example_name]
-% Each .mlx file will be exported to markdown and organized by category
+% Task definition: [category, subgroup, example_name]
+% Only "post" examples use subgroup. Other categories use "".
 % =========================================================================
-tasks = [ 
-    "post",         "post_quick_plot";
-    "post",         "post_get_model_data";
-    "post",         "post_2d_Portal_Frame";
-    "post",         "post_get_resp_odb";
-    "post",         "post_soil_structure_interaction_2d_portal_frame";
-    "post",         "post_excavation";
-    "post",         "post_plot_fiber_section";
-    "post",         "post_getMCK";
-    "post",         "post_loads";
-    "post",         "post_Smart_Analysis";
-    "post",         "post_unitsystem";
-    "post",         "post_Gmsh2OPS_solid";
-    "structural",   "structural_nonlinear_truss";
-    "structural",   "structural_steel_frame2d";
-    "structural",   "structural_parfor_truss";
-    "earthquake",   "earthquake_frame3D_transient";
-    "earthquake",   "earthquake_RC_FRAME_EQ1";
-    "geotechnical", "geotechnical_PM4Sand";
-    "geotechnical", "geotechnical_PressureDependMultiYield6";
-    "thermal",      "thermal_restrained_beam_under_thermal_expansion";
-    "sensitivity",  "sensitivity_sensitivity_analysis";
-    "verify",       "verify_Bracket";
-    "verify",       "verify_stress_concentration_plate";
-    "verify",       "verify_quad_beam";
-    "verify",       "verify_quad_shell";
-    "verify",       "verify_stdBrick";
-    "verify",       "verify_beam";
-    % add here
-    % [category, example_name], if new category, please modify function localFolderMeta
+tasks = [
+    "post", "basic",         "post_quick_plot";
+    "post", "basic",         "post_get_model_data";
+    "post", "basic",         "post_get_resp_odb";
+    "post", "visualization", "post_2d_Portal_Frame";
+    "post", "visualization", "post_soil_structure_interaction_2d_portal_frame";
+    "post", "visualization", "post_excavation";
+    "post", "preprocess",    "post_getMCK";
+    "post", "preprocess",    "post_loads";
+    "post", "preprocess",    "post_unitsystem";
+    "post", "preprocess",    "post_Gmsh2OPS_solid";
+    "post", "section",       "post_plot_fiber_section";
+    "post", "section",       "post_section_mesh";
+    "post", "analysis",      "post_Smart_Analysis";
+
+    "structural",   "", "structural_nonlinear_truss";
+    "structural",   "", "structural_steel_frame2d";
+    "structural",   "", "structural_parfor_truss";
+    "earthquake",   "", "earthquake_frame3D_transient";
+    "earthquake",   "", "earthquake_RC_FRAME_EQ1";
+    "geotechnical", "", "geotechnical_PM4Sand";
+    "geotechnical", "", "geotechnical_PressureDependMultiYield6";
+    "thermal",      "", "thermal_restrained_beam_under_thermal_expansion";
+    "sensitivity",  "", "sensitivity_sensitivity_analysis";
+    "verify",       "", "verify_Bracket";
+    "verify",       "", "verify_stress_concentration_plate";
+    "verify",       "", "verify_quad_beam";
+    "verify",       "", "verify_quad_shell";
+    "verify",       "", "verify_stdBrick";
+    "verify",       "", "verify_beam";
 ];
 
-% Root directory for generated documentation
 rootDir = "../docs/examples";
-
-% Force rebuild flag (true = rebuild everything)
 forceRebuild = false;
 
-% Create root directory if it does not exist
 if ~exist(rootDir, "dir")
     mkdir(rootDir);
 end
 
 % =========================================================================
-% Copy utils folder (shared helper scripts for examples)
+% Copy utils folder
 % =========================================================================
 srcUtilsDir = "utils";
 dstUtilsDir = fullfile(rootDir, "utils");
@@ -63,31 +59,46 @@ else
 end
 
 % =========================================================================
-% Export .mlx files to Markdown in parallel
+% Create all export folders before parfor
+% =========================================================================
+for i = 1:size(tasks, 1)
+    category = tasks(i, 1);
+    subgroup = tasks(i, 2);
+
+    if strlength(subgroup) > 0
+        outDir = fullfile(rootDir, category, subgroup);
+    else
+        outDir = fullfile(rootDir, category);
+    end
+
+    if ~isfolder(outDir)
+        mkdir(outDir);
+    end
+end
+
+% =========================================================================
+% Export .mlx files to Markdown
 % =========================================================================
 parfor i = 1:size(tasks, 1)
-    subdir = tasks(i, 1);
-    name   = tasks(i, 2);
+    category = tasks(i, 1);
+    subgroup = tasks(i, 2);
+    name     = tasks(i, 3);
 
-    outDir = fullfile(rootDir, subdir);
-    if ~exist(outDir, "dir")
-        mkdir(outDir);
+    if strlength(subgroup) > 0
+        outDir = fullfile(rootDir, category, subgroup);
+    else
+        outDir = fullfile(rootDir, category);
     end
 
     mlxFile = name + ".mlx";
     outFile = fullfile(outDir, name + ".md");
 
     if localNeedExport(mlxFile, outFile, forceRebuild)
-
-        % Export MATLAB live script to Markdown
-        export( ...
-            mlxFile, ...
-            outFile, ...
+        export(mlxFile, outFile, ...
             Format="markdown", ...
             EmbedImages=true, ...
             AcceptHTML=true);
 
-        % Post-process Markdown (clean syntax and format output blocks)
         localPostProcessMarkdown(outFile);
 
         fprintf("Exported: %s -> %s\n", mlxFile, outFile);
@@ -99,13 +110,13 @@ end
 % =========================================================================
 % Generate index.md for each category
 % =========================================================================
-subdirs = unique(tasks(:, 1), "stable");
+categories = unique(tasks(:, 1), "stable");
 
-for i = 1:numel(subdirs)
-    subdir = subdirs(i);
-    names = tasks(tasks(:, 1) == subdir, 2);
+for i = 1:numel(categories)
+    category = categories(i);
+    rows = tasks(tasks(:, 1) == category, :);
 
-    outDir = fullfile(rootDir, subdir);
+    outDir = fullfile(rootDir, category);
     if ~exist(outDir, "dir")
         mkdir(outDir);
     end
@@ -115,46 +126,76 @@ for i = 1:numel(subdirs)
     if fid == -1
         error("Cannot open file for writing: %s", outFile);
     end
-
     cleaner = onCleanup(@() fclose(fid));
 
-    % Get title and introduction text
-    [titleStr, introStr] = localFolderMeta(subdir);
+    [titleStr, introStr] = localFolderMeta(category);
 
-    % Write title
     fprintf(fid, "# %s\n\n", titleStr);
 
-    % Write introduction paragraph
     if strlength(introStr) > 0
         fprintf(fid, "%s\n\n", introStr);
     end
 
-    % fprintf(fid, "## Examples\n\n");
+    subgroups = unique(rows(:, 2), "stable");
 
-    % Generate list of example links
-    for j = 1:numel(names)
-        name = names(j);
-        mdFile = fullfile(outDir, name + ".md");
+    if numel(subgroups) == 1 && strlength(subgroups(1)) == 0
+        names = rows(:, 3);
 
-        % Extract title from each markdown file
-        title = localExtractMdTitle(mdFile);
+        for j = 1:numel(names)
+            name = names(j);
+            mdFile = fullfile(outDir, name + ".md");
+            title = localExtractMdTitle(mdFile);
 
-        fprintf(fid, "- [%s](./%s.md)\n", title, name);
+            fprintf(fid, "- [%s](./%s.md)\n", title, name);
+        end
+
+    else
+        for j = 1:numel(subgroups)
+            subgroup = subgroups(j);
+
+            if strlength(subgroup) == 0
+                subgroupRows = rows(strlength(rows(:, 2)) == 0, :);
+                fprintf(fid, "## Examples\n\n");
+
+                for k = 1:size(subgroupRows, 1)
+                    name = subgroupRows(k, 3);
+                    mdFile = fullfile(outDir, name + ".md");
+                    title = localExtractMdTitle(mdFile);
+
+                    fprintf(fid, "- [%s](./%s.md)\n", title, name);
+                end
+
+            else
+                subgroupRows = rows(rows(:, 2) == subgroup, :);
+                subgroupTitle = localSubgroupTitle(category, subgroup);
+
+                fprintf(fid, "## %s\n\n", subgroupTitle);
+
+                for k = 1:size(subgroupRows, 1)
+                    name = subgroupRows(k, 3);
+                    mdFile = fullfile(outDir, subgroup, name + ".md");
+                    title = localExtractMdTitle(mdFile);
+
+                    fprintf(fid, "- [%s](./%s/%s.md)\n", title, subgroup, name);
+                end
+            end
+
+            fprintf(fid, "\n");
+        end
     end
 end
 
 % =========================================================================
-% Generate root index.md for examples
+% Generate root index.md
 % =========================================================================
 rootIndexFile = fullfile(rootDir, "index.md");
 fid = fopen(rootIndexFile, "w");
 if fid == -1
     error("Cannot open file for writing: %s", rootIndexFile);
 end
-
 cleaner = onCleanup(@() fclose(fid));
 
-fprintf(fid, '# Examples\n\n');
+fprintf(fid, "# Examples\n\n");
 
 introText = ['This section collects the example documentation for ``OpenSeesMatlab``. ' ...
              'The examples are grouped by topic so that users can quickly find representative ' ...
@@ -162,23 +203,24 @@ introText = ['This section collects the example documentation for ``OpenSeesMatl
              'geotechnical modeling, thermal analysis, sensitivity analysis, verification, ' ...
              'and post-processing.' newline newline];
 
-fprintf(fid, '%s', introText);
-fprintf(fid, '## Categories\n\n');
+fprintf(fid, "%s", introText);
+fprintf(fid, "## Categories\n\n");
 
-for i = 1:numel(subdirs)
-    subdir = subdirs(i);
-    [titleStr, introStr] = localFolderMeta(subdir);
+for i = 1:numel(categories)
+    category = categories(i);
+    [titleStr, introStr] = localFolderMeta(category);
 
-    fprintf(fid, '- [%s](./%s/index.md)', titleStr, subdir);
+    fprintf(fid, "- [%s](./%s/index.md)", titleStr, category);
 
     if strlength(introStr) > 0
-        fprintf(fid, ' — %s', introStr);
+        fprintf(fid, " — %s", introStr);
     end
-    fprintf(fid, '\n');
+
+    fprintf(fid, "\n");
 end
 
 % =========================================================================
-% Helper: check whether .mlx needs to be exported
+% Helper functions
 % =========================================================================
 function tf = localNeedExport(mlxFile, mdFile, forceRebuild)
     if forceRebuild
@@ -195,16 +237,12 @@ function tf = localNeedExport(mlxFile, mdFile, forceRebuild)
         return;
     end
 
-    % Compare timestamps
     srcInfo = dir(mlxFile);
     dstInfo = dir(mdFile);
 
     tf = srcInfo.datenum > dstInfo.datenum;
 end
 
-% =========================================================================
-% Helper: check whether utils folder needs to be copied
-% =========================================================================
 function tf = localNeedCopyFolder(srcDir, dstDir, forceRebuild)
     if forceRebuild || ~exist(dstDir, "dir")
         tf = true;
@@ -217,9 +255,6 @@ function tf = localNeedCopyFolder(srcDir, dstDir, forceRebuild)
     tf = srcLatest > dstLatest;
 end
 
-% =========================================================================
-% Helper: get latest modification time in a folder
-% =========================================================================
 function t = localFolderLatestDatenum(folder)
     files = dir(fullfile(folder, "**", "*"));
     files = files(~[files.isdir]);
@@ -231,17 +266,12 @@ function t = localFolderLatestDatenum(folder)
     end
 end
 
-% =========================================================================
-% Post-process Markdown output
-% =========================================================================
 function localPostProcessMarkdown(mdFile)
     txt = fileread(mdFile);
 
-    % Fix escaped brackets
     txt = replace(txt, "\[", "[");
     txt = replace(txt, "\]", "]");
 
-    % Replace MATLAB output blocks with styled HTML
     txt = localReplaceMatlabTextOutputBlocks(txt);
 
     fid = fopen(mdFile, "w");
@@ -253,13 +283,10 @@ function localPostProcessMarkdown(mdFile)
     fwrite(fid, txt, "char");
 end
 
-% =========================================================================
-% Replace MATLAB output code blocks with formatted HTML blocks
-% =========================================================================
 function txt = localReplaceMatlabTextOutputBlocks(txt)
     pattern = '```matlabTextOutput\s*\r?\n([\s\S]*?)\r?\n```';
 
-    [starts, ends, tokens] = regexp(txt, pattern, 'start', 'end', 'tokens');
+    [starts, ends, tokens] = regexp(txt, pattern, "start", "end", "tokens");
 
     if isempty(starts)
         return;
@@ -284,11 +311,8 @@ function txt = localReplaceMatlabTextOutputBlocks(txt)
     txt = [pieces{1:p}];
 end
 
-% =========================================================================
-% Format output block into HTML
-% =========================================================================
 function out = localFormatOutputBlock(content)
-    content = regexprep(content, '^\s+|\s+$', '');
+    content = regexprep(content, "^\s+|\s+$", "");
     content = replace(content, "&", "&amp;");
     content = replace(content, "<", "&lt;");
     content = replace(content, ">", "&gt;");
@@ -303,11 +327,9 @@ function out = localFormatOutputBlock(content)
     ];
 end
 
-% =========================================================================
-% Extract title from markdown file
-% =========================================================================
 function title = localExtractMdTitle(mdFile)
     fid = fopen(mdFile, "r");
+
     if fid == -1
         [~, name, ~] = fileparts(mdFile);
         title = string(name);
@@ -319,11 +341,13 @@ function title = localExtractMdTitle(mdFile)
 
     while true
         line = fgetl(fid);
+
         if ~ischar(line)
             break;
         end
 
         line = strtrim(string(line));
+
         if startsWith(line, "# ")
             title = strtrim(extractAfter(line, 2));
             return;
@@ -334,36 +358,33 @@ function title = localExtractMdTitle(mdFile)
     title = string(name);
 end
 
-% =========================================================================
-% Define title and introduction for each category
-% =========================================================================
 function [titleStr, introStr] = localFolderMeta(subdir)
     switch char(subdir)
-        case 'post'
+        case "post"
             titleStr = "Pre, Post-processing and Visualization Examples";
             introStr = "Examples for additional preprocessing, post-processing, and visualization features provided by ``OpenSeesMatlab``.";
 
-        case 'structural'
+        case "structural"
             titleStr = "Structural Examples";
             introStr = "Examples of structural modeling and analysis.";
 
-        case 'earthquake'
+        case "earthquake"
             titleStr = "Earthquake Examples";
             introStr = "Examples of seismic and dynamic analysis.";
 
-        case 'geotechnical'
+        case "geotechnical"
             titleStr = "Geotechnical Examples";
             introStr = "Examples involving soil models and soil-structure interaction.";
 
-        case 'thermal'
+        case "thermal"
             titleStr = "Thermal Examples";
             introStr = "Examples of thermal and thermo-mechanical analysis.";
 
-        case 'sensitivity'
+        case "sensitivity"
             titleStr = "Sensitivity Examples";
             introStr = "Examples of sensitivity and parameter analysis.";
-        
-        case 'verify'
+
+        case "verify"
             titleStr = "Verification Examples";
             introStr = "Examples of verification by reliable third-party software.";
 
@@ -371,4 +392,44 @@ function [titleStr, introStr] = localFolderMeta(subdir)
             titleStr = string(subdir) + " Examples";
             introStr = "";
     end
+end
+
+function titleStr = localSubgroupTitle(category, subgroup)
+    switch char(category)
+        case "post"
+            switch char(subgroup)
+                case "basic"
+                    titleStr = "Basic Utilities";
+                case "model-data"
+                    titleStr = "Model Data Extraction";
+                case "visualization"
+                    titleStr = "Visualization";
+                case "odb"
+                    titleStr = "Output Database";
+                case "loads"
+                    titleStr = "Loads";
+                case "analysis"
+                    titleStr = "Analysis Utilities";
+                case "preprocess"
+                    titleStr = "Preprocessing";
+                case "section"
+                    titleStr = "Fiber Sections";
+                otherwise
+                    titleStr = localPrettyTitle(subgroup);
+            end
+
+        otherwise
+            titleStr = localPrettyTitle(subgroup);
+    end
+end
+
+function titleStr = localPrettyTitle(name)
+    titleStr = replace(string(name), ["-", "_"], " ");
+    words = split(titleStr);
+    for i = 1:numel(words)
+        if strlength(words(i)) > 0
+            words(i) = upper(extractBefore(words(i), 2)) + extractAfter(words(i), 1);
+        end
+    end
+    titleStr = strjoin(words, " ");
 end
