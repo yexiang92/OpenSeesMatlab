@@ -89,7 +89,7 @@ classdef PlaneRespStepData < post.resp.ResponseBase
 
 
 
-            obj.eleTags = eleTags(:).';
+            obj.eleTags = double(eleTags(:).');
 
             obj.eleClassCache   = containers.Map('KeyType','double','ValueType','int32');
             obj.eleNGPCache     = containers.Map('KeyType','double','ValueType','int32');
@@ -114,7 +114,7 @@ classdef PlaneRespStepData < post.resp.ResponseBase
             if nargin < 2 || isempty(eleTags)
                 eleTags = obj.eleTags;
             end
-            eleTags = eleTags(:).';
+            eleTags = double(eleTags(:).');
             nEle    = numel(eleTags);
 
             % Fill caches; determine pre-alloc sizes
