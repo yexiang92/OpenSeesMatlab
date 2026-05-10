@@ -6,3 +6,4 @@
 - Improve the performance of ``plotFrameResponse``; 
 - Enhance the efficiency and capabilities of ``SmartAnalyze``.
 - Some commands, such as ``node``, ``element``, ``section``, ``recorder``, and ``fix``, support passing in ``double`` or ``cell`` arrays.
+- Add ``pre.FiberSectionMesh`` to the ``pre`` package for creating fiber section meshes.

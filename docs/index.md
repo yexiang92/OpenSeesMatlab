@@ -8,6 +8,10 @@
 - MATLAB-friendly data access  
 - integrated visualization and documentation tools  
 
+![](static/images/demo-readme.png)
+
+![](static/images/demo-readme2.png)
+
 ---
 
 ## ⚡ Quick Start
