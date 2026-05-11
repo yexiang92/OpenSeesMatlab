@@ -10,7 +10,8 @@ classdef OpenSeesMatlabAnalysis < handle
     end
 
     properties (SetAccess = private, GetAccess = public)
-        smartAnalyze = analysis.SmartAnalyze()  % Robust analysis helper for convergence recovery and progress tracking
+        smartAnalyze analysis.SmartAnalyze  % Robust analysis helper for convergence recovery and progress tracking
+        MomentCurvature analysis.MomentCurvature  % Helper for moment-curvature analysis of opensees sections. See analysis.MomentCurvature for full documentation.
     end
 
     methods
@@ -40,7 +41,11 @@ classdef OpenSeesMatlabAnalysis < handle
             end
 
             obj.parent = parentObj;
+
+            obj.smartAnalyze = analysis.SmartAnalyze();
             obj.smartAnalyze.setOPS(obj.parent.opensees);
+
+            obj.MomentCurvature = analysis.MomentCurvature(obj.parent.opensees, NaN, NaN);
         end
     end
 

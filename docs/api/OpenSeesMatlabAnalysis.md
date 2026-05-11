@@ -14,6 +14,7 @@
       docstring_section_style: list
       members:
         - smartAnalyze
+        - MomentCurvature
 
 
 ::: analysis.SmartAnalyze
@@ -40,3 +41,28 @@
         - getNormHistory
         - getDiagnostics
         - printLastFailure
+
+::: analysis.MomentCurvature
+    handler: matlab
+    options:
+      parse_arguments: true
+      show_root_toc_entry: true
+      heading_level: 2
+      separate_signature: true
+      show_signature_types: true
+      signature_crossrefs: true
+      docstring_section_style: list
+      members:
+        - new
+        - analyze
+        - setCyclePath
+        - getMPhi
+        - getCurvature
+        - getMoment
+        - getLimitState
+        - bilinearize
+        - plotMPhi
+        - plotFiberResponses
+        - buildNMM
+        - plotNMM
+
