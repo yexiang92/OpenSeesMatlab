@@ -208,63 +208,75 @@ classdef OpenSeesMatlabPre < handle
         end
 
         function out = getMCK(obj, matrixType, options)
-            % Assemble and return a global model matrix.
-            %
-            %   getMCK extracts the current global mass, damping, stiffness, or
-            %   initial stiffness matrix from the OpenSees model using the
-            %   specified constraint handler, system, and numberer settings.
-            %
-            % Syntax
-            % ------
-            %     out = pre.getMCK(matrixType)
-            %     out = pre.getMCK(matrixType, constraintsArgs=args)
-            %     out = pre.getMCK(matrixType, systemArgs=args, numbererArgs=args)
-            %
-            % Parameters
-            % ----------
-            % matrixType : char or string
-            %     Type of matrix to retrieve. Options are:
-            %
-            %     - 'm'  : mass matrix
-            %     - 'c'  : damping matrix
-            %     - 'k'  : tangent stiffness matrix
-            %     - 'ki' : initial stiffness matrix
-            % constraintsArgs : cell array, optional
-            %     Arguments passed to the OpenSees constraints command when
-            %     forming the matrix. Default is {'Penalty', 1e12, 1e12}.
-            % systemArgs : cell array, optional
-            %     Arguments passed to the OpenSees system command. Default is
-            %     {'FullGeneral'}.
-            % numbererArgs : cell array, optional
-            %     Arguments passed to the OpenSees numberer command. Default is
-            %     {'Plain'}.
-            %
-            % Returns
-            % -------
-            % out : struct
-            %     Matrix data and labels.
-            %
-            %     - .Type   : matrix type, one of 'm', 'c', 'k', or 'ki'
-            %     - .Data   : sparse matrix data
-            %     - .Labels : cell array of DOF labels for rows/columns
-            %
-            % Example
-            % -------
-            %     K = opsmat.pre.getMCK('k');
-            %     M = opsmat.pre.getMCK('m', ...
-            %         constraintsArgs={'Penalty', 1e12, 1e12}, ...
-            %         systemArgs={'FullGeneral'}, ...
-            %         numbererArgs={'Plain'});
+        % Assemble and return a global model matrix.
+        %
+        % Syntax
+        % ------
+        %     out = pre.getMCK(matrixType)
+        %     out = pre.getMCK(matrixType, constraintsArgs=args)
+        %     out = pre.getMCK(matrixType, systemArgs=args, numbererArgs=args)
+        %
+        % Parameters
+        % ----------
+        % matrixType : char or string
+        %   Matrix type: 'm', 'c', 'k', or 'ki'.
+        %
+        % constraintsArgs : char, string, or cell array, optional
+        %   Arguments passed to the OpenSees constraints command.
+        %   Default: {'Penalty', 1e12, 1e12}.
+        %
+        % systemArgs : char, string, or cell array, optional
+        %   Arguments passed to the OpenSees system command.
+        %   Default: {'FullGeneral'}.
+        %
+        % numbererArgs : char, string, or cell array, optional
+        %   Arguments passed to the OpenSees numberer command.
+        %   Default: {'Plain'}.
 
             arguments
                 obj (1,1) OpenSeesMatlabPre
                 matrixType {mustBeTextScalar, mustBeMember(matrixType, {'m', 'c', 'k', 'ki'})}
-                options.constraintsArgs cell = {'Penalty', 1e12, 1e12}
-                options.systemArgs cell = {'FullGeneral'}
-                options.numbererArgs cell = {'Plain'}
+                options.constraintsArgs = {'Penalty', 1e12, 1e12}
+                options.systemArgs = {'FullGeneral'}
+                options.numbererArgs = {'Plain'}
             end
 
-            out = pre.ModelDataUtils.getMCK(obj.parent.opensees, matrixType, options.constraintsArgs, options.systemArgs, options.numbererArgs);
+            matrixType = char(matrixType);
+
+            constraintsArgs = options.constraintsArgs;
+            if ischar(constraintsArgs)
+                constraintsArgs = {constraintsArgs};
+            elseif isstring(constraintsArgs)
+                constraintsArgs = cellstr(constraintsArgs);
+            elseif ~iscell(constraintsArgs)
+                error('constraintsArgs must be a char, string, or cell array.');
+            end
+
+            systemArgs = options.systemArgs;
+            if ischar(systemArgs)
+                systemArgs = {systemArgs};
+            elseif isstring(systemArgs)
+                systemArgs = cellstr(systemArgs);
+            elseif ~iscell(systemArgs)
+                error('systemArgs must be a char, string, or cell array.');
+            end
+
+            numbererArgs = options.numbererArgs;
+            if ischar(numbererArgs)
+                numbererArgs = {numbererArgs};
+            elseif isstring(numbererArgs)
+                numbererArgs = cellstr(numbererArgs);
+            elseif ~iscell(numbererArgs)
+                error('numbererArgs must be a char, string, or cell array.');
+            end
+
+            out = pre.ModelDataUtils.getMCK( ...
+                obj.parent.opensees, ...
+                matrixType, ...
+                constraintsArgs, ...
+                systemArgs, ...
+                numbererArgs);
+
         end
 
         function nodeLoads = createGravityLoad(obj, opts)
