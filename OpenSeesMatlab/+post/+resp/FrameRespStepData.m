@@ -640,6 +640,9 @@ end
 function p = frame_cache_elastic_params_no_toggle(mex_, tag)
     p.E   = frame_get_param(mex_, tag, 'E');
     p.Iz  = frame_get_param(mex_, tag, 'Iz');
+    if p.Iz == 0
+        p.Iz = frame_get_param(mex_, tag, 'I');
+    end
     p.Iy  = frame_get_param(mex_, tag, 'Iy');
     p.G   = frame_get_param(mex_, tag, 'G');
     p.Avy = frame_get_param(mex_, tag, 'Avy');
@@ -655,6 +658,9 @@ function value = frame_get_param(mex_, eleTag, paramName)
     mex_('parameter', newTag, 'element', eleTag, paramName);
     value = mex_('getParamValue', newTag);
     mex_('remove', 'parameter', newTag);
+    if isempty(value)
+        value = 0;
+    end
 end
 
 % =========================================================================
