@@ -18,7 +18,7 @@
 
 Using `OpenSeesMatlab` is straightforward:
 
-- The **`opensees`** module provides wrappers for almost all OpenSees commands, keeping the same parameter parsing style as OpenSees/OpenSeesPy.
+- The **`opensees`** module provides wrappers for almost all OpenSees commands, keeping the <span style="color:#0165fc";font-weight:bold>same parameter parsing style as OpenSees/OpenSeesPy</span>.
 - Modules such as **`vis`**, **`post`**, and **`pre`** extend functionality with visualization, post-processing, and preprocessing tools, which can be used as needed.
 
 ```matlab

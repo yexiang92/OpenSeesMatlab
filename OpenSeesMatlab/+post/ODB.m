@@ -1,36 +1,19 @@
+
 classdef ODB < handle
     % Output database for OpenSees response data.
-
-
     % =====================================================================
     properties (Access = private)
         ops
         outputDir       string
         respFilename    string
+        storePath       string
+        filename        string
 
         odbTag
-        modelUpdate     logical
-        flushEvery
-        stepSize
-        dtype           struct
-        storePath       string
-        pendingSteps    double = 0
-        fileIdx         double = 1
+        kargs           struct
 
-        args            struct
-        globalArgs      cell
+        OPS_recorderTag double
 
-        modelInfoResp
-        nodalResp
-        frameResp
-        trussResp
-        linkResp
-        shellResp
-        fiberSecResp
-        planeResp
-        solidResp
-        contactResp
-        sensitivityResp
     end
 
     % =====================================================================
@@ -41,11 +24,7 @@ classdef ODB < handle
             arguments
                 ops
                 odbTag
-
-                options.modelUpdate             logical = false
-                options.saveEvery                       = []
-                options.stepSize                        = []
-                options.dtype                   struct  = struct('intType','int32','floatType','single')
+                options.flushEvery                       = 20
 
                 options.saveNodalResp           logical = true
                 options.saveFrameResp           logical = true
@@ -63,48 +42,105 @@ classdef ODB < handle
                 options.trussTags               double = []
                 options.linkTags                double = []
                 options.shellTags               double = []
-                options.fiberEleTags                   = []
                 options.planeTags               double = []
                 options.solidTags               double = []
                 options.contactTags             double = []
-                options.sensitivityParaTags     double = []
 
                 options.elasticFrameSecPoints   double {mustBeInteger, mustBePositive} = 7
                 options.interpolateBeamDisp            = false
-                options.computeMechanicalMeasures      = {"principal", "vonMises", "octahedral", "tauMax"}
-                % computeMechanicalMeasures = { ...
-                % "principal", ...
-                % "vonMises", ...
-                % "octahedral", ...
-                % "tauMax", ...
-                % {"mohrCoulombSy", syc, syt}, ...
-                % {"mohrCoulombCPhi", c, phiDeg}, ...
-                % {"druckerPragerSy", syc, syt}, ...
-                % {"druckerPragerCPhi", c, phiDeg, "circumscribed"} ...
-                % };
+                options.computeMechanicalMeasures      = {"principal", "tauMax", "sigmaOct", "tauOct", "vonMises"}
                 options.projectGaussToNodes     string = "copy"
             end
 
             obj.ops         = ops;
             obj.odbTag      = odbTag;
-            obj.modelUpdate = options.modelUpdate;
-            obj.flushEvery  = options.saveEvery;
-            obj.dtype       = options.dtype;
 
-            skip = {'modelUpdate','saveEvery','dtype','stepSize'};
-            obj.args = rmfield(options, skip);
+            obj.kargs       = options;
+        end
 
-            if ~isempty(obj.flushEvery)
-                obj.stepSize = int32(obj.flushEvery);
-            elseif ~isempty(options.stepSize)
-                obj.stepSize = int32(options.stepSize);
-            else
-                obj.stepSize = [];
+        function setFEMDataRecorder(obj)
+            % Build cell array of arguments for FEMDataRecorder.
+            % Switch options (e.g. -saveNodalResp) are passed without a
+            % boolean value; they enable the feature simply by being present.
+            % Empty [] and logical false are filtered out to avoid confusing
+            % the C++ parser (which sees them as invalid tokens).
+            kargs = {obj.filename};
+
+            if ~isempty(obj.kargs.flushEvery)
+                kargs = {kargs{:}, '-flushEvery', obj.kargs.flushEvery};
             end
 
-            obj.globalArgs = {'modelUpdate', obj.modelUpdate, 'dtype', obj.dtype, 'stepSize', obj.stepSize};
+            if obj.kargs.saveNodalResp
+                kargs = {kargs{:}, '-saveNodalResp'};
+                if ~isempty(obj.kargs.nodeTags)
+                    tagCell = num2cell(obj.kargs.nodeTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.saveTrussResp
+                kargs = {kargs{:}, '-saveTrussResp'};
+                if ~isempty(obj.kargs.trussTags)
+                    tagCell = num2cell(obj.kargs.trussTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.saveFrameResp
+                kargs = {kargs{:}, '-saveFrameResp'};
+                if ~isempty(obj.kargs.frameTags)
+                    tagCell = num2cell(obj.kargs.frameTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.saveFiberSecResp
+                kargs = {kargs{:}, '-saveFrameFiber'};
+            end
+            if obj.kargs.saveShellResp
+                kargs = {kargs{:}, '-saveShellResp'};
+                if ~isempty(obj.kargs.shellTags)
+                    tagCell = num2cell(obj.kargs.shellTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.saveSolidResp
+                kargs = {kargs{:}, '-saveSolidResp'};
+                if ~isempty(obj.kargs.solidTags)
+                    tagCell = num2cell(obj.kargs.solidTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.savePlaneResp
+                kargs = {kargs{:}, '-savePlaneResp'};
+                if ~isempty(obj.kargs.planeTags)
+                    tagCell = num2cell(obj.kargs.planeTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.saveLinkResp
+                kargs = {kargs{:}, '-saveLinkResp'};
+                if ~isempty(obj.kargs.linkTags)
+                    tagCell = num2cell(obj.kargs.linkTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
+            if obj.kargs.saveContactResp
+                kargs = {kargs{:}, '-saveContactResp'};
+                if ~isempty(obj.kargs.contactTags)
+                    tagCell = num2cell(obj.kargs.contactTags);
+                    kargs = {kargs{:}, tagCell{:}};
+                end
+            end
 
-            obj.collectResponses();
+            kargs = {kargs{:}, '-elasticFrameSecPoints', obj.kargs.elasticFrameSecPoints};
+
+            % interpolateBeamDisp: pass string/integer value; filter out logical false
+            if ~islogical(obj.kargs.interpolateBeamDisp) || obj.kargs.interpolateBeamDisp
+                kargs = {kargs{:}, '-interpolateBeamDisp', obj.kargs.interpolateBeamDisp};
+            end
+
+            kargs = {kargs{:}, '-stressMeasures', obj.kargs.computeMechanicalMeasures{:}};
+            kargs = {kargs{:}, '-projectGaussToNodes', obj.kargs.projectGaussToNodes};
+
+            obj.OPS_recorderTag = obj.ops.FEMDataRecorder(kargs{:});
         end
 
         function setOutputDir(obj, dir)
@@ -114,198 +150,20 @@ classdef ODB < handle
             obj.storePath = fullfile(obj.outputDir, ...
                 sprintf('%s-%s.odb', obj.respFilename, string(obj.odbTag)));
             obj.initPath();
+            obj.filename = fullfile(char(obj.storePath), 'output.h5');
         end
 
-        % -----------------------------------------------------------------
-        function fetchResponseStep(obj, options)
-            % Fetch response data for the current step and store it in memory. Data is flushed to disk when the number of pending steps reaches the flushEvery threshold.
-            %
-            % Parameters
-            % ----------
-            % printInfo : logical, optional
-            %     If true, prints information about the collected responses and current time step to the console. Default is false.
-            %
-            arguments
-                obj
-                options.printInfo logical = false
-            end
-
-            obj.collectResponses();
-            obj.pendingSteps = obj.pendingSteps + 1;
-
-            if ~isempty(obj.flushEvery) && obj.pendingSteps >= obj.flushEvery
-                obj.flushToDisk();
-                obj.resetStepBuffers();
-            end
-
-            if options.printInfo
-                t = obj.ops('getTime');
-                fprintf('[OpenSeesMatlab] Responses at t = %.4f collected.\n', t);
+        function close(obj)
+            tag = obj.OPS_recorderTag;
+            if ~isempty(tag)
+                obj.ops.remove('recorder', tag);
             end
         end
 
-        % -----------------------------------------------------------------
-        function saveResponse(obj)
-            % Save the collected response data to disk. This should be called after the final step has been fetched to ensure that any remaining data in memory is written to disk.
-            if obj.pendingSteps > 0
-                obj.flushToDisk();
-            end
-            fprintf('[OpenSeesMatlab] odbTag=%s saved → %s\n', string(obj.odbTag), obj.storePath);
-        end
-
-        % -----------------------------------------------------------------
-        function reset(obj)
-            % Reset the ODB by clearing all collected response data from memory and resetting the pending steps counter. This does not delete any saved files on disk.
-            for r = obj.allResponders()
-                if ~isempty(r{1})
-                    r{1}.reset();
-                end
-            end
-            obj.pendingSteps = 0;
-        end
-
-    end % public methods
-
-    % =====================================================================
-    methods (Static)
-
-        % -----------------------------------------------------------------
-        function odb = loadODB(odbTag, options)
-            arguments
-                odbTag
-                options.groups  string = ""   % e.g. "NodalResponses" or ["NodalResponses","FrameResponses"]
-            end
- 
-            outputDir    = post.ODB.sharedConfig('get');
-            respFilename = "Responses";
- 
-            storePath = fullfile(outputDir, ...
-                sprintf('%s-%s.odb', respFilename, string(odbTag)));
- 
-            % Fast path: read only the requested groups directly from HDF5,
-            % skipping deserialisation of everything else.
-            if any(strlength(options.groups) > 0)
-                odb   = struct();
-                parts = post.ODB.loadParts(storePath, options.groups);
-                mask  = ~cellfun(@isempty, parts);
-                parts = parts(mask);
-                if isempty(parts)
-                    return;
-                end
-                odb = post.utils.StructMerger.mergeParts( ...
-                    parts, ...
-                    'ModelUpdateField', 'modelUpdate', ...
-                    'Mode', 'concat');
-                groups = string(options.groups(:));
-                if isscalar(groups)
-                    odb = odb.(groups);
-                else
-                    filtered = struct();
-                    for i = 1:numel(groups)
-                        groupName = char(groups(i));
-                        if isfield(odb, groupName)
-                            filtered.(groupName) = odb.(groupName);
-                        end
-                    end
-                    odb = filtered;
-                end
-                return;
-            end
- 
-            % Default path: load and merge all groups.
-            parts = post.ODB.loadParts(storePath);
- 
-            if isempty(parts)
-                odb = struct();
-                return;
-            end
- 
-            mask  = ~cellfun(@isempty, parts);
-            parts = parts(mask);
- 
-            if isempty(parts)
-                odb = struct();
-                return;
-            end
- 
-            odb = post.utils.StructMerger.mergeParts( ...
-                parts, ...
-                'ModelUpdateField', 'modelUpdate', ...
-                'Mode', 'concat');
-        end
-
-        function data = readNodeResponse(odbTag, options)
-            arguments
-                odbTag
-                options.nodeTags    double = []
-                options.respType    string = ""
-            end
- 
-            odb  = post.ODB.loadODB(odbTag, groups=post.resp.NodalRespStepData.RESP_NAME);
-            data = post.resp.NodalRespStepData.readResponse( ...
-                odb, ...
-                nodeTags = options.nodeTags, ...
-                respType = options.respType);
-            if ~isempty(data)
-                data.odbTag = odbTag;
-            end
-        end
-
-        function data = readElementResponse(odbTag, options)
-            arguments
-                odbTag
-                options.eleType     string = ""
-                options.eleTags     double = []
-                options.respType    string = ""
-            end
-            
-            switch lower(char(options.eleType))
-                case {'frame','beam'}
-                    groups = post.resp.FrameRespStepData.RESP_NAME;
-                case {'plane'}
-                    groups = post.resp.PlaneRespStepData.RESP_NAME;
-                case {'solid'}
-                    groups = post.resp.SolidRespStepData.RESP_NAME;
-                case {'shell'}
-                    groups = post.resp.ShellRespStepData.RESP_NAME;
-                otherwise
-                    error('Unknown element type: %s', options.eleType);
-            end
-
-            odb  = post.ODB.loadODB(odbTag, groups=groups);
-            switch lower(char(options.eleType))
-                case {'frame','beam'}
-                    data = post.resp.FrameRespStepData.readResponse( ...
-                        odb, ...
-                        eleTags  = options.eleTags, ...
-                        respType = options.respType);
-                case {'plane'}
-                    data = post.resp.PlaneRespStepData.readResponse( ...
-                        odb, ...
-                        eleTags  = options.eleTags, ...
-                        respType = options.respType);
-                case {'solid'}
-                    data = post.resp.SolidRespStepData.readResponse( ...
-                        odb, ...
-                        eleTags  = options.eleTags, ...
-                        respType = options.respType);
-                case {'shell'}
-                    data = post.resp.ShellRespStepData.readResponse( ...
-                        odb, ...
-                        eleTags  = options.eleTags, ...
-                        respType = options.respType);
-            end
-            if ~isempty(data)
-                data.odbTag = odbTag;
-                data.eleType = options.eleType;
-            end
-        end
-
-    end % static public methods
+    end
 
     % =====================================================================
     methods (Access = private)
-
         % -----------------------------------------------------------------
         function initPath(obj)
             d = char(obj.storePath);
@@ -325,269 +183,10 @@ classdef ODB < handle
                 mkdir(d);
             end
         end
-
-        % -----------------------------------------------------------------
-        function collectResponses(obj)
-            obj.collectModelInfo();
-            obj.collectNodalResp();
-            obj.collectFrameResp();
-            obj.collectTrussResp();
-            obj.collectLinkResp();
-            obj.collectShellResp();
-            obj.collectFiberSecResp();
-            obj.collectPlaneResp();
-            obj.collectSolidResp();
-            obj.collectContactResp();
-            obj.collectSensitivityResp();
-        end
-
-        % -----------------------------------------------------------------
-        function collectModelInfo(obj)
-            if isempty(obj.modelInfoResp)
-                obj.modelInfoResp = post.resp.ModelInfoStepData(obj.ops, obj.globalArgs{:});
-            elseif obj.modelUpdate
-                obj.modelInfoResp.addRespDataOneStep();
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectNodalResp(obj)
-            if ~obj.args.saveNodalResp, return; end
-            if isempty(obj.args.nodeTags)
-                tags = obj.modelInfoResp.getCurrentNodeTags();
-            else
-                tags = obj.args.nodeTags;
-            end
-            if isempty(tags), return; end
-
-            interp     = obj.args.interpolateBeamDisp;
-            modelInfo  = [];
-            if interp
-                modelInfo = obj.modelInfoResp.getCurrentModelInfo();
-            end
-
-            if isempty(obj.nodalResp)
-                obj.nodalResp = post.resp.NodalRespStepData(obj.ops, tags, ...
-                    interp, modelInfo, obj.globalArgs{:});
-            else
-                obj.nodalResp.addRespDataOneStep(tags, modelInfo);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectFrameResp(obj)
-            if ~obj.args.saveFrameResp, return; end
-            if isempty(obj.args.frameTags)
-                 tags = obj.modelInfoResp.getCurrentFrameTags();
-            else
-                 tags = obj.args.frameTags;
-            end
-            if isempty(tags), return; end
-
-            frameLoad = obj.modelInfoResp.getCurrentFrameLoadData();
-
-            if isempty(obj.frameResp)
-                obj.frameResp = post.resp.FrameRespStepData(obj.ops, tags, frameLoad, ...
-                    obj.args.elasticFrameSecPoints, ...
-                    obj.globalArgs{:});
-            else
-                obj.frameResp.addRespDataOneStep(tags, frameLoad);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectTrussResp(obj)
-            if ~obj.args.saveTrussResp, return; end
-            if isempty(obj.args.trussTags)
-                 tags = obj.modelInfoResp.getCurrentTrussTags();
-            else
-                 tags = obj.args.trussTags;
-            end
-            if isempty(tags), return; end
-
-            if isempty(obj.trussResp)
-                obj.trussResp = post.resp.TrussRespStepData(obj.ops, tags, obj.globalArgs{:});
-            else
-                obj.trussResp.addRespDataOneStep(tags);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectLinkResp(obj)
-            if ~obj.args.saveLinkResp, return; end
-            if isempty(obj.args.linkTags)
-                 tags = obj.modelInfoResp.getCurrentLinkTags();
-            else
-                 tags = obj.args.linkTags;
-            end
-            if isempty(tags), return; end
-
-            if isempty(obj.linkResp)
-                obj.linkResp = post.resp.LinkRespStepData(obj.ops, tags, obj.globalArgs{:});
-            else
-                obj.linkResp.addRespDataOneStep(tags);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectShellResp(obj)
-            if ~obj.args.saveShellResp, return; end
-            if isempty(obj.args.shellTags)
-                 tags = obj.modelInfoResp.getCurrentShellTags();
-            else
-                 tags = obj.args.shellTags;
-            end
-            if isempty(tags), return; end
-
-            if isempty(obj.shellResp)
-                obj.shellResp = post.resp.ShellRespStepData(obj.ops, tags, ...
-                    'computeNodalResp', obj.args.projectGaussToNodes, ...
-                    obj.globalArgs{:});
-            else
-                obj.shellResp.addRespDataOneStep(tags);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectFiberSecResp(obj)
-            % fiberTags = obj.args.fiberEleTags;
-
-            % if ischar(fiberTags) || isstring(fiberTags)
-            %     if ~strcmpi(fiberTags, 'all')
-            %         fiberTags = [];
-            %     end
-            % elseif ~isempty(fiberTags)
-            %     fiberTags = int32(fiberTags(:).');
-            % end
-
-            % if isempty(fiberTags) && ~obj.args.saveFiberSecResp, return; end
-            % if isempty(fiberTags), return; end
-
-            % if isempty(obj.fiberSecResp)
-            %     obj.fiberSecResp = FiberSecRespStepData(obj.ops, fiberTags, ...
-            %         'dtype', obj.dtype);
-            % else
-            %     obj.fiberSecResp.addRespDataOneStep();
-            % end
-        end
-
-        % -----------------------------------------------------------------
-        function collectPlaneResp(obj)
-            if ~obj.args.savePlaneResp, return; end
-            if isempty(obj.args.planeTags)
-                 tags = obj.modelInfoResp.getCurrentPlaneTags();
-            else
-                 tags = obj.args.planeTags;
-            end
-            if isempty(tags), return; end
-
-            if isempty(obj.planeResp)
-                obj.planeResp = post.resp.PlaneRespStepData(obj.ops, tags, ...
-                    'computeMechanicalMeasures',  obj.args.computeMechanicalMeasures, ...
-                    'computeNodalResp', obj.args.projectGaussToNodes, ...
-                    obj.globalArgs{:});
-            else
-                obj.planeResp.addRespDataOneStep(tags);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectSolidResp(obj)
-            if ~obj.args.saveSolidResp, return; end
-            if isempty(obj.args.solidTags)
-                 tags = obj.modelInfoResp.getCurrentSolidTags();
-            else
-                 tags = obj.args.solidTags;
-            end
-            if isempty(tags), return; end
-
-            if isempty(obj.solidResp)
-                obj.solidResp = post.resp.SolidRespStepData(obj.ops, tags, ...
-                    'computeMechanicalMeasures',  obj.args.computeMechanicalMeasures, ...
-                    'computeNodalResp', obj.args.projectGaussToNodes, ...
-                    obj.globalArgs{:});
-            else
-                obj.solidResp.addRespDataOneStep(tags);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectContactResp(obj)
-            if ~obj.args.saveContactResp, return; end
-            if isempty(obj.args.contactTags)
-                 tags = obj.modelInfoResp.getCurrentContactTags();
-            else
-                 tags = obj.args.contactTags;
-            end
-            if isempty(tags), return; end
-
-            if isempty(obj.contactResp)
-                obj.contactResp = post.resp.ContactRespStepData(obj.ops, tags, ...
-                    obj.globalArgs{:});
-            else
-                obj.contactResp.addRespDataOneStep(tags);
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function collectSensitivityResp(obj)
-            % if ~obj.args.saveSensitivityResp, return; end
-
-            % sensTags  = obj.resolveTags(obj.args.sensitivityParaTags, 'getParamTags');
-            % nodeTags  = obj.resolveTags(obj.args.nodeTags, 'getNodeTags');
-            % if isempty(nodeTags) || isempty(sensTags), return; end
-
-            % if isempty(obj.sensitivityResp)
-            %     obj.sensitivityResp = SensitivityRespStepData(obj.ops, ...
-            %         nodeTags, [], sensTags, 'dtype', obj.dtype);
-            % else
-            %     obj.sensitivityResp.addRespDataOneStep(nodeTags, sensTags);
-            % end
-        end
-
-        % -----------------------------------------------------------------
-        function flushToDisk(obj)
-            filename = fullfile(char(obj.storePath), ...
-                sprintf('part_%d.hdf5', obj.fileIdx));
-
-            store = post.utils.HDF5DataStore(filename, 'Overwrite', true);
-            data  = struct();
-
-            for r = obj.allResponders()
-                resp = r{1};
-                if ~isempty(resp) && ~resp.checkDatasetEmpty()
-                    data.(resp.RESP_NAME) = resp.getRespStepData();
-                end
-            end
-
-            store.write('/', data);
-            obj.fileIdx      = obj.fileIdx + 1;
-            obj.pendingSteps = 0;
-        end
-
-        % -----------------------------------------------------------------
-        function resetStepBuffers(obj)
-            for r = obj.allResponders()
-                if ~isempty(r{1})
-                    r{1}.resetRespStepData();
-                end
-            end
-        end
-
-        % -----------------------------------------------------------------
-        function responders = allResponders(obj)
-            responders = { ...
-                obj.modelInfoResp,  obj.nodalResp,    obj.frameResp,  ...
-                obj.trussResp,      obj.linkResp,     obj.shellResp,  ...
-                obj.fiberSecResp,   obj.planeResp,    obj.solidResp,  ...
-                obj.contactResp,    obj.sensitivityResp};
-        end
-
-    end % private methods
+    end
 
     % =====================================================================
     methods (Static, Access = private)
-
         % -----------------------------------------------------------------
         function outDir = sharedConfig(action, newDir)
             % Persistent getter/setter for the shared output directory.
@@ -603,65 +202,218 @@ classdef ODB < handle
             outDir = dir;
         end
 
-        % -----------------------------------------------------------------
-        function parts = loadParts(storePath, groups)
-            if nargin < 2
-                groups = string.empty(0,1);
+        function filename = getFilename(odbTag)
+            outputDir    = post.ODB.sharedConfig("get");
+            respFilename = "Responses";
+            storePath = fullfile(outputDir, ...
+                sprintf("%s-%s.odb", respFilename, string(odbTag)));
+            filename = fullfile(char(storePath), "output.h5");
+        end
+
+        function args = buildArgs(options)
+            % Build key-value argument list for C++ readFEMData.
+            args = {};
+            if isfield(options, "eleTags") && ~isempty(options.eleTags)
+                args = [args, {"eleTags", options.eleTags}];
             end
-
-            d     = char(string(storePath));
-            files = dir(fullfile(d, 'part_*.hdf5'));
-            if isempty(files)
-                error('ODB:NoPartsFound', ...
-                    'No part_*.hdf5 files found in: %s', d);
+            if isfield(options, "nodeTags") && ~isempty(options.nodeTags)
+                args = [args, {"nodeTags", options.nodeTags}];
             end
-
-            indices = zeros(1, numel(files));
-            for i = 1:numel(files)
-                tok = regexp(files(i).name, 'part_(\d+)\.hdf5', 'tokens', 'once');
-                if ~isempty(tok)
-                    indices(i) = str2double(tok{1});
-                end
-            end
-            [~, order] = sort(indices);
-            files = files(order);
-
-            parts = cell(1, numel(files));
-            for i = 1:numel(files)
-                store = post.utils.HDF5DataStore( ...
-                    fullfile(d, files(i).name), 'Overwrite', false);
-
-                if isempty(groups) || ~any(strlength(groups) > 0)
-                    parts{i} = store.load();
-                    continue;
-                end
-
-                groupData = struct();
-                reqGroups = string(groups(:));
-                for j = 1:numel(reqGroups)
-                    groupName = char(reqGroups(j));
-                    groupPath = ['/' groupName];
-                    if store.exists(groupPath)
-                        groupData.(groupName) = store.read(groupPath);
-                    end
-                end
-                parts{i} = groupData;
+            if isfield(options, "respType") && strlength(options.respType) > 0
+                args = [args, {"respType", char(options.respType)}];
             end
         end
 
-        % -----------------------------------------------------------------
-        function m = eleReaderMap()
-            m = containers.Map( ...
-                {'frame','beam','truss','link','shell', ...
-                 'plane','Solid','solid','fibersec','fibersection','contact'}, ...
-                {'FrameRespStepData',    'FrameRespStepData', ...
-                 'TrussRespStepData',    'LinkRespStepData',  ...
-                 'ShellRespStepData',    'PlaneRespStepData', ...
-                 'SolidRespStepData',    'SolidRespStepData', ...
-                 'FiberSecRespStepData', 'FiberSecRespStepData', ...
-                 'ContactRespStepData'});
+        function [groups, respName] = eleTypeMap(eleType)
+            switch lower(char(eleType))
+                case {"frame", "beam"}
+                    groups = "frame";   respName = "FrameResponses";
+                case "plane"
+                    groups = "plane";   respName = "PlaneResponses";
+                case {"solid", "brick"}
+                    groups = "solid";   respName = "SolidResponses";
+                case "shell"
+                    groups = "shell";   respName = "ShellResponses";
+                case "truss"
+                    groups = "truss";   respName = "TrussResponses";
+                case "link"
+                    groups = "link";    respName = "LinkResponses";
+                case "contact"
+                    groups = "contact"; respName = "ContactResponses";
+                otherwise
+                    error("Unknown element type: %s", eleType);
+            end
+        end
+    end
+
+    methods (Static, Access = public)
+
+        %% Core loader ----------------------------------------------------
+        function odb = loadODB(ops, odbTag, options)
+            % loadODB  Load an ODB database.
+            %
+            % Syntax:
+            %   odb = ODB.loadODB(ops, odbTag)
+            %   odb = ODB.loadODB(ops, odbTag, groups="model")
+            %
+            % Inputs:
+            %   ops     – OpenSees MEX interface object
+            %   odbTag  – ODB tag (string or numeric)
+            %   options.groups – query type (default "" reads everything)
+            %       "model", "nodal", "frame", "beam", "truss", "plane",
+            %       "shell", "solid", "brick", "link", "contact", "all"
+            %
+            % Output:
+            %   odb – scalar struct (single stage) or struct array (multi stage)
+            %         with fields .model, .results, .time
+
+            arguments
+                ops
+                odbTag
+                options.groups  string = ""
+            end
+
+            filename = post.ODB.getFilename(odbTag);
+
+            if all(strlength(options.groups) == 0)
+                odb = ops.readFEMData(filename);
+            else
+                odb = ops.readFEMData(filename, options.groups);
+            end
         end
 
-    end % static private methods
+        %% Model info -----------------------------------------------------
+        function data = readModelInfo(ops, odbTag)
+            % readModelInfo  Read model geometry.
+            %
+            % Output fields:
+            %   .Nodes.Tags, .Nodes.Coords
+            %   .Elements.Tags, .Elements.Types, .Elements.Connectivity, .Elements.NodeTags
 
+            data = post.ODB.loadODB(ops, odbTag, groups="model");
+            data = addField(data, 'odbTag', odbTag);
+        end
+
+        %% Nodal responses ------------------------------------------------
+        function data = readNodeResponse(ops, odbTag, options)
+            % readNodeResponse  Read nodal responses.
+            %
+            % Syntax:
+            %   data = ODB.readNodeResponse(ops, odbTag)
+            %   data = ODB.readNodeResponse(ops, odbTag, nodeTags=[1,2,3])
+            %   data = ODB.readNodeResponse(ops, odbTag, respType="disp")
+            %
+            % Inputs:
+            %   options.nodeTags – node tag filter (default [] = all)
+            %   options.respType – response type (default "" = all)
+            %       "disp", "vel", "accel", "reaction",
+            %       "reactionIncInertia", "rayleighForces", "pressure"
+            %
+            % Output:
+            %   data – scalar struct (single stage) or struct array (multi stage)
+            %          fields: .nodeTags, .disp, .vel, .accel, ...
+            %          plus .odbTag and .time on every element
+
+            arguments
+                ops
+                odbTag
+                options.nodeTags  double = []
+                options.respType  string = ""
+            end
+
+            filename = post.ODB.getFilename(odbTag);
+            args = post.ODB.buildArgs(options);
+            data = ops.readFEMData(filename, "nodal", args{:});
+            data = addField(data, 'odbTag', odbTag);
+        end
+
+        %% Element responses ----------------------------------------------
+        function data = readElementResponse(ops, odbTag, options)
+            % readElementResponse  Read element responses.
+            %
+            % Syntax:
+            %   data = ODB.readElementResponse(ops, odbTag, eleType="solid")
+            %   data = ODB.readElementResponse(ops, odbTag, eleType="solid", eleTags=[1,2])
+            %   data = ODB.readElementResponse(ops, odbTag, eleType="solid", respType="StressAtNode")
+            %
+            % Inputs:
+            %   options.eleType  – element type (required)
+            %   options.eleTags  – element tag filter (default [] = all)
+            %   options.respType – response type (default "" = all)
+            %
+            % Output (solid example):
+            %   data – scalar struct (single stage) or struct array (multi stage)
+            %          fields: .eleTags, .nodeTags, .StressAtNode, ...
+            %          plus .odbTag, .eleType and .time on every element
+
+            arguments
+                ops
+                odbTag
+                options.eleType   string = ""
+                options.eleTags   double = []
+                options.respType  string = ""
+            end
+
+            [groups, respName] = post.ODB.eleTypeMap(options.eleType);
+            filename = post.ODB.getFilename(odbTag);
+            args = post.ODB.buildArgs(options);
+            data = ops.readFEMData(filename, groups, args{:});
+
+            data = addField(data, 'odbTag', odbTag);
+            data = addField(data, 'eleType', options.eleType);
+
+        end
+
+        function out = writePVD(ops, odbTag, outDir, baseName, options)
+            % Write nodal and Shell, Plane, Solid element responses to ParaView-readable VTU/PVD files.
+            %
+            % Example
+            % --------
+            %     obj.writeResponsePVD("MyODB")
+            %     obj.writeResponsePVD("MyODB", includeShell=true, includePlane=true, includeSolid=true)
+            %
+            % Parameters
+            % ----------
+            % odbTag : char | string | numeric
+            %     The identifier of the ODB to read from.
+            % outDir : char | string, optional
+            %     The directory to save the output files. Default is "paraview_output".
+            % baseName : char | string, optional
+            %     The base name for the output files. Default is "paraview_anim".
+            % includeNodal, includeShell, includePlane, includeSolid : logical, optional
+            %     Flags to specify which types of responses to include in the output. By default, all types are included.
+
+            arguments
+                ops
+                odbTag {mustBeTextScalar} = ""
+                outDir {mustBeTextScalar} = "paraview_output"
+                baseName {mustBeTextScalar} = "pv"
+                options.includeNodal (1,1) logical = true
+                options.includeShell (1,1) logical = true
+                options.includePlane (1,1) logical = true
+                options.includeSolid (1,1) logical = true
+                % options.binary (1,1) logical = false
+            end
+
+            filename = post.ODB.getFilename(odbTag);
+            out = ops.writeFEMDataPVD(filename, outDir, baseName, ...
+                                'includeNodal', options.includeNodal, ...
+                                'includeShell', options.includeShell, ...
+                                'includePlane', options.includePlane, ...
+                                'includeSolid', options.includeSolid);
+        end
+
+    end
+
+end
+
+function s = addField(s, fieldName, value)
+    % Add a field to scalar struct or struct array
+    if isscalar(s)
+        s.(fieldName) = value;
+    else
+        for i = 1:numel(s)
+            s(i).(fieldName) = value;
+        end
+    end
 end

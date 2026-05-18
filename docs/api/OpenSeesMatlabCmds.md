@@ -51,7 +51,7 @@ For details, please refer to their official documentation, You can call it in th
 - ✨ Commands with return values will return MATLAB data. If a command has no return value, an empty array ``[]`` will be returned.
 - ✨ The additional post-processing provided by OpenSeesMatlab may be slow or buggy. If you think so, you can use only the OpenSees command interface and use ``recorder`` or other output commands to post-process the analysis results.
 
-::: OpenSeesMatlabCmds
+::: ops.OpenSeesMatlabCmds
     handler: matlab
     options:
       parse_arguments: true

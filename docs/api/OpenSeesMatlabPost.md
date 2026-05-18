@@ -1,4 +1,4 @@
-::: OpenSeesMatlabPost
+::: post.OpenSeesMatlabPost
     handler: matlab
     options:
       parse_arguments: true
@@ -20,6 +20,7 @@
         - getEigenData
         - createODB
         - getODBData
+        - getModelDataFromODB
         - getNodalResponse
         - getElementResponse
         - writeResponsePVD
@@ -36,6 +37,4 @@
       signature_crossrefs: true
       docstring_section_style: list
       members:
-        - fetchResponseStep
-        - saveResponse
-        - reset
+        - close

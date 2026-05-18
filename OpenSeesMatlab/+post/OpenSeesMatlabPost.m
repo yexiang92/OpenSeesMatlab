@@ -89,7 +89,12 @@ classdef OpenSeesMatlabPost < handle
             %     post = opsmat.post;
             %     post.setOutputDir(".openseesmatlab.output");
 
-            obj.outputDir = dir;
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost
+                dir {mustBeTextScalar} = ".openseesmatlab.output"
+            end
+
+            obj.outputDir = char(dir);
             obj.checkOutputDir();
 
         end
@@ -129,8 +134,8 @@ classdef OpenSeesMatlabPost < handle
             %
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1)  = 1
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag = "1"
             end
 
             filename = sprintf('modelData_%s.hdf5', string(odbTag));
@@ -168,15 +173,15 @@ classdef OpenSeesMatlabPost < handle
             %     modelInfo = opsmat.post.getModelData("ModelA");
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1)  = ""
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = ""
             end
 
             odbTag = string(odbTag);
 
             modelData = post.FEMDataCollector(obj.parent.opensees, post.utils.OpenSeesTagMaps());
 
-            if isempty(odbTag) || odbTag == ""
+            if strlength(odbTag) == 0
                 modelInfo = modelData.getModelInfo();
             else
                 filename = sprintf('modelData_%s.hdf5', string(odbTag));
@@ -221,10 +226,10 @@ classdef OpenSeesMatlabPost < handle
             %         NptsPerElement=8);
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1) = 1
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = "1"
                 numModes (1,1) {mustBeInteger, mustBePositive} = 1
-                options.solver {mustBeTextScalar} = "-genBandArpack"
+                options.solver {mustBeTextScalar, mustBeMember(options.solver, ["-genBandArpack", "-fullGenLapack"])} = "-genBandArpack"
                 options.IncludeModelInfo (1,1) logical = false
                 options.InterpolateBeam (1,1) logical = true
                 options.NptsPerElement (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(options.NptsPerElement, 2)} = 6
@@ -234,7 +239,7 @@ classdef OpenSeesMatlabPost < handle
             filename = fullfile(obj.outputDir, filename);
             obj.checkOutputDir();
 
-            solver = char(string(options.solver));
+            solver = char(options.solver);
 
             modelInfo = obj.getModelData();
             modeData = post.EigenDataCollector(obj.parent.opensees, modelInfo);
@@ -287,17 +292,17 @@ classdef OpenSeesMatlabPost < handle
             %     eigenData = post.getEigenData(odbTag="ModelA");
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                options.odbTag = ""
+                obj (1,1) post.OpenSeesMatlabPost
+                options.odbTag  = ""
                 options.numModes (1,1) {mustBeInteger, mustBePositive} = 1
-                options.solver {mustBeTextScalar} = "-genBandArpack"
+                options.solver {mustBeTextScalar, mustBeMember(options.solver, ["-genBandArpack", "-fullGenLapack"])} = "-genBandArpack"
                 options.IncludeModelInfo (1,1) logical = false
                 options.InterpolateBeam (1,1) logical = true
                 options.NptsPerElement (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(options.NptsPerElement, 2)} = 6
             end
 
             odbTag = string(options.odbTag);
-            if ~isempty(odbTag) && odbTag ~= ""
+            if strlength(odbTag) > 0
                 filename = sprintf('eigenData_%s.hdf5', odbTag);
                 filename = fullfile(obj.outputDir, filename);
                 modeData = post.EigenDataCollector(obj.parent.opensees, []);
@@ -306,7 +311,7 @@ classdef OpenSeesMatlabPost < handle
             end
 
             numModes = options.numModes;
-            solver = char(string(options.solver));
+            solver = char(options.solver);
             extraArgs = { ...
                 'IncludeModelInfo', options.IncludeModelInfo, ...
                 'InterpolateBeam', options.InterpolateBeam, ...
@@ -329,53 +334,68 @@ classdef OpenSeesMatlabPost < handle
             %
             % Example
             % -------
-            %     odb = post.createODB("MyODB", stepSize=1000, saveEvery=50);
-            %     for i = 1:1000
-            %         % Run one OpenSees analysis step here.
-            %         % ops.analyze(1);
-            %         odb.fetchResponseStep();
-            %     end
-            %     odb.saveResponse();
+            %     odb = post.createODB("MyODB", flushEvery=50);
             %
             % Parameters
             % ----------
             % odbTag : char | string | numeric
             %     A unique identifier for the ODB.
-            % modelUpdate : logical, optional, default false
-            %     If true, the ODB will be updated with new model information at each step.
-            % stepSize : integer, optional
-            %     If provided, pre-allocate space in the ODB for the specified number of steps to improve performance.
-            % saveEvery : integer, optional
+            % flushEvery : integer, optional
             %     If provided, specifies the frequency (in steps) at which to save data to disk.
-            % dtype : struct, optional
-            %     A struct specifying data types for integers and floats, with fields 'intType' and 'floatType'.
-            % elasticFrameSecPoints : integer, optional, default 7
+            % elasticFrameSecPoints : integer, optional, default 9
             %     Number of points to use for elastic frame section integration.
-            % interpolateBeamDisp : logical | integer, optional, default false
-            %     If true, interpolate beam element displacements to integration points. If int, treat as number of points per element for interpolation.
+            % interpolateBeamDisp : char | string | integer, optional, default "off"
+            %     If "on", interpolate beam element displacements to integration points. If int, treat as number of points per element for interpolation.
             % computeMechanicalMeasures : cell array of char | string, optional, default {"principal", "vonMises", "octahedral", "tauMax"}
             %     Specifies which mechanical measures to compute for frame responses. Options include:
             %
             %     - "principal" (principal stresses)
             %     - "vonMises" (von Mises stress)
-            %     - "octahedral" (octahedral shear stress)
+            %     - "octahedral" (octahedral shear and normal stress)
             %     - "tauMax" (maximum shear stress)
-            %     - {"mohrCoulombSy", syc, syt}, Mohr-Coulomb failure criterion with specified shear strength parameters syc and syt.
-            %     - {"mohrCoulombCPhi", c, phiDeg}, Mohr-Coulomb failure criterion with specified cohesion and friction angle.
-            %     - {"druckerPragerSy", syc, syt}, Drucker-Prager failure criterion with specified shear strength parameters syc and syt.
-            %     - {"druckerPragerCPhi", c, phiDeg, "circumscribed"}, Drucker-Prager failure criterion with specified cohesion, friction angle, and circumscribed option.
-            %
-            %     For Mohr-Coulomb and Drucker-Prager options, subcell arrays should be used to specify the parameters. For example, computeMechanicalMeasures = {"principal", "vonMises", "octahedral", "tauMax", {"mohrCoulombSy", syc, syc}}.
-            % projectGaussToNodes : char | string, optional, default "extrapolation"
+
+            % projectGaussToNodes : char | string, optional, default "extrapolate"
             %     Method to project Gauss point data to nodes for shell responses. Options are "
             %
             %     - "copy" (copy values from nearest Gauss point)
-            %     - "extrapolation" (interpolate values from all Gauss points).
+            %     - "extrapolate" (interpolate values from all Gauss points).
             %     - "average" (average values from all Gauss points).
-            % saveNodalResp, saveFrameResp, saveTrussResp, saveLinkResp, saveShellResp, saveFiberSecResp, savePlaneResp, saveBrickResp, saveContactResp, saveSensitivityResp : logical, optional
-            %     Flags to specify which types of response data to save.
-            % nodeTags, frameTags, trussTags, linkTags, shellTags, fiberEleTags, planeTags, brickTags, contactTags, sensitivityParaTags : double array, optional
-            %     Arrays of tags specifying which nodes/elements to save responses for .
+            % saveNodalResp: logical, optional, default true
+            %     Flag to save nodal response data.
+            % nodeTags: double array, optional
+            %     Array of node tags specifying which nodes to save responses for.
+            % saveFrameResp: logical, optional, default true
+            %     Flag to save frame response data.
+            % frameTags: double array, optional
+            %     Array of frame tags specifying which frames to save responses for.
+            % saveFiberSecResp: logical, optional, default false
+            %     Flag to save fiber section response data for frame elements.
+            %     If true, fiber section responses are saved for all frame elements.
+            %     This may be slow and memory-intensive for large models.
+            % saveTrussResp: logical, optional, default true
+            %     Flag to save truss response data.
+            % trussTags: double array, optional
+            %     Array of truss tags specifying which trusses to save responses for.
+            % saveLinkResp: logical, optional, default true
+            %     Flag to save link response data.
+            % linkTags: double array, optional
+            %     Array of link tags specifying which links to save responses for.
+            % saveShellResp: logical, optional, default true
+            %     Flag to save shell response data.
+            % shellTags: double array, optional
+            %     Array of shell tags specifying which shells to save responses for.
+            % savePlaneResp: logical, optional, default true
+            %     Flag to save plane response data.
+            % planeTags: double array, optional
+            %     Array of plane tags specifying which planes to save responses for.
+            % saveBrickResp: logical, optional, default true
+            %     Flag to save brick response data.
+            % brickTags: double array, optional
+            %     Array of brick tags specifying which bricks to save responses for.
+            % saveContactResp: logical, optional, default true
+            %     Flag to save contact response data.
+            % contactTags: double array, optional
+            %     Array of contact tags specifying which contacts to save responses for.
             %
             % Returns
             % -------
@@ -383,13 +403,10 @@ classdef OpenSeesMatlabPost < handle
             %     The created output database object.
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1) = ""
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = ""
 
-                options.modelUpdate             logical = false
-                options.saveEvery                       = []
-                options.stepSize                        = []
-                options.dtype                   struct  = struct('intType','int32','floatType','single')
+                options.flushEvery                       = 20
 
                 options.saveNodalResp           logical = true
                 options.saveFrameResp           logical = true
@@ -400,23 +417,20 @@ classdef OpenSeesMatlabPost < handle
                 options.savePlaneResp           logical = true
                 options.saveSolidResp           logical = true
                 options.saveContactResp         logical = true
-                options.saveSensitivityResp     logical = false
 
                 options.nodeTags                double = []
                 options.frameTags               double = []
                 options.trussTags               double = []
                 options.linkTags                double = []
                 options.shellTags               double = []
-                options.fiberEleTags                   = []
                 options.planeTags               double = []
                 options.solidTags               double = []
                 options.contactTags             double = []
-                options.sensitivityParaTags     double = []
 
                 options.elasticFrameSecPoints   double {mustBeInteger, mustBePositive} = 9
-                options.interpolateBeamDisp             = false
-                options.computeMechanicalMeasures       = {"principal", "vonMises", "octahedral", "tauMax"}
-                options.projectGaussToNodes     string  = "extrapolation"
+                options.interpolateBeamDisp             = "off"
+                options.computeMechanicalMeasures       = {"principal", "tauMax", "octahedral", "vonMises"}
+                options.projectGaussToNodes {mustBeTextScalar, mustBeMember(options.projectGaussToNodes, ["extrapolate", "average", "copy"])} = "extrapolate"
             end
             odbTag = string(odbTag);
             if strlength(odbTag) == 0
@@ -427,6 +441,7 @@ classdef OpenSeesMatlabPost < handle
 
             odb = post.ODB(obj.parent.opensees, odbTag, opts{:});
             odb.setOutputDir(obj.outputDir);
+            odb.setFEMDataRecorder();
         end
 
         function data = getODBData(obj, odbTag)
@@ -447,8 +462,8 @@ classdef OpenSeesMatlabPost < handle
             %     A struct containing the response data for the specified step and frame.
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1) = ""
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = ""
             end
 
             odbTag = string(odbTag);
@@ -457,7 +472,28 @@ classdef OpenSeesMatlabPost < handle
                     'An odbTag must be provided.');
             end
 
-            data = post.ODB.loadODB(odbTag);
+            data = post.ODB.loadODB(obj.parent.opensees, odbTag);
+        end
+
+        function data = getModelDataFromODB(obj, odbTag)
+            % Get model data from an ODB.
+            %
+            % Parameters
+            % ----------
+            % odbTag : char | string | numeric
+            %     The identifier of the ODB to read from.
+            %
+            % Returns
+            % -------
+            % data : struct
+            %     The model data from the ODB.
+
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = ""
+            end
+
+            data = post.ODB.readModelInfo(obj.parent.opensees, odbTag);
         end
 
         function data = getNodalResponse(obj, odbTag, options)
@@ -483,11 +519,11 @@ classdef OpenSeesMatlabPost < handle
             %     A struct containing the nodal response data for the specified nodes and response type.
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1) = ""
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = ""
 
                 options.nodeTags    double = []
-                options.respType    {mustBeTextScalar} = ""
+                options.respType    {mustBeTextScalar, mustBeMember(options.respType, ["", "disp", "vel", "accel", "reaction","reactionIncInertia", "rayleighForces", "pressure"])} = ""
             end
 
             odbTag = string(odbTag);
@@ -496,7 +532,7 @@ classdef OpenSeesMatlabPost < handle
                     'An odbTag must be provided.');
             end
 
-            data = post.ODB.readNodeResponse(odbTag, nodeTags=options.nodeTags, respType=options.respType);
+            data = post.ODB.readNodeResponse(obj.parent.opensees, odbTag, nodeTags=options.nodeTags, respType=options.respType);
          end
 
          function data = getElementResponse(obj, odbTag, options)
@@ -524,10 +560,10 @@ classdef OpenSeesMatlabPost < handle
             %     A struct containing the element response data for the specified elements and response type.
 
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1) = ""
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag = ""
 
-                options.eleType   {mustBeTextScalar} = ""
+                options.eleType   {mustBeTextScalar, mustBeMember(options.eleType, ["", "Frame", "Truss", "Shell", "Plane", "Solid"])} = ""
                 options.eleTags   double = []
                 options.respType  {mustBeTextScalar} = ""
             end
@@ -537,11 +573,11 @@ classdef OpenSeesMatlabPost < handle
                 error('getODBData:InvalidODBTag', ...
                     'An odbTag must be provided.');
             end
-            data = post.ODB.readElementResponse(...
+            data = post.ODB.readElementResponse(obj.parent.opensees, ...
                     odbTag, eleType=options.eleType, eleTags=options.eleTags, respType=options.respType);
          end
 
-        function writeResponsePVD(obj, odbTag, outDir, fileName, options)
+        function results = writeResponsePVD(obj, odbTag, outDir, baseName, options)
             % Write nodal and Shell, Plane, Solid element responses to ParaView-readable VTU/PVD files.
             %
             % Example
@@ -555,18 +591,16 @@ classdef OpenSeesMatlabPost < handle
             %     The identifier of the ODB to read from.
             % outDir : char | string, optional
             %     The directory to save the output files. Default is "paraview_output".
-            % fileName : char | string, optional
-            %     The base name for the output files. Default is "paraview_anim".
+            % baseName : char | string, optional
+            %     The base name for the output files. Default is "pv".
             % includeNodal, includeShell, includePlane, includeSolid : logical, optional
             %     Flags to specify which types of responses to include in the output. By default, all types are included.
 
-
-
             arguments
-                obj (1,1) OpenSeesMatlabPost
-                odbTag (1,1) = ""
-                outDir (1,:) {mustBeTextScalar} = "paraview_output"
-                fileName (1,:) {mustBeTextScalar} = ''
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag  = ""
+                outDir {mustBeTextScalar} = "paraview_output"
+                baseName {mustBeTextScalar} = "pv"
                 options.includeNodal (1,1) logical = true
                 options.includeShell (1,1) logical = true
                 options.includePlane (1,1) logical = true
@@ -574,64 +608,11 @@ classdef OpenSeesMatlabPost < handle
                 % options.binary (1,1) logical = false
             end
 
-            groups = string(post.resp.ModelInfoStepData.RESP_NAME);
-            if options.includeNodal
-                groups(end+1) = string(post.resp.NodalRespStepData.RESP_NAME);
-            end
-            if options.includeShell
-                groups(end+1) = string(post.resp.ShellRespStepData.RESP_NAME);
-            end
-            if options.includePlane
-                groups(end+1) = string(post.resp.PlaneRespStepData.RESP_NAME);
-            end
-            if options.includeSolid
-                groups(end+1) = string(post.resp.SolidRespStepData.RESP_NAME);
-            end
-
-            loaded = obj.localLoadODBGroup(odbTag, groups);
-            modelInfo = obj.localGetODBGroup(loaded, post.resp.ModelInfoStepData.RESP_NAME);
-            if isempty(fieldnames(modelInfo))
-                error('OpenSeesMatlabPost:MissingModelInfo', ...
-                    'ModelInfo was not found for odbTag=%s.', string(odbTag));
-            end
-
-            nodalResp = struct();
-            shellResp = struct();
-            planeResp = struct();
-            solidResp = struct();
-
-            if options.includeNodal
-                nodalResp = post.resp.NodalRespStepData.readResponse( ...
-                    obj.localGetODBGroup(loaded, post.resp.NodalRespStepData.RESP_NAME));
-                if ~isempty(fieldnames(nodalResp))
-                    nodalResp.odbTag = odbTag;
-                end
-            end
-            if options.includeShell
-                shellResp = post.resp.ShellRespStepData.readResponse( ...
-                    obj.localGetODBGroup(loaded, post.resp.ShellRespStepData.RESP_NAME));
-                if ~isempty(fieldnames(shellResp))
-                    shellResp.odbTag = odbTag;
-                end
-            end
-            if options.includePlane
-                planeResp = post.resp.PlaneRespStepData.readResponse( ...
-                    obj.localGetODBGroup(loaded, post.resp.PlaneRespStepData.RESP_NAME));
-                if ~isempty(fieldnames(planeResp))
-                    planeResp.odbTag = odbTag;
-                end
-            end
-            if options.includeSolid
-                solidResp = post.resp.SolidRespStepData.readResponse( ...
-                    obj.localGetODBGroup(loaded, post.resp.SolidRespStepData.RESP_NAME));
-                if ~isempty(fieldnames(solidResp))
-                    solidResp.odbTag = odbTag;
-                end
-            end
-
-            writer = post.utils.PVDWriter(modelInfo, ...
-                nodalResp=nodalResp, shellResp=shellResp, planeResp=planeResp, solidResp=solidResp);
-            writer.write(char(outDir), char(fileName), binary=false);
+            results = post.ODB.writePVD(obj.parent.opensees, odbTag, outDir, baseName, ...
+                                includeNodal=options.includeNodal, ...
+                                includeShell=options.includeShell, ...
+                                includePlane=options.includePlane, ...
+                                includeSolid=options.includeSolid);
         end
     end
 
@@ -654,8 +635,13 @@ classdef OpenSeesMatlabPost < handle
         end
 
         function data = localGetODBGroup(loaded, groupName)
+            arguments
+                loaded = []
+                groupName {mustBeTextScalar} = ""
+            end
+
             data = struct();
-            groupName = char(string(groupName));
+            groupName = char(groupName);
             if ~isstruct(loaded) || ~isfield(loaded, groupName)
                 return;
             end

@@ -73,12 +73,12 @@ classdef OpenSeesMatlab < handle
     %
 
     properties (SetAccess = private, GetAccess = public)
-        opensees OpenSeesMatlabCmds      % OpenSees command interface.
-        post OpenSeesMatlabPost          % Post-processing interface.
-        vis OpenSeesMatlabVis            % Visualization interface.
-        pre OpenSeesMatlabPre            % Pre-processing interface.
-        anlys OpenSeesMatlabAnalysis     % Analysis management interface.
-        utils OpenSeesMatlabTool         % General utility interface.
+        opensees ops.OpenSeesMatlabCmds      % OpenSees command interface.
+        post post.OpenSeesMatlabPost          % Post-processing interface.
+        vis plotter.OpenSeesMatlabVis            % Visualization interface.
+        pre pre.OpenSeesMatlabPre            % Pre-processing interface.
+        anlys analysis.OpenSeesMatlabAnalysis     % Analysis management interface.
+        utils utils.OpenSeesMatlabTool         % General utility interface.
     end
 
     methods
@@ -121,14 +121,14 @@ classdef OpenSeesMatlab < handle
                 options.mexDir {mustBeTextScalar} = 'derived/'
             end
 
-            obj.opensees = OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
+            obj.opensees = ops.OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
 
             % Initialize the bookkeeping data manager
-            obj.vis = OpenSeesMatlabVis(obj);
-            obj.post = OpenSeesMatlabPost(obj);
-            obj.utils = OpenSeesMatlabTool(obj);
-            obj.anlys = OpenSeesMatlabAnalysis(obj);
-            obj.pre = OpenSeesMatlabPre(obj);
+            obj.vis = plotter.OpenSeesMatlabVis(obj);
+            obj.post = post.OpenSeesMatlabPost(obj);
+            obj.utils = utils.OpenSeesMatlabTool(obj);
+            obj.anlys = analysis.OpenSeesMatlabAnalysis(obj);
+            obj.pre = pre.OpenSeesMatlabPre(obj);
         end
     end
 

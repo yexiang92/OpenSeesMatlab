@@ -29,4 +29,5 @@ Examples for additional preprocessing, post-processing, and visualization featur
 ## Analysis Utilities
 
 - [<span style="color:rgb(213,80,0)">**Smart Analysis**</span>](./analysis/post_Smart_Analysis.md)
+- [<span style="color:rgb(213,80,0)">**Moment\-Curvature Analysis of a Reinforced Concrete Column Section**</span>](./analysis/post_mphi_analysis.md)
 

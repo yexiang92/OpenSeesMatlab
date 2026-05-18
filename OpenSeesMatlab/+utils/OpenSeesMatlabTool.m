@@ -88,13 +88,13 @@ classdef OpenSeesMatlabTool < handle
             %     opsmat.vis.plotModel();
 
             arguments
-                obj (1,1) OpenSeesMatlabTool
+                obj (1,1) utils.OpenSeesMatlabTool
                 modelName (1,1) string {mustBeMember(modelName, ...
                     ["Frame3D", "ArchBridge", "ArchBridge2", "CableStayedBridge", ...
                      "SuspensionBridge", "TrussBridge", "Dam"])}
             end
 
-            demos.loadExamples(obj.parent.opensees, modelName);
+            utils.demos.loadExamples(obj.parent.opensees, modelName);
         end
     end
 end

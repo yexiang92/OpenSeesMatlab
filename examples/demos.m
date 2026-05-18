@@ -16,6 +16,7 @@ tasks = [
     "post", "section",       "post_plot_fiber_section";
     "post", "section",       "post_section_mesh";
     "post", "analysis",      "post_Smart_Analysis";
+    "post", "analysis",      "post_mphi_analysis";
 
     "structural",   "", "structural_nonlinear_truss";
     "structural",   "", "structural_steel_frame2d";

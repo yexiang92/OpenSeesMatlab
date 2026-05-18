@@ -6,8 +6,8 @@ OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source
 
 
 ## Option 1: Install from GitHub
-1. Go to the [OpenSeesMatlab GitHub Repository](https://github.com/yexiang92/OpenSeesMatlab).
-2. Go to the [release directory](https://github.com/yexiang92/OpenSeesMatlab/releases) and choose the version you want, for example `release/3.8.0.0/`. Download it.
+1. Go to the [OpenSeesMatlab GitHub Repository](https://github.com/yexiang92/OpenSeesMatlab) or [OpenSeesMatlab Gitee Repository (中国)](https://gitee.com/yexiang-yan/opensees-interface-for-matlab).
+2. Go to the [release directory](https://github.com/yexiang92/OpenSeesMatlab/releases) or [release directory, gitee (中国)](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases) and choose the version you want. Download it.
 3. Open this release directory in MATLAB, then install the toolbox package by running:
    ```matlab
    installOpenSeesMatlab

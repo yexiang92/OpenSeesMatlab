@@ -1,4 +1,4 @@
-::: OpenSeesMatlabTool
+::: utils.OpenSeesMatlabTool
     handler: matlab
     options:
       parse_arguments: true

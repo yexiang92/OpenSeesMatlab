@@ -1,7 +1,7 @@
-[data-md-color-scheme="matlab"] {
+/* [data-md-color-scheme="matlab"] {
 --md-primary-fg-color:        #4051B5;
 --md-primary-fg-color--dark:  #002f5b;
-}
+} */
 
 [data-md-color-scheme="matlab"] img[src$="#only-dark"],
 [data-md-color-scheme="matlab"] img[src$="#gh-dark-mode-only"] {

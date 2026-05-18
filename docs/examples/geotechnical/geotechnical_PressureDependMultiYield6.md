@@ -251,7 +251,7 @@ fprintf('Execution time: %.6f seconds.\n', elapsedTime);
 <div style="font-size:0.85em; color:#87ae73;">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
-Execution time: 0.472813 seconds.
+Execution time: 0.435562 seconds.
 </div>
 </div>
 

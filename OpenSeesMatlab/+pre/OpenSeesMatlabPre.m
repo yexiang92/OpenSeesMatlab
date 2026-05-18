@@ -128,7 +128,7 @@ classdef OpenSeesMatlabPre < handle
             %     opsmat.pre.plotSection(1);
 
             arguments
-                obj (1,1) OpenSeesMatlabPre
+                obj (1,1) pre.OpenSeesMatlabPre
                 sw logical = true  % If true, disable the section geometry recorder
             end
 
@@ -169,7 +169,7 @@ classdef OpenSeesMatlabPre < handle
             %     opsmat.pre.plotSection(1);
 
             arguments
-                obj (1,1) OpenSeesMatlabPre
+                obj (1,1) pre.OpenSeesMatlabPre
                 secTag (1,1) double  % Section tag to plot
                 ax  = []  % Optional axes handle to plot on. If not provided, a new figure will be created.
             end
@@ -234,11 +234,11 @@ classdef OpenSeesMatlabPre < handle
         %   Default: {'Plain'}.
 
             arguments
-                obj (1,1) OpenSeesMatlabPre
-                matrixType {mustBeTextScalar, mustBeMember(matrixType, {'m', 'c', 'k', 'ki'})}
-                options.constraintsArgs = {'Penalty', 1e12, 1e12}
-                options.systemArgs = {'FullGeneral'}
-                options.numbererArgs = {'Plain'}
+                obj (1,1) pre.OpenSeesMatlabPre
+                matrixType {mustBeTextScalar, mustBeMember(matrixType, ["m", "c", "k", "ki"])}
+                options.constraintsArgs = {"Penalty", 1e12, 1e12}
+                options.systemArgs = {"FullGeneral"}
+                options.numbererArgs = {"Plain"}
             end
 
             matrixType = char(matrixType);
@@ -361,7 +361,7 @@ classdef OpenSeesMatlabPre < handle
             %     opsmat.pre.beamGlobalUniformLoad([1 2 3], wx=0, wy=-10, wz=0);
 
             arguments
-                obj OpenSeesMatlabPre
+                obj pre.OpenSeesMatlabPre
                 eleTags double
                 opts.wx double = 0.0
                 opts.wy double = 0.0
@@ -404,7 +404,7 @@ classdef OpenSeesMatlabPre < handle
             %     opsmat.pre.beamGlobalPointLoad([1 2], py=-100, xl=0.5);
 
             arguments
-                obj OpenSeesMatlabPre
+                obj pre.OpenSeesMatlabPre
                 eleTags double
                 opts.px double = 0.0
                 opts.py double = 0.0
@@ -440,7 +440,7 @@ classdef OpenSeesMatlabPre < handle
             %     opsmat.pre.surfaceGlobalPressureLoad([101 102 103], -5.0);
 
             arguments
-                obj OpenSeesMatlabPre
+                obj pre.OpenSeesMatlabPre
                 eleTags double
                 p double = 0.0
             end

@@ -1,4 +1,4 @@
-::: OpenSeesMatlabAnalysis
+::: analysis.OpenSeesMatlabAnalysis
     handler: matlab
     options:
       parse_arguments: true
@@ -65,4 +65,3 @@
         - plotFiberResponses
         - buildNMM
         - plotNMM
-

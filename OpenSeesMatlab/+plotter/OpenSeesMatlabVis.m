@@ -32,17 +32,17 @@ classdef OpenSeesMatlabVis < handle
     % Properties
     % ----------
     % defaultPlotModelOptions : struct
-    %     Default option template used by plotModel.
+    %     Default option template used by plotModel. See ``.help`` for details.
     % defaultPlotEigenOptions : struct
-    %     Default option template used by plotEigen.
+    %     Default option template used by plotEigen. See ``.help`` for details.
     % defaultPlotNodalResponseOptions : struct
-    %     Default option template used by plotNodalResponse and plotDeformation.
+    %     Default option template used by plotNodalResponse and plotDeformation. See ``.help`` for details.
     % defaultPlotFrameResponseOptions : struct
-    %     Default option template used by plotFrameResponse.
+    %     Default option template used by plotFrameResponse. See ``.help`` for details.
     % defaultPlotShellResponseOptions : struct
-    %     Default option template used by shell response plotting.
+    %     Default option template used by shell response plotting. See ``.help`` for details.
     % defaultPlotContinuumResponseOptions : struct
-    %     Default option template used by continuum response plotting.
+    %     Default option template used by continuum response plotting. See ``.help`` for details.
 
     properties (Access = private)
         parent  % Reference to the parent OpenSeesMatlab object
@@ -50,32 +50,32 @@ classdef OpenSeesMatlabVis < handle
 
     properties (Access = public)
         defaultPlotModelOptions = plotter.PlotModel.defaultOptions();
-        % Default options for plotModel
+        % Default options for plotModel, see ``.help`` for details.
     end
 
     properties (Access = public)
         defaultPlotEigenOptions = plotter.PlotEigen.defaultOptions();
-        % Default options for plotEigen
+        % Default options for plotEigen, see ``.help`` for details.
     end
 
     properties (Access = public)
         defaultPlotNodalResponseOptions = plotter.PlotNodalResp.defaultOptions();
-        % Default options for plotNodalResponse
+        % Default options for plotNodalResponse, see ``.help`` for details.
     end
 
     properties (Access = public)
         defaultPlotFrameResponseOptions = plotter.PlotFrameResp.defaultOptions();
-        % Default options for plotFrameResponse
+        % Default options for plotFrameResponse, see ``.help`` for details.
     end
 
     properties (Access = public)
         defaultPlotShellResponseOptions = plotter.PlotUnstruResponse.defaultOptions();
-        % Default options for plotShellResponse
+        % Default options for plotShellResponse, see ``.help`` for details.
     end
 
     properties (Access = public)
         defaultPlotContinuumResponseOptions = plotter.PlotUnstruResponse.defaultOptions();
-        % Default options for plotContinuumResponse
+        % Default options for plotContinuumResponse, see ``.help`` for details.
     end
 
     methods
@@ -146,9 +146,9 @@ classdef OpenSeesMatlabVis < handle
             %     h = opsmat.vis.plotModel(opts=opts, ax=ax);
 
             arguments
-                obj (1,1) OpenSeesMatlabVis
+                obj (1,1) plotter.OpenSeesMatlabVis
                 options.opts (1,1) struct = struct()
-                options.ax {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
 
             modelInfo = obj.parent.post.getModelData();
@@ -204,11 +204,11 @@ classdef OpenSeesMatlabVis < handle
             %     h = opsmat.vis.plotEigen(2, eigenData, opts=opts);
 
             arguments
-                obj (1,1) OpenSeesMatlabVis
+                obj (1,1) plotter.OpenSeesMatlabVis
                 modeTag (1,1) double {mustBeInteger, mustBePositive}
                 eigenData (1,1) struct
                 options.opts (1,1) struct = struct()
-                options.ax {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
 
             modelInfo = obj.parent.post.getModelData();
@@ -245,7 +245,7 @@ classdef OpenSeesMatlabVis < handle
             %     "reactionIncInertia", "rayleighForces", and "pressure".
             % respComponent : string, optional
             %     Response component to visualize. Default is "magnitude". For
-            %     vector responses, common values include "x", "y", "z", "rx",
+            %     vector responses, common values include "ux", "uy", "uz", "rx",
             %     "ry", "rz", and "magnitude".
             % stepIdx : integer or string, optional
             %     Analysis step selector. Default is "absMax".
@@ -271,17 +271,17 @@ classdef OpenSeesMatlabVis < handle
             %         stepIdx="absMax");
 
             arguments
-                obj (1,1) OpenSeesMatlabVis
-                nodeRespData (1,1) struct
-                options.respType (1,1) string = "disp"
-                options.respComponent (1,1) string = "magnitude"
-                options.stepIdx (1,1) = "absMax"
+                obj (1,1) plotter.OpenSeesMatlabVis
+                nodeRespData struct
+                options.respType {mustBeTextScalar, mustBeMember(options.respType, ["disp", "vel", "accel", "reaction","reactionIncInertia", "rayleighForces", "pressure"])} = "disp"
+                options.respComponent {mustBeTextScalar, mustBeMember(options.respComponent, ["ux", "uy", "uz", "rx", "ry", "rz", "magnitude", "UX", "UY", "UZ", "RX", "RY", "RZ"])} = "magnitude"
+                options.stepIdx = "absMax"
                 options.opts (1,1) struct = struct()
-                options.ax {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
 
             odbTag = nodeRespData.odbTag;
-            modelInfo = post.ODB.loadODB(odbTag, groups=post.resp.ModelInfoStepData.RESP_NAME);
+            modelInfo = post.ODB.readModelInfo(obj.parent.opensees, odbTag);
 
             options.opts.field.type = options.respType;
             options.opts.field.component = options.respComponent;
@@ -340,18 +340,18 @@ classdef OpenSeesMatlabVis < handle
             %         showUndeformed=true);
 
             arguments
-                obj (1,1) OpenSeesMatlabVis
-                nodeRespData (1,1) struct
-                options.stepIdx (1,1) = "absMax"
-                options.color (1,1) string = "blue"
+                obj (1,1) plotter.OpenSeesMatlabVis
+                nodeRespData struct
+                options.stepIdx = "absMax"
+                options.color  string = "blue"
                 options.useInterpolation (1,1) logical = true
                 options.scaleFactor (1,1) double = 1.0
                 options.showUndeformed (1,1) logical = false
-                options.ax {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
 
             odbTag = nodeRespData.odbTag;
-            modelInfo = post.ODB.loadODB(odbTag, groups=post.resp.ModelInfoStepData.RESP_NAME);
+            modelInfo = post.ODB.readModelInfo(obj.parent.opensees, odbTag);
             opts = obj.defaultPlotNodalResponseOptions;
             opts.deform.show = true;
             opts.deform.autoScale = false;
@@ -456,16 +456,16 @@ classdef OpenSeesMatlabVis < handle
             %         opts=opts);
 
             arguments
-                obj (1,1) OpenSeesMatlabVis
-                respData (1,1) struct
-                options.respType (1,1) string = "sectionForces"
-                options.respComponent (1,1) string = "MZ"
-                options.stepIdx (1,1) = "absMax"
+                obj (1,1) plotter.OpenSeesMatlabVis
+                respData struct
+                options.respType {mustBeTextScalar, mustBeMember(options.respType, ["sectionForces", "sectionDeformations", "basicDeformations", "basicForces", "localForces", "plasticDeformation"])} = "sectionForces"
+                options.respComponent {mustBeTextScalar} = "MZ"
+                options.stepIdx = "absMax"
                 options.opts (1,1) struct = struct()
-                options.ax {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
             odbTag = respData.odbTag;
-            modelInfo = post.ODB.loadODB(odbTag, groups=post.resp.ModelInfoStepData.RESP_NAME);
+            modelInfo = post.ODB.readModelInfo(obj.parent.opensees, odbTag);
 
             options.opts.respType = options.respType;
             options.opts.component = options.respComponent;
@@ -513,20 +513,20 @@ classdef OpenSeesMatlabVis < handle
             %     Target axes. A new figure is created when omitted.
 
             arguments
-                obj     (1,1) OpenSeesMatlabVis
-                respData (1,1) struct
+                obj     (1,1) plotter.OpenSeesMatlabVis
+                respData struct
 
-                options.respType      (1,1) string = "SecForceAtGP"
-                options.respComponent (1,1) string = "mxx"
-                options.fiberPoint                 = "top"
-                options.stepIdx       (1,1)        = "absMax"
+                options.respType {mustBeTextScalar, mustBeMember(options.respType, ["SecForceAtGP", "SecDefoAtGP", "SecForceAtNode", "SecDefoAtNode", "StressAtGP", "StrainAtGP", "StressAtNode", "StrainAtNode"])} = "SecForceAtGP"
+                options.respComponent {mustBeTextScalar} = "mxx"
+                options.fiberPoint = "top"
+                options.stepIdx    = "absMax"
                 options.opts          (1,1) struct = struct()
-                options.ax            {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax            {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
 
-            odbTag = respData.odbTag;
-            modelInfo = post.ODB.loadODB(odbTag, ...
-                groups = post.resp.ModelInfoStepData.RESP_NAME);
+            odbTag = respData(1).odbTag;
+
+            modelInfo = post.ODB.readModelInfo(obj.parent.opensees, odbTag);
             nodalResp = obj.parent.post.getNodalResponse(odbTag, respType="disp");
 
             pu = plotter.PlotUnstruResponse( ...
@@ -551,20 +551,24 @@ classdef OpenSeesMatlabVis < handle
             % Parameters
             % ----------
             % respData : struct
-            %     Continuum element response data. Typically obtained from ``post.getElementResponse(odbTag, eleType="Plane")`` or ``post.getElementResponse(odbTag, eleType="Solid")``.
+            %     Continuum element response data. Typically obtained from
+            %     ``post.getElementResponse(odbTag, eleType="Plane")`` or
+            %     ``post.getElementResponse(odbTag, eleType="Solid")``.
+            %
             % respType : string, optional  (default "StressAtGP")
             %     - "StressAtGP" | "StressAtNode" | "StrainAtGP" | "StrainAtNode"
             %     - "StressMeasureAtGP" | "StressMeasureAtNode"
             %
             % respComponent : string, optional  (default "sxx")
-            %     - Plane tensor  : "sxx" "syy" "sxy" "szz"
-            %     - Solid tensor  : "sxx" "syy" "szz" "sxy" "syz" "sxz"
+            %     - Plane stress  : "sxx" "syy" "sxy" "szz"
+            %     - Solid stress  : "sxx" "syy" "szz" "sxy" "syz" "sxz"
             %     - Plane strain  : "exx" "eyy" "exy"
             %     - Solid strain  : "exx" "eyy" "ezz" "exy" "eyz" "exz"
-            %     - Measures      : "p1" "p2" "p3" "sigmavm" "taumax" "sigmaoct" "tauoct"
+            %     - Measures      : "sigmaOct" "tauOct" "tauMax" "vonMises"
+            %                       "p1" "p2" "p3"
             %
             % stepIdx : integer or string, optional  (default "absMax")
-            %     "absMax" | "absMin" | "Max" | "Min" | integer step index.
+            %     "absmax" | "absmin" | "max" | "min" | 0-based integer step index.
             %
             % opts : struct, optional
             %     Visualisation options.
@@ -572,36 +576,28 @@ classdef OpenSeesMatlabVis < handle
             %
             % ax : matlab.graphics.axis.Axes, optional
             %     Target axes. A new figure is created when omitted.
-
             arguments
-                obj     (1,1) OpenSeesMatlabVis
-                respData (1,1) struct
-
-                options.respType      (1,1) string = "StressAtGP"
-                options.respComponent (1,1) string = "sxx"
-                options.stepIdx       (1,1)        = "absMax"
+                obj      (1,1) plotter.OpenSeesMatlabVis
+                respData struct
+                options.respType {mustBeTextScalar, mustBeMember(options.respType, ["StressAtGP", "StressAtNode", "StrainAtGP", "StrainAtNode", "StressMeasureAtGP", "StressMeasureAtNode"])} = "StressAtGP"
+                options.respComponent {mustBeTextScalar} = "sxx"
+                options.stepIdx   = "absmax"
                 options.opts          (1,1) struct = struct()
-                options.ax            {OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
+                options.ax            {plotter.OpenSeesMatlabVis.mustBeAxesOrEmpty} = []
             end
-
             eleType = respData.eleType;
-
-            switch lower(char(eleType))
+            switch lower(char(string(eleType)))
                 case 'plane'
-                    eleType  = 'Plane';
+                    eleType = 'Plane';
                 case {'solid', 'brick'}
-                    eleType  = 'Solid';
+                    eleType = 'Solid';
                 otherwise
                     error('plotContinuumResponse:BadEleType', ...
-                        'eleType must be "Plane" or "Solid". Got "%s".', ...
-                        eleType);
+                        'eleType must be "Plane" or "Solid". Got "%s".', eleType);
             end
-
-            odbTag = respData.odbTag;
-            modelInfo = post.ODB.loadODB(odbTag, ...
-                groups = post.resp.ModelInfoStepData.RESP_NAME);
+            odbTag = respData(1).odbTag;
+            modelInfo = post.ODB.readModelInfo(obj.parent.opensees, odbTag);
             nodalResp = obj.parent.post.getNodalResponse(odbTag, respType="disp");
-
             pu = plotter.PlotUnstruResponse( ...
                 modelInfo, nodalResp, respData, options.ax, options.opts);
             pu.setResponse(eleType, options.respType, options.respComponent);

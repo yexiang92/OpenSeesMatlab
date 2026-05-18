@@ -1,4 +1,4 @@
-::: OpenSeesMatlabVis
+::: plotter.OpenSeesMatlabVis
     handler: matlab
     options:
       parse_arguments: true

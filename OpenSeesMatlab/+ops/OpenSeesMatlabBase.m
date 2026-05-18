@@ -28,8 +28,8 @@ classdef (Abstract) OpenSeesMatlabBase < handle
     %     so command arguments should match the OpenSees command documentation.
 
     properties
-        mexName (1,:) char = 'OpenSeesMATLAB'
-        mexDir  (1,:) char = 'derived/'
+        mexName {mustBeTextScalar} = "OpenSeesMATLAB"
+        mexDir  {mustBeTextScalar} = "derived/"
     end
 
     properties (Hidden, Access = protected)
@@ -82,7 +82,7 @@ classdef (Abstract) OpenSeesMatlabBase < handle
             if isempty(which(obj.mexName))
                 error('OpenSeesMatlab:MexNotFound', ...
                     ['Cannot locate the OpenSees MEX module "%s". ', ...
-                     'Resolved mexDir: %s'], ...
+                    'Resolved mexDir: %s'], ...
                     obj.mexName, obj.mexDir);
             end
         end
@@ -114,9 +114,9 @@ classdef (Abstract) OpenSeesMatlabBase < handle
             %     obj.call('model', 'basic', '-ndm', 2, '-ndf', 3);
             %     obj.call('node', 1, 0.0, 0.0);
 
-            % if isstring(cmd)
-            %     cmd = char(cmd);
-            % end
+            if isstring(cmd)
+                cmd = char(cmd);
+            end
             [varargout{1:nargout}] = obj.mexHandle(cmd, varargin{:});
         end
 
@@ -443,7 +443,6 @@ classdef (Abstract) OpenSeesMatlabBase < handle
         function result = numIter(obj, varargin),            result = obj.mexHandle('numIter', varargin{:}); end
         function result = systemSize(obj, varargin),         result = obj.mexHandle('systemSize', varargin{:}); end
         function result = version(obj, varargin),            result = obj.mexHandle('version', varargin{:}); end
-        function result = matlabversion(obj, varargin),      result = obj.mexHandle('matlabversion', varargin{:}); end
 
         % --- Sensitivity / reliability ------------------------------------
         function result = sensNodeDisp(obj, varargin),       result = obj.mexHandle('sensNodeDisp', varargin{:}); end
@@ -644,5 +643,15 @@ classdef (Abstract) OpenSeesMatlabBase < handle
     %-------------------------------------------------------------------------
     methods
         function varargout = suppressPrint(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('suppressPrint', varargin{:}); end
+
+        function result = FEMDataRecorder(obj, varargin), result = obj.mexHandle('FEMDataRecorder', varargin{:}); end
+
+        function result = readFEMData(obj, varargin), result = obj.mexHandle('readFEMData', varargin{:}); end
+
+        function result = writeFEMDataPVD(obj, varargin), result = obj.mexHandle('writeFEMDataPVD', varargin{:}); end
+
+        function result = getDomainGeoTag(obj, varargin), result = obj.mexHandle('getDomainGeoTag', varargin{:}); end
+
+        function result = matlabversion(obj, varargin), result = obj.mexHandle('matlabversion', varargin{:}); end
     end
 end
