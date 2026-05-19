@@ -60,87 +60,92 @@ classdef ODB < handle
 
         function setFEMDataRecorder(obj)
             % Build cell array of arguments for FEMDataRecorder.
-            % Switch options (e.g. -saveNodalResp) are passed without a
-            % boolean value; they enable the feature simply by being present.
-            % Empty [] and logical false are filtered out to avoid confusing
-            % the C++ parser (which sees them as invalid tokens).
-            kargs = {obj.filename};
+            % Switch options, such as -saveNodalResp, are passed without a boolean
+            % value. They enable the corresponding feature simply by being present.
+            %
+            % Empty [] and logical false options are filtered where needed to avoid
+            % passing invalid tokens to the C++ parser.
+
+            args = {obj.filename};
 
             if ~isempty(obj.kargs.flushEvery)
-                kargs = {kargs{:}, '-flushEvery', obj.kargs.flushEvery};
+                args = [args, {'-flushEvery', obj.kargs.flushEvery}];
             end
 
             if obj.kargs.saveNodalResp
-                kargs = {kargs{:}, '-saveNodalResp'};
+                args = [args, {'-saveNodalResp'}];
                 if ~isempty(obj.kargs.nodeTags)
-                    tagCell = num2cell(obj.kargs.nodeTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.nodeTags(:).')];
                 end
             end
+
             if obj.kargs.saveTrussResp
-                kargs = {kargs{:}, '-saveTrussResp'};
+                args = [args, {'-saveTrussResp'}];
                 if ~isempty(obj.kargs.trussTags)
-                    tagCell = num2cell(obj.kargs.trussTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.trussTags(:).')];
                 end
             end
+
             if obj.kargs.saveFrameResp
-                kargs = {kargs{:}, '-saveFrameResp'};
+                args = [args, {'-saveFrameResp'}];
                 if ~isempty(obj.kargs.frameTags)
-                    tagCell = num2cell(obj.kargs.frameTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.frameTags(:).')];
                 end
             end
+
             if obj.kargs.saveFiberSecResp
-                kargs = {kargs{:}, '-saveFrameFiber'};
+                args = [args, {'-saveFrameFiber'}];
             end
+
             if obj.kargs.saveShellResp
-                kargs = {kargs{:}, '-saveShellResp'};
+                args = [args, {'-saveShellResp'}];
                 if ~isempty(obj.kargs.shellTags)
-                    tagCell = num2cell(obj.kargs.shellTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.shellTags(:).')];
                 end
             end
+
             if obj.kargs.saveSolidResp
-                kargs = {kargs{:}, '-saveSolidResp'};
+                args = [args, {'-saveSolidResp'}];
                 if ~isempty(obj.kargs.solidTags)
-                    tagCell = num2cell(obj.kargs.solidTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.solidTags(:).')];
                 end
             end
+
             if obj.kargs.savePlaneResp
-                kargs = {kargs{:}, '-savePlaneResp'};
+                args = [args, {'-savePlaneResp'}];
                 if ~isempty(obj.kargs.planeTags)
-                    tagCell = num2cell(obj.kargs.planeTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.planeTags(:).')];
                 end
             end
+
             if obj.kargs.saveLinkResp
-                kargs = {kargs{:}, '-saveLinkResp'};
+                args = [args, {'-saveLinkResp'}];
                 if ~isempty(obj.kargs.linkTags)
-                    tagCell = num2cell(obj.kargs.linkTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.linkTags(:).')];
                 end
             end
+
             if obj.kargs.saveContactResp
-                kargs = {kargs{:}, '-saveContactResp'};
+                args = [args, {'-saveContactResp'}];
                 if ~isempty(obj.kargs.contactTags)
-                    tagCell = num2cell(obj.kargs.contactTags);
-                    kargs = {kargs{:}, tagCell{:}};
+                    args = [args, num2cell(obj.kargs.contactTags(:).')];
                 end
             end
 
-            kargs = {kargs{:}, '-elasticFrameSecPoints', obj.kargs.elasticFrameSecPoints};
+            args = [args, {'-elasticFrameSecPoints', obj.kargs.elasticFrameSecPoints}];
 
-            % interpolateBeamDisp: pass string/integer value; filter out logical false
+            % interpolateBeamDisp: pass string/integer value; filter out logical false.
             if ~islogical(obj.kargs.interpolateBeamDisp) || obj.kargs.interpolateBeamDisp
-                kargs = {kargs{:}, '-interpolateBeamDisp', obj.kargs.interpolateBeamDisp};
+                args = [args, {'-interpolateBeamDisp', obj.kargs.interpolateBeamDisp}];
             end
 
-            kargs = {kargs{:}, '-stressMeasures', obj.kargs.computeMechanicalMeasures{:}};
-            kargs = {kargs{:}, '-projectGaussToNodes', obj.kargs.projectGaussToNodes};
+            if ~isempty(obj.kargs.computeMechanicalMeasures)
+                args = [args, {'-stressMeasures'}, obj.kargs.computeMechanicalMeasures(:).'];
+            end
 
-            obj.OPS_recorderTag = obj.ops.FEMDataRecorder(kargs{:});
+            args = [args, {'-projectGaussToNodes', obj.kargs.projectGaussToNodes}];
+
+            obj.OPS_recorderTag = obj.ops.FEMDataRecorder(args{:});
         end
 
         function setOutputDir(obj, dir)
@@ -151,9 +156,12 @@ classdef ODB < handle
                 sprintf('%s-%s.odb', obj.respFilename, string(obj.odbTag)));
             obj.initPath();
             obj.filename = fullfile(char(obj.storePath), 'output.h5');
+            fprintf('Output file: %s\n', obj.filename);
         end
 
         function close(obj)
+            % Remove the recorder tag if it exists.
+            % This will stop the recorder from collecting data.
             tag = obj.OPS_recorderTag;
             if ~isempty(tag)
                 obj.ops.remove('recorder', tag);
@@ -397,10 +405,10 @@ classdef ODB < handle
 
             filename = post.ODB.getFilename(odbTag);
             out = ops.writeFEMDataPVD(filename, outDir, baseName, ...
-                                'includeNodal', options.includeNodal, ...
-                                'includeShell', options.includeShell, ...
-                                'includePlane', options.includePlane, ...
-                                'includeSolid', options.includeSolid);
+                'includeNodal', options.includeNodal, ...
+                'includeShell', options.includeShell, ...
+                'includePlane', options.includePlane, ...
+                'includeSolid', options.includeSolid);
         end
 
     end
@@ -408,12 +416,12 @@ classdef ODB < handle
 end
 
 function s = addField(s, fieldName, value)
-    % Add a field to scalar struct or struct array
-    if isscalar(s)
-        s.(fieldName) = value;
-    else
-        for i = 1:numel(s)
-            s(i).(fieldName) = value;
-        end
+% Add a field to scalar struct or struct array
+if isscalar(s)
+    s.(fieldName) = value;
+else
+    for i = 1:numel(s)
+        s(i).(fieldName) = value;
     end
+end
 end

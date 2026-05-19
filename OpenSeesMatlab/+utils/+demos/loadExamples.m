@@ -11,22 +11,22 @@ function loadExamples(ops, modelName)
         %       'SuspensionBridge', 'TrussBridge', 'Dam'.
 
         modelName = char(string(modelName));
-        
+
         switch lower(modelName)
             case 'frame3d'
-                demos.Frame3D(ops);
+                utils.demos.Frame3D(ops);
             case 'archbridge'
-                demos.ArchBridge(ops);
+                utils.demos.ArchBridge(ops);
             case 'archbridge2'
-                demos.ArchBridge2(ops);
+                utils.demos.ArchBridge2(ops);
             case 'cablestayedbridge'
-                demos.CableStayedBridge(ops);
+                utils.demos.CableStayedBridge(ops);
             case 'suspensionbridge'
-                demos.SuspensionBridge(ops);
+                utils.demos.SuspensionBridge(ops);
             case 'trussbridge'
-                demos.TrussBridge(ops);
+                utils.demos.TrussBridge(ops);
             case 'dam'
-                demos.Dam(ops);
+                utils.demos.Dam(ops);
             otherwise
                 error(['Unsupported model name: %s. Supported models are: ', ...
                     'Frame3D, ArchBridge, ArchBridge2, CableStayedBridge, ', ...

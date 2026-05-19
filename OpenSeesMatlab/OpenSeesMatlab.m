@@ -81,6 +81,10 @@ classdef OpenSeesMatlab < handle
         utils utils.OpenSeesMatlabTool         % General utility interface.
     end
 
+    properties (SetAccess = private, GetAccess = public)
+        version = [];  % OpenSeesMatlab version tag.
+    end
+
     methods
         function obj = OpenSeesMatlab(options)
             % Construct the main OpenSeesMatlab interface.
@@ -129,6 +133,8 @@ classdef OpenSeesMatlab < handle
             obj.utils = utils.OpenSeesMatlabTool(obj);
             obj.anlys = analysis.OpenSeesMatlabAnalysis(obj);
             obj.pre = pre.OpenSeesMatlabPre(obj);
+
+            obj.version = obj.opensees.matlabversion();
         end
     end
 

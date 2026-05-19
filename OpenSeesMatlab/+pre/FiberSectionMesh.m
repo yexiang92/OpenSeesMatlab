@@ -854,165 +854,165 @@ classdef FiberSectionMesh < handle
             if ~hasPDE
                 error('FiberSectionMesh:noPDEToolbox', ...
                     'Partial Differential Equation Toolbox is required but not available/licensed.');
-            end
+            else
+                fibers = struct('y',{},'z',{},'area',{},'hw',{},'hh',{}, ...
+                                'matTag',{},'partName',{}, ...
+                                'verticesY',{},'verticesZ',{},'shapeType',{});
 
-            fibers = struct('y',{},'z',{},'area',{},'hw',{},'hh',{}, ...
-                            'matTag',{},'partName',{}, ...
-                            'verticesY',{},'verticesZ',{},'shapeType',{});
+                % Convert polyshape to triangulation-compatible geometry.
+                tr = triangulation(ps);
 
-            % Convert polyshape to triangulation-compatible geometry.
-            tr = triangulation(ps);
-
-            if isempty(tr.Points) || isempty(tr.ConnectivityList)
-                return;
-            end
-
-            % Create PDE model from triangulated polyshape boundary.
-            model = createpde();
-
-            % polyshape -> boundary facets -> geometry.
-            [bx, bz] = boundary(ps);
-            bx = bx(:);
-            bz = bz(:);
-
-            nanId = isnan(bx) | isnan(bz);
-            splitId = [0; find(nanId); numel(bx) + 1];
-
-            gd = [];
-            nsNames = strings(0);
-            sfTerms = strings(0);
-
-            for k = 1:numel(splitId)-1
-                id1 = splitId(k) + 1;
-                id2 = splitId(k+1) - 1;
-
-                y = bx(id1:id2);
-                z = bz(id1:id2);
-
-                if numel(y) < 3
-                    continue;
+                if isempty(tr.Points) || isempty(tr.ConnectivityList)
+                    return;
                 end
 
-                if y(1) == y(end) && z(1) == z(end)
-                    y(end) = [];
-                    z(end) = [];
+                % Create PDE model from triangulated polyshape boundary.
+                model = createpde();
+
+                % polyshape -> boundary facets -> geometry.
+                [bx, bz] = boundary(ps);
+                bx = bx(:);
+                bz = bz(:);
+
+                nanId = isnan(bx) | isnan(bz);
+                splitId = [0; find(nanId); numel(bx) + 1];
+
+                gd = [];
+                nsNames = strings(0);
+                sfTerms = strings(0);
+
+                for k = 1:numel(splitId)-1
+                    id1 = splitId(k) + 1;
+                    id2 = splitId(k+1) - 1;
+
+                    y = bx(id1:id2);
+                    z = bz(id1:id2);
+
+                    if numel(y) < 3
+                        continue;
+                    end
+
+                    if y(1) == y(end) && z(1) == z(end)
+                        y(end) = [];
+                        z(end) = [];
+                    end
+
+                    n = numel(y);
+
+                    % decsg polygon column:
+                    % [2; n; x1...xn; y1...yn]
+                    col = [2; n; y(:); z(:)];
+
+                    if isempty(gd)
+                        gd = col;
+                    else
+                        maxLen = max(size(gd,1), numel(col));
+                        gd(end+1:maxLen, :) = 0;
+                        col(end+1:maxLen, 1) = 0;
+                        gd(:, end+1) = col;
+                    end
+
+                    name = "P" + k;
+                    nsNames(end+1) = name; %#ok<AGROW>
+                    sfTerms(end+1) = name; %#ok<AGROW>
                 end
-
-                n = numel(y);
-
-                % decsg polygon column:
-                % [2; n; x1...xn; y1...yn]
-                col = [2; n; y(:); z(:)];
 
                 if isempty(gd)
-                    gd = col;
-                else
-                    maxLen = max(size(gd,1), numel(col));
-                    gd(end+1:maxLen, :) = 0;
-                    col(end+1:maxLen, 1) = 0;
-                    gd(:, end+1) = col;
+                    return;
                 end
 
-                name = "P" + k;
-                nsNames(end+1) = name; %#ok<AGROW>
-                sfTerms(end+1) = name; %#ok<AGROW>
-            end
+                ns = char(cellstr(nsNames(:)));
+                ns = ns';
 
-            if isempty(gd)
-                return;
-            end
+                % For polyshape with holes, decsg with all polygons summed may not always
+                % infer holes correctly. Therefore, use the polyshape triangulation
+                % fallback if decsg fails.
+                sf = strjoin(sfTerms, '+');
 
-            ns = char(cellstr(nsNames(:)));
-            ns = ns';
+                try
+                    g = decsg(gd, char(sf), ns);
+                    geometryFromEdges(model, g);
 
-            % For polyshape with holes, decsg with all polygons summed may not always
-            % infer holes correctly. Therefore, use the polyshape triangulation
-            % fallback if decsg fails.
-            sf = strjoin(sfTerms, '+');
+                    msh = generateMesh(model, ...
+                        'Hmax', meshSize, ...
+                        'GeometricOrder', 'linear');
 
-            try
-                g = decsg(gd, char(sf), ns);
-                geometryFromEdges(model, g);
+                    pts = msh.Nodes';
+                    tri = msh.Elements';
 
-                msh = generateMesh(model, ...
-                    'Hmax', meshSize, ...
-                    'GeometricOrder', 'linear');
+                catch
+                    % Robust fallback: use polyshape triangulation and subdivide quality
+                    % indirectly through the polyshape triangulation. This avoids crashing
+                    % but may be coarser.
+                    warning('FiberSectionMesh:pdeGeometryFailed', ...
+                        'PDE geometry creation failed. Falling back to polyshape triangulation.');
 
-                pts = msh.Nodes';
-                tri = msh.Elements';
-
-            catch
-                % Robust fallback: use polyshape triangulation and subdivide quality
-                % indirectly through the polyshape triangulation. This avoids crashing
-                % but may be coarser.
-                warning('FiberSectionMesh:pdeGeometryFailed', ...
-                    'PDE geometry creation failed. Falling back to polyshape triangulation.');
-
-                pts = tr.Points;
-                tri = tr.ConnectivityList;
-            end
-
-            areaTol = meshSize^2 * 1.0e-10;
-
-            nTri = size(tri, 1);
-            for i = 1:nTri
-                id = tri(i, :);
-
-                vy = pts(id, 1);
-                vz = pts(id, 2);
-
-                % Fast signed-area test instead of polyshape creation.
-                a = 0.5 * abs((vy(2)-vy(1))*(vz(3)-vz(1)) - (vy(3)-vy(1))*(vz(2)-vz(1)));
-
-                if a <= areaTol || ~isfinite(a)
-                    continue;
+                    pts = tr.Points;
+                    tri = tr.ConnectivityList;
                 end
 
-                % For sections with holes, the PDE mesh may produce triangles
-                % outside the original polyshape.  Use the triangle centroid
-                % as a cheap point-in-polyshape test.
-                cy = sum(vy) / 3;
-                cz = sum(vz) / 3;
+                areaTol = meshSize^2 * 1.0e-10;
 
-                if ~isinterior(ps, cy, cz)
-                    continue;
+                nTri = size(tri, 1);
+                for i = 1:nTri
+                    id = tri(i, :);
+
+                    vy = pts(id, 1);
+                    vz = pts(id, 2);
+
+                    % Fast signed-area test instead of polyshape creation.
+                    a = 0.5 * abs((vy(2)-vy(1))*(vz(3)-vz(1)) - (vy(3)-vy(1))*(vz(2)-vz(1)));
+
+                    if a <= areaTol || ~isfinite(a)
+                        continue;
+                    end
+
+                    % For sections with holes, the PDE mesh may produce triangles
+                    % outside the original polyshape.  Use the triangle centroid
+                    % as a cheap point-in-polyshape test.
+                    cy = sum(vy) / 3;
+                    cz = sum(vz) / 3;
+
+                    if ~isinterior(ps, cy, cz)
+                        continue;
+                    end
+
+                    f.y = cy;
+                    f.z = cz;
+
+                    % For triangles that straddle a hole boundary, the PDE mesh
+                    % triangle may extend into the hole.  Clip it with the original
+                    % polyshape to get the correct area and vertices.
+                    triPs = polyshape(vy, vz, 'Simplify', false);
+                    inter = intersect(ps, triPs);
+                    a = area(inter);
+                    if a <= areaTol || ~isfinite(a)
+                        continue;
+                    end
+                    f.area = a;
+
+                    [py, pz] = boundary(inter);
+                    valid = isfinite(py) & isfinite(pz);
+                    py = py(valid);
+                    pz = pz(valid);
+                    if numel(py) < 3
+                        continue;
+                    end
+
+                    % Kept for compatibility with old rectangular mesh fields.
+                    f.hw = NaN;
+                    f.hh = NaN;
+
+                    f.matTag = matTag;
+                    f.partName = partName;
+
+                    % Mesh visualization fields (clipped polygon vertices).
+                    f.verticesY = py(:).';
+                    f.verticesZ = pz(:).';
+                    f.shapeType = 'triangle';
+
+                    fibers(end+1) = f; %#ok<AGROW>
                 end
-
-                f.y = cy;
-                f.z = cz;
-
-                % For triangles that straddle a hole boundary, the PDE mesh
-                % triangle may extend into the hole.  Clip it with the original
-                % polyshape to get the correct area and vertices.
-                triPs = polyshape(vy, vz, 'Simplify', false);
-                inter = intersect(ps, triPs);
-                a = area(inter);
-                if a <= areaTol || ~isfinite(a)
-                    continue;
-                end
-                f.area = a;
-
-                [py, pz] = boundary(inter);
-                valid = isfinite(py) & isfinite(pz);
-                py = py(valid);
-                pz = pz(valid);
-                if numel(py) < 3
-                    continue;
-                end
-
-                % Kept for compatibility with old rectangular mesh fields.
-                f.hw = NaN;
-                f.hh = NaN;
-
-                f.matTag = matTag;
-                f.partName = partName;
-
-                % Mesh visualization fields (clipped polygon vertices).
-                f.verticesY = py(:).';
-                f.verticesZ = pz(:).';
-                f.shapeType = 'triangle';
-
-                fibers(end+1) = f; %#ok<AGROW>
             end
         end
 
