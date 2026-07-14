@@ -1597,20 +1597,29 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % systemType : str
-            %   The system type. One of {'BandGen', 'BandSPD', 'Diagonal', 'ProfileSPD', 'SuperLU', 'UmfPack', 'FullGeneral', 'SparseSYM'}
+            %   The native OpenSees system types, or a locally supplied
+            %   extension system such as 'MKLPardiso'.
             % systemArgs : varargin
             %   Additional arguments for the system.
             arguments
                 obj
                 systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
                  "ProfileSPD", "ParallelProfileSPD", "PFEM", "SparseGeneral", "SuperLU", "SparseGEN", ...
-                 "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack"])}
+                 "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack", ...
+                 "MKLPardiso", "MKLPardisoGeneral", ...
+                 "MKLPardisoSymIndef", "MKLPardisoSPD"])}
             end
             arguments (Repeating)
                 systemArgs
             end
 
-            [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
+            extensionSystems = ["MKLPardiso", "MKLPardisoGeneral", ...
+                "MKLPardisoSymIndef", "MKLPardisoSPD"];
+            if any(strcmp(string(systemType), extensionSystems))
+                [varargout{1:nargout}] = obj.mexHandle('extensionSystem', systemType, systemArgs{:});
+            else
+                [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
+            end
         end
 
         function varargout = test(obj, testType, testArgs)
