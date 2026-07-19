@@ -1,6 +1,8 @@
 
 # OpenSees Command Interface
 
+This page describes how OpenSees commands are called from MATLAB. If this is your first time using the toolbox, read [OpenSeesMatlab at a glance](overview.md) and complete [Your first analysis](quickstart.md) first.
+
 ## Overview
 
 Almost all OpenSees commands are encapsulated in the `.opensees` module.
@@ -8,8 +10,8 @@ All commands use the same input format as ``OpenSees`` and ``OpenSeesPy``.
 For example:
 
 ```matlab
-opsMat = OpenSeesMatlab();  % Get Instance
-ops = opsmat.opensees;  % Get the OpenSees command interface
+opsMat = OpenSeesMatlab();  % Get instance
+ops = opsMat.opensees;      % Get the OpenSees command interface
 
 ops.wipe();
 ops.model('basic', '-ndm', 2, '-ndf', 3);
@@ -58,7 +60,7 @@ For details, please refer to their official documentation, You can call it in th
 
 ## Example
 
-The following is an example of <span style="color:rgb(213,80,0)">**Nolinear Truss Pushover Analysis**</span>:
+The following is an example of <span style="color:var(--md-primary-fg-color)">**Nolinear Truss Pushover Analysis**</span>:
 
 First, instantiate the OpenSeesMatlab interface class. This class provides native OpenSees commands, as well as additional visualization, pre/post\-processing, and utility methods.
 

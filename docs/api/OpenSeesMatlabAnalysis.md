@@ -1,7 +1,7 @@
 ::: analysis.OpenSeesMatlabAnalysis
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 2
       separate_signature: true
@@ -20,7 +20,7 @@
 ::: analysis.SmartAnalyze
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 2
       separate_signature: true
@@ -45,7 +45,7 @@
 ::: analysis.MomentCurvature
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 2
       separate_signature: true

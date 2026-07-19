@@ -144,6 +144,256 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             [varargout{1:nargout}] = obj.mexHandle('node', nodeTag, varargin{:});
         end
 
+        function varargout = matlabSubstructure(obj, eleTag, callback, initialState, initialStiffness, interfacePairs, varargin)
+            % Create a MATLAB-backed OpenSees substructure Element. This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
+            %
+            % Syntax
+            % ------
+            %     ops.matlabSubstructure(eleTag, callback, initialState, ...
+            %         K0, interfacePairs)
+            %     ops.matlabSubstructure(eleTag, callback, initialState, ...
+            %         K0, interfacePairs, "tangentMode", "initial")
+            %
+            % The five inputs through interfacePairs are required positional
+            % arguments. Optional settings use name-value pairs. Option names
+            % are case-insensitive but must be complete. The former trailing
+            % positional tangent mode remains accepted for compatibility.
+            %
+            % This command performs callback registration and Element creation
+            % in one operation. The OpenSees model and all interface nodes must
+            % already exist.
+            %
+            % Parameters
+            % ----------
+            % eleTag : positive integer scalar
+            %     OpenSees Element tag and MATLAB callback registry tag.
+            % callback : function_handle (required positional)
+            %     MATLAB function with signature:
+            %       [response, trialState, status] = callback(action, trial, committedState)
+            % initialState : any MATLAB value (required positional)
+            %     Initial callback state. Each trial evaluation starts from the
+            %     last state committed by OpenSees.
+            % initialStiffness : real double N-by-N matrix (required positional)
+            %     Initial interface stiffness K0. It remains separate from the
+            %     current tangent returned by the callback.
+            % interfacePairs : real numeric N-by-2 matrix (required positional)
+            %     Boundary freedom definition. Every row is [nodeTag, DOF], with
+            %     a one-based OpenSees DOF. Row order defines the order of
+            %     trial.disp, trial.vel, trial.accel, response.force, and the
+            %     rows/columns of response.tangent. N must equal size(K0,1).
+            % "tangentMode" : "matlab" | "initial", optional
+            %     "matlab" (default) returns the callback's current tangent from
+            %     getTangentStiff(). "initial" returns the fixed Element initial
+            %     stiffness: response.initialStiffness from init, or K0 if that
+            %     field was omitted. getInitialStiff() is independent of this
+            %     mode. An OpenSees algorithm that explicitly requests initial
+            %     stiffness therefore still gets it in "matlab" mode. The mode
+            %     changes only this Element's stiffness contribution; it does
+            %     not select/restrict the algorithm or integrator, or change
+            %     force, mass, damping, time integration, or state management.
+            %
+            % Callback data ownership
+            % -----------------------
+            % action is a lifecycle request owned by C++.
+            % trial is read-only OpenSees kinematics/context.
+            % committedState is the previously committed trialState, so both
+            % have the same MATLAB type and user-defined fields. MATLAB defines
+            % every field; C++ only stores, passes, commits, and restores the
+            % value without adding fields or interpreting its contents.
+            % response is the current Element response returned to OpenSees.
+            % trialState is candidate MATLAB history, accepted only on commit.
+            % status is scalar: zero is success, nonzero is failure/unsupported.
+            %
+            % trial fields (N is the interface row count)
+            % ------------------------------------------------
+            % disp, vel, accel       : N-by-1 current trial kinematics
+            % committedDisp          : N-by-1 last committed displacement;
+            %                          empty during init
+            % committedForce         : N-by-1 last committed internal force;
+            %                          empty during init, excludes C*v and M*a
+            % time                   : current OpenSees Domain time
+            % dt                     : time - previousCommittedTime
+            % previousCommittedTime  : time at last successful Element commit
+            % loadFactor             : factor of the only load pattern; empty
+            %                          when zero or multiple patterns exist
+            % elementTag             : this Element tag
+            % action                 : copy of the first callback argument
+            % isInitial              : true for init/reverttostart
+            % isNewTime              : time differs from committed time; this
+            %                          does not mean the trial will commit
+            % activeDofCount         : N
+            % interfacePairs         : N-by-2 [nodeTag, oneBasedDOF]
+            % callId                 : trial evaluation counter
+            % committedRevision      : successful Element commit count
+            %
+            % committedState does not automatically contain OpenSees force,
+            % displacement, or load factor. Put MATLAB model history (plastic
+            % variables, damage, internal DOFs, caches) in committedState and
+            % read authoritative OpenSees quantities from trial. Optional trial
+            % context fields always exist; check possibly empty values with
+            % isempty. For a transient pattern, loadFactor is its current value,
+            % not necessarily a static multiplier.
+            %
+            % Callback response fields
+            % ------------------------
+            % response.force   : N-by-1 real double interface resisting force
+            % response.tangent : N-by-N real double current tangent
+            % response.mass    : optional N-by-N mass matrix
+            % response.damping : optional N-by-N damping matrix
+            % response.initialStiffness : optional N-by-N initial stiffness
+            % response.initialMass      : optional N-by-N initial mass
+            % response.initialDamping   : optional N-by-N initial damping
+            % status           : numeric scalar; zero means success
+            % trialState       : any MATLAB value containing candidate history;
+            %                    after commit it becomes committedState
+            %
+            % Action-specific state lifecycle
+            % -------------------------------
+            % init          : third input is initialState; returned trialState
+            %                 becomes the initial committed MATLAB snapshot
+            % trial         : third input is the last committed MATLAB snapshot;
+            %                 returned trialState remains a candidate
+            % commit        : third input is the accepted trial candidate;
+            %                 returned state may finalize it before commit
+            % revert        : third input is the committed MATLAB snapshot;
+            %                 returned state is ignored and C++ restores locally
+            % reverttostart : third input is initialState; returned state ignored
+            % shutdown      : third input is the last stored committed state;
+            %                 returned state ignored, trial may be empty
+            %
+            % For actions other than init/trial, response is unused and may be
+            % struct(). Callbacks implementing only init/trial remain supported.
+            %
+            % OpenSees assembles the total resisting force as
+            % response.force + response.damping*trial.vel +
+            % response.mass*trial.accel. Do not include the same C*v or M*a
+            % terms in response.force. UniformExcitation uses the standard
+            % -M*R*groundAcceleration Element load. Assigned Rayleigh damping
+            % is added to response.damping by the Element, so the callback
+            % must not duplicate that contribution.
+            %
+            % Each trial evaluation starts from committedState; return
+            % only a candidate trialState and let OpenSees commit it. A single
+            % analysis step can issue several trial calls at the same time;
+            % never advance persistent/global history on each call.
+            %
+            % For static stiffness-only behavior, omit mass and damping. For
+            % transient behavior, return them only if they belong to this
+            % substructure; do not duplicate the same mass on OpenSees nodes.
+            % Missing trial mass/damping means zero for that trial. K0 is the
+            % fallback initial stiffness, not necessarily the current tangent.
+            % response.tangent should be consistent with response.force for
+            % reliable Newton convergence.
+            %
+            % One-node pile-soil example
+            % --------------------------
+            %     K0 = eye(6);
+            %     state0 = createPileSoilState();
+            %     interface = [100 1; 100 2; 100 3; 100 4; 100 5; 100 6];
+            %     ops.matlabSubstructure(5001, ...
+            %         @pileSoilModel, state0, K0, interface);
+            %
+            % If MATLAB contains the pile, soil, and fixed far-field reference,
+            % no second fixed OpenSees node is required. If the callback models
+            % only a relative two-ended relation, include both end nodes in
+            % interfacePairs and constrain the reference node when appropriate.
+            %
+            % Notes
+            % -----
+            %   * This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
+            %   * Create the model and every interface node before this command.The callback represents an already-condensed boundary model; the command does not automatically condense a MATLAB FE model.
+            %   * Ground reference, mass, damping, and earthquake excitation must not be represented twice between MATLAB and OpenSees.
+            %   * The callback must not call the same OpenSees MATLAB MEX recursively.
+            %   * The Element is local-MEX-only and is not thread-safe.
+
+            arguments
+                obj
+                eleTag (1,1) double {mustBeInteger, mustBePositive}
+                callback (1,1) function_handle
+                initialState
+                initialStiffness (:,:) double {mustBeReal, mustBeNonempty}
+                interfacePairs (:,2) double {mustBeReal, mustBeNonempty, mustBeFinite, mustBeInteger, mustBePositive}
+            end
+
+            arguments (Repeating)
+                varargin
+            end
+
+            % Preserve the former trailing positional tangent mode.
+            if isscalar(varargin)
+                varargin = {"tangentMode", varargin{1}};
+            end
+
+            parser = inputParser;
+            parser.FunctionName = 'ops.matlabSubstructure';
+            parser.CaseSensitive = false;
+            parser.PartialMatching = false;
+            addParameter(parser, 'tangentMode', "matlab", ...
+                @(x) (ischar(x) || (isstring(x) && isscalar(x))) && ...
+                    any(strcmpi(string(x), ["matlab","initial"])));
+            parse(parser, varargin{:});
+
+            tangentMode = lower(string(parser.Results.tangentMode));
+
+            nInterface = size(interfacePairs, 1);
+            if size(initialStiffness, 1) ~= size(initialStiffness, 2)
+                error('OpenSeesMatlab:InvalidInitialStiffness', ...
+                    'initialStiffness must be a square matrix.');
+            end
+            if size(initialStiffness, 1) ~= nInterface
+                error('OpenSeesMatlab:InterfaceSizeMismatch', ...
+                    ['size(initialStiffness,1) must equal the number of ', ...
+                     'rows in interfacePairs.']);
+            end
+            if size(unique(interfacePairs, 'rows'), 1) ~= nInterface
+                error('OpenSeesMatlab:DuplicateInterfaceDOF', ...
+                    'interfacePairs cannot contain duplicate [nodeTag, DOF] rows.');
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle('matlabSubstructure', ...
+                eleTag, callback, initialState, initialStiffness, interfacePairs, ...
+                'tangentMode', tangentMode);
+        end
+
+        function tf = hasMatlabSubstructure(obj, eleTag)
+            % Check whether a MATLAB substructure callback tag is registered.
+            %
+            % Notes
+            % -----
+            % This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
+            arguments
+                obj
+                eleTag (1,1) double {mustBeInteger, mustBePositive}
+            end
+            tf = obj.mexHandle('hasMatlabSubstructure', eleTag);
+        end
+
+        function varargout = unregisterMatlabSubstructure(obj, eleTag)
+            % Remove one MATLAB substructure callback registry record.
+            % Call ops.wipe() first if the associated Element is still active.
+            %
+            % Notes
+            % -----
+            % This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
+            arguments
+                obj
+                eleTag (1,1) double {mustBeInteger, mustBePositive}
+            end
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'unregisterMatlabSubstructure', eleTag);
+        end
+
+        function varargout = clearMatlabSubstructures(obj)
+            % Remove every MATLAB substructure callback registry record.
+            % This does not wipe the OpenSees Domain; normally call ops.wipe()
+            % before clearing records used by active Elements.
+            %
+            % Notes
+            % -----
+            % This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
+            [varargout{1:nargout}] = obj.mexHandle('clearMatlabSubstructures');
+        end
+
         function varargout = element(obj, eleType, eleTag, varargin)
             % Define an OpenSees element.
             % Every element has its own type, tag, nodes, and arguments.
@@ -1119,6 +1369,15 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
         function varargout = uniaxialMaterial(obj, matType, matTag, matArgs)
             % This command is used to construct a UniaxialMaterial object which represents uniaxial stress-strain (or force-deformation) relationships.
             %
+            % MATLAB extension syntax
+            % -----------------------
+            %   ops.uniaxialMaterial("MatlabUniaxialMaterial", matTag, ...
+            %       callback, initialState, initialTangent)
+            %
+            % MatlabUniaxialMaterial is routed internally to the MEX
+            % extensionMaterial dispatcher. Native OpenSees material types
+            % continue to use the upstream uniaxialMaterial command.
+            %
             % See also
             % ---------
             %   - [uniaxialMaterial commands (Python)](https://openseespydoc.readthedocs.io/en/latest/src/uniaxialMaterial.html)
@@ -1143,7 +1402,17 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
                 matArgs
             end
 
-            [varargout{1:nargout}] = obj.mexHandle('uniaxialMaterial', matType, matTag, matArgs{:});
+            if strcmpi(string(matType), "MatlabUniaxialMaterial")
+                % MATLAB-aware materials need direct MATLAB arrays/function
+                % handles, so the wrapper routes them to the internal MEX
+                % extension dispatcher while preserving the standard public
+                % uniaxialMaterial API.
+                [varargout{1:nargout}] = obj.mexHandle( ...
+                    'extensionMaterial', matType, matTag, matArgs{:});
+            else
+                [varargout{1:nargout}] = obj.mexHandle( ...
+                    'uniaxialMaterial', matType, matTag, matArgs{:});
+            end
         end
 
         function varargout = nDMaterial(obj, matType, matTag, matArgs)
@@ -1347,20 +1616,25 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % systemType : str
-            %   The system type. One of {'BandGen', 'BandSPD', 'Diagonal', 'ProfileSPD', 'SuperLU', 'UmfPack', 'FullGeneral', 'SparseSYM'}
+            %   The system type. CuDSS variants use the optional GPU extension.
             % systemArgs : varargin
             %   Additional arguments for the system.
             arguments
                 obj
                 systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
                  "ProfileSPD", "ParallelProfileSPD", "PFEM", "SparseGeneral", "SuperLU", "SparseGEN", ...
-                 "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack"])}
+                 "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack", ...
+                 "CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"])}
             end
             arguments (Repeating)
                 systemArgs
             end
 
-            [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
+            if any(strcmp(string(systemType), ["CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"]))
+                [varargout{1:nargout}] = obj.mexHandle('extensionSystem', systemType, systemArgs{:});
+            else
+                [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
+            end
         end
 
         function varargout = test(obj, testType, testArgs)
@@ -2170,7 +2444,7 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % eleTag : numeric scalar
-            %   The tag of the element.
+            %     The tag of the element.
             %
             % Returns
             % -------
@@ -2383,9 +2657,9 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % eleTag : numeric scalar
             %   The tag of the element.
             % secNum : numeric scalar
-            %   The section number, 1-based.
+            %     The section number, 1-based.
             % dof : numeric scalar, optional
-            %   The degree of freedom, 1-based.
+            %     The degree of freedom, 1-based.
             %
             % Returns
             % -------
@@ -2419,7 +2693,7 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Returns
             % -------
             % result : numeric scalar | numeric vector
-            %   The section deformation, if dof is not specified, scalar; otherwise, numeric vector.
+            %     The section deformation, if dof is not specified, scalar; otherwise, numeric vector.
             arguments
                 obj
                 eleTag (1,1) {mustBeNumeric}
@@ -2439,14 +2713,14 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % eleTag : numeric scalar
-            %   The tag of the element.
+            %     The tag of the element.
             % secNum : numeric scalar
-            %   The section number, 1-based.
+            %     The section number, 1-based.
             %
             % Returns
             % -------
             % result : numeric vector
-            %   The section stiffness matrix, flattened in row order.
+            %     The section stiffness matrix, flattened in row order.
             arguments
                 obj
                 eleTag (1,1) {mustBeNumeric}
@@ -2461,14 +2735,14 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % eleTag : numeric scalar
-            %   The tag of the element.
+            %     The tag of the element.
             % secNum : numeric scalar
-            %   The section number, 1-based.
+            %     The section number, 1-based.
             %
             % Returns
             % -------
             % result : numeric vector
-            %   The section flexibility matrix, flattened in row order.
+            %     The section flexibility matrix, flattened in row order.
             arguments
                 obj
                 eleTag (1,1) {mustBeNumeric}
@@ -2483,14 +2757,14 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % eleTag : numeric scalar
-            %   The tag of the element.
+            %     The tag of the element.
             % secNum : numeric scalar, optional
-            %   The section number, 1-based. If not provided, returns the location of all sections.
+            %     The section number, 1-based. If not provided, returns the location of all sections.
             %
             % Returns
             % -------
             % result : numeric vector | numeric scalar
-            %   The section location, flattened in row order. If secNum is not provided, returns the location of all sections.
+            %     The section location, flattened in row order. If secNum is not provided, returns the location of all sections.
             arguments
                 obj
                 eleTag (1,1) {mustBeNumeric}
@@ -2509,14 +2783,14 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % eleTag : numeric scalar
-            %   The tag of the element.
+            %     The tag of the element.
             % secNum : numeric scalar, optional
-            %   The section number, 1-based. If not provided, returns the weight of all sections.
+            %     The section number, 1-based. If not provided, returns the weight of all sections.
             %
             % Returns
             % -------
             % result : numeric scalar | numeric vector
-            %   The section weight. If secNum is not provided, returns the weight of all sections.
+            %     The section weight. If secNum is not provided, returns the weight of all sections.
             arguments
                 obj
                 eleTag (1,1) {mustBeNumeric}

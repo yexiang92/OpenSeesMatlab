@@ -3,9 +3,11 @@
 [![Documentation Status](https://readthedocs.org/projects/OpenSeesMatlab/badge/?version=latest)](https://openseesmatlab.readthedocs.io/en/latest/)
 [![MATLAB Tests](https://github.com/yexiang92/OpenSeesMatlab/actions/workflows/matlab-tests.yml/badge.svg)](https://github.com/yexiang92/OpenSeesMatlab/actions/workflows/matlab-tests.yml)
 [![GitHub stars](https://img.shields.io/github/stars/yexiang92/OpenSeesMatlab?style=social)](https://github.com/yexiang92/OpenSeesMatlab)
-<!-- [![GitHub License](https://img.shields.io/github/license/yexiang92/OpenSeesMatlab?style=flat)](https://img.shields.io/github/license/yexiang92/OpenSeesMatlab?style=flat) -->
 
-OpenSeesMatlab is a MATLAB-based platform for structural analysis and simulation. It aims to provide powerful modeling, analysis, post-processing, and visualization tools for research and engineering applications in structural, earthquake, and geotechnical engineering.
+OpenSeesMatlab wraps the [OpenSees engine](https://github.com/OpenSees/OpenSees) in a native MATLAB interface for
+structural analysis and simulation. It provides integrated modeling, analysis,
+post-processing, and visualization tools for research and engineering
+applications in structural, earthquake, and geotechnical engineering.
 
 ![Demo screenshot](docs/static/images/demo-readme.png)
 
@@ -32,14 +34,20 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
    installOpenSeesMatlab
    ```
 
-After installation, explore and run example models in the `examples/` directory (You need to use it as your working directory):
+After installation, explore and run example models in the `examples/` directory
+(use it as the MATLAB working directory):
 
-- Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
-  - `examples/earthquake_frame3D_transient.mlx`
-  - `examples/structural_nonlinear_truss.mlx`
-  - `examples/geotechnical_PM4Sand.mlx`
-  - `examples/post_2d_Portal_Frame.mlx`
+- Open any `.m` file in `examples/` with MATLAB Live Editor, e.g.:
+  - `examples/earthquake_NLSMRF.m`
+  - `examples/earthquake_Two_Story_Steel_MRF.m`
+  - `examples/earthquake_frame3D_transient.m`
+  - `examples/structural_nonlinear_truss.m`
+  - `examples/geotechnical_PM4Sand.m`
+  - `examples/post_2d_Portal_Frame.m`
 - Click "Run" in MATLAB to execute and interact with the example.
+
+The generated scripts and illustrated walkthroughs are also available in the
+[online examples](https://openseesmatlab.readthedocs.io/en/latest/examples/).
 
 ## Quick Start
 
@@ -70,6 +78,19 @@ opsMat.post.getModelData();  % Collect model data
 opsMat.vis.plotModel();      % Visualize the model
 ```
 
+## OpenSeesMatlab Extensions
+
+Optional extensions integrate MATLAB-native components and GPU acceleration
+with the standard OpenSees analysis workflow:
+
+- Define linear or history-dependent uniaxial materials with MATLAB callbacks
+- Couple MATLAB numerical substructures to an OpenSees domain
+- Solve supported sparse systems with the NVIDIA cuDSS GPU backend
+
+See the [extension guides](https://openseesmatlab.readthedocs.io/en/latest/getting_started/extensions/)
+for setup instructions and runnable examples. CUDA and cuDSS are optional; CPU
+solvers remain available without them.
+
 ## 🌟 Features
 
 - 🧱 **`.opensees`** — MATLAB interface to OpenSees commands (fully compatible syntax), implemented via MATLAB MEX wrapping of the OpenSees C++ library
@@ -78,6 +99,7 @@ opsMat.vis.plotModel();      % Visualize the model
 - 🎨 **`.vis`** — visualization engine for models, responses, and mode shapes
 - 📈 **`.anlys`** — high-level analysis workflows and utilities
 - 🛠️ **`.utils`** — auxiliary helper functions and common utilities
+- 🧩 **Extensions** — MATLAB-defined materials and numerical substructures, plus an optional NVIDIA cuDSS solver
 
 ## Requirements
 

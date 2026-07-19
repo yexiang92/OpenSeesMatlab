@@ -1,6 +1,13 @@
-# <span style="color:rgb(213,80,0)">**Retrieval Model and Eigenvalue Analysis Data**</span>
+<!-- matlab-script-download -->
+[:material-download: Download MATLAB script](./post_get_model_data.m){ .md-button .md-button--primary }
+
+# <span style="color:var(--md-accent-fg-color)">**Retrieval Model and Eigenvalue Analysis Data**</span>
 
 This live script is written as a guided walkthrough for a post\-processing workflow. It focuses on retrieving, organizing, and visualizing model or response data after an OpenSees analysis. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
+
+```matlab
+clc; clear; close all;
+```
 
 ## Model Data
 
@@ -25,7 +32,7 @@ figure;
 h = opsMAT.vis.plotModel();
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSeesMatlab] Model summary
@@ -43,7 +50,7 @@ modelData = opsMAT.post.getModelData();
 disp(modelData)
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Nodes: [1x1 struct]
@@ -61,18 +68,14 @@ Finally, we can print the information for each field.
 ```matlab
 S = modelData;
 
-
 stack = {{'S', S}};
-
 
 while ~isempty(stack)
     item = stack{end};
     stack(end) = [];
 
-
     name = item{1};
     val  = item{2};
-
 
     if isstruct(val)
         fns = fieldnames(val);
@@ -87,7 +90,7 @@ while ~isempty(stack)
 end
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 S.Nodes.Tags : 384x1
@@ -166,7 +169,7 @@ tag = 1;
 opsMAT.post.saveEigenData(tag, 10, solver='-genBandArpack');
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSees] Using DomainModalProperties - Developed by: Massimo Petracca, Guido Camata, ASDEA Software Technology
@@ -180,7 +183,7 @@ eigenData = opsMAT.post.getEigenData(odbTag=tag);
 disp(eigenData)
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 EigenVectors: [1x1 struct]
@@ -204,18 +207,14 @@ axis off
 ```matlab
 S = eigenData;
 
-
 stack = {{'S', S}};
-
 
 while ~isempty(stack)
     item = stack{end};
     stack(end) = [];
 
-
     name = item{1};
     val  = item{2};
-
 
     if isstruct(val)
         fns = fieldnames(val);
@@ -230,7 +229,7 @@ while ~isempty(stack)
 end
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 S.EigenVectors.data : 10x384x6
@@ -300,7 +299,7 @@ Let's look at the period of each mode.
 S.ModalProps.raw.eigenPeriod
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10
@@ -314,7 +313,7 @@ Let's look at the **cumulative participation mass ratio (%)** in each direction.
 S.ModalProps.raw.partiMassRatiosCumuMX
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10
@@ -326,7 +325,7 @@ ans = 1x10
 S.ModalProps.raw.partiMassRatiosCumuMY
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10
@@ -338,7 +337,7 @@ ans = 1x10
 S.ModalProps.raw.partiMassRatiosCumuMZ
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10
@@ -353,7 +352,7 @@ ans = 1x10
 S.ModalProps.raw.partiMassRatiosCumuRMX
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10
@@ -365,7 +364,7 @@ ans = 1x10
 S.ModalProps.raw.partiMassRatiosCumuRMY
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10
@@ -377,7 +376,7 @@ ans = 1x10
 S.ModalProps.raw.partiMassRatiosCumuRMZ
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ans = 1x10

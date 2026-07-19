@@ -655,5 +655,15 @@ classdef (Abstract) OpenSeesMatlabBase < handle
         function result = updateMaterials(obj, varargin), result = obj.mexHandle('UpdateMaterials', varargin{:}); end
 
         function result = matlabversion(obj, varargin), result = obj.mexHandle('matlabversion', varargin{:}); end
+
+        function varargout = matlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('matlabSubstructure', varargin{:}); end
+
+        function varargout = registerMatlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('registerMatlabSubstructure', varargin{:}); end
+
+        function result = hasMatlabSubstructure(obj, varargin), result = obj.mexHandle('hasMatlabSubstructure', varargin{:}); end
+
+        function varargout = unregisterMatlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('unregisterMatlabSubstructure', varargin{:}); end
+
+        function varargout = clearMatlabSubstructures(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('clearMatlabSubstructures', varargin{:}); end
     end
 end

@@ -219,19 +219,19 @@ classdef OpenSeesMatlabPre < handle
         % Parameters
         % ----------
         % matrixType : char or string
-        %   Matrix type: 'm', 'c', 'k', or 'ki'.
+        %     Matrix type: 'm', 'c', 'k', or 'ki'.
         %
         % constraintsArgs : char, string, or cell array, optional
-        %   Arguments passed to the OpenSees constraints command.
-        %   Default: {'Penalty', 1e12, 1e12}.
+        %     Arguments passed to the OpenSees constraints command.
+        %     Default: {'Penalty', 1e12, 1e12}.
         %
         % systemArgs : char, string, or cell array, optional
-        %   Arguments passed to the OpenSees system command.
-        %   Default: {'FullGeneral'}.
+        %     Arguments passed to the OpenSees system command.
+        %     Default: {'FullGeneral'}.
         %
         % numbererArgs : char, string, or cell array, optional
-        %   Arguments passed to the OpenSees numberer command.
-        %   Default: {'Plain'}.
+        %     Arguments passed to the OpenSees numberer command.
+        %     Default: {'Plain'}.
 
             arguments
                 obj (1,1) pre.OpenSeesMatlabPre

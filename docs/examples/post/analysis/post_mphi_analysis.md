@@ -1,4 +1,7 @@
-# <span style="color:rgb(213,80,0)">**Moment\-Curvature Analysis of a Reinforced Concrete Column Section**</span>
+<!-- matlab-script-download -->
+[:material-download: Download MATLAB script](./post_mphi_analysis.m){ .md-button .md-button--primary }
+
+# <span style="color:var(--md-accent-fg-color)">**Moment\-Curvature Analysis of a Reinforced Concrete Column Section**</span>
 
 This live script is written as a guided walkthrough for a post\-processing workflow. It focuses on retrieving, organizing, and visualizing model or response data after an OpenSees analysis. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
 
@@ -15,14 +18,13 @@ Axial load cases  : 0, \-500, \-1000, \-2000 kN (compression negative)
 ```matlab
 clear; clc; close all;
 
-
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 opsMC = opsMAT.anlys.MomentCurvature;  % Get MomentCurvature instance
 disp(opsMC);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 MomentCurvature with properties:
@@ -54,21 +56,21 @@ This section defines the material or section properties. These choices control s
 b     = 0.400;   % section width  [m]
 h     = 0.600;   % section height [m]
 cover = 0.040;   % clear cover to stirrup face [m]
- 
+
 % Clear distances from centroid to bar layers
 d_top = h/2 - cover;   % distance from centroid to top/bottom bar row
 d_mid = 0.0;            % distance from centroid to mid-height bar row
- 
+
 % Longitudinal reinforcement
 %   Layout  : 3 bars top, 4 bars middle (2 per side), 3 bars bottom
 %   Bar dia : D25  (diameter = 25 mm)
 db  = 0.025;                 % bar diameter [m]
 As1 = pi * db^2 / 4;        % single bar area [m^2]
- 
+
 nTop = 3;   % bars in top row
 nBot = 3;   % bars in bottom row
 nMid = 4;   % bars in middle rows (2 per side face)
- 
+
 % Total steel area and reinforcement ratio
 As_total = (nTop + nBot + nMid) * As1;
 rho_l    = As_total / (b * h);
@@ -89,7 +91,7 @@ nFibZ_side  = 2;    % fibres in side cover strips
 matConc  = 1;   % confined concrete    (Concrete01 / Mander)
 matCover = 2;   % unconfined concrete  (Concrete01)
 matSteel = 3;   % reinforcing steel    (Steel02 / Menegotto-Pinto)
- 
+
 % --- Confined concrete (Mander model parameters) ---
 %   Stirrup: D10 @ 100 mm spacing, 4-leg in both directions
 %   (Parameters computed externally from Mander et al. 1988)
@@ -97,29 +99,28 @@ fpc_c  = -35.0e6;   % confined peak stress  [Pa]  (negative = compression)
 epsc0  = -0.003;   % strain at peak stress
 fpcu_c = -28.0e6;   % residual stress  (0.80 * fpc_c)
 epscu  = -0.0160;   % ultimate confined strain (Mander formula)
- 
+
 ops.uniaxialMaterial('Concrete02', matConc, fpc_c, epsc0, fpcu_c, epscu);
- 
+
 % --- Unconfined (cover) concrete ---
 fpc_u  = -30.0e6;   % cylinder strength  [Pa]
 epsc0u = -0.0020;   % strain at peak (plain concrete)
 fpcu_u =  -5.0;      % spalls at ultimate (brittle)
 epscuu = -0.0040;   % ultimate strain of cover
- 
+
 ops.uniaxialMaterial('Concrete02', matCover, fpc_u, epsc0u, fpcu_u, epscuu);
- 
+
 % --- Reinforcing steel (Menegotto-Pinto / Steel02) ---
 Fy  = 400.0e6;   % yield strength     [Pa]
 Es  = 200.0e9;   % elastic modulus    [Pa]
 b_s = 0.01;     % strain-hardening ratio (post-yield slope / Es)
 %   Recommended Menegotto-Pinto constants (Filippou et al. 1983):
 R0  = 18;  cR1 = 0.925;  cR2 = 0.15;
- 
+
 ops.uniaxialMaterial('Steel02', matSteel+10, Fy, Es, b_s, R0, cR1, cR2);
 ops.uniaxialMaterial('MinMax', matSteel, matSteel+10, '-min', -0.15, '-max', 0.15);
- 
-eps_y = Fy / Es;   % yield strain (used later for yield-point search)
 
+eps_y = Fy / Es;   % yield strain (used later for yield-point search)
 
 % ======================================================================
 %  3.  Fiber section  (secTag = 1, bending about local y-axis)
@@ -148,44 +149,43 @@ eps_y = Fy / Es;   % yield strain (used later for yield-point search)
 %
 secTag = 1;
 
-
 opsMAT.pre.setSectionGeometryRecorder(true);
 ops.section('Fiber', secTag, "-GJ", 1E12);
- 
+
 % Core concrete patch (confined)
 ops.patch('rect', matConc, nFibY_core, nFibZ_core, ...
     -(h/2 - cover), -(b/2 - cover), ...   % z_min, y_min
      (h/2 - cover),  (b/2 - cover));      % z_max, y_max
- 
+
 % Cover patches (unconfined) - top strip
 ops.patch('rect', matCover, nFibY_cover, nFibZ_cover, ...
      (h/2 - cover), -b/2, h/2, b/2);
- 
+
 % Cover patches - bottom strip
 ops.patch('rect', matCover, nFibY_cover, nFibZ_cover, ...
     -h/2, -b/2, -(h/2 - cover), b/2);
- 
+
 % Cover patches - left side strip
 ops.patch('rect', matCover, nFibY_side, nFibZ_side, ...
     -(h/2 - cover), -b/2, (h/2 - cover), -(b/2 - cover));
- 
+
 % Cover patches - right side strip
 ops.patch('rect', matCover, nFibY_side, nFibZ_side, ...
     -(h/2 - cover), (b/2 - cover), (h/2 - cover), b/2);
- 
+
 % Reinforcement layers (layer 'straight': matTag, nBars, As, z1,y1, z2,y2)
 %   Top row    (z = +d_top)
 ops.layer('straight', matSteel, nTop, As1, ...
      d_top, -(b/2 - cover), d_top, (b/2 - cover));
- 
+
 %   Bottom row (z = -d_top)
 ops.layer('straight', matSteel, nBot, As1, ...
     -d_top, -(b/2 - cover), -d_top, (b/2 - cover));
- 
+
 %   Middle rows on left face
 ops.layer('straight', matSteel, 2, As1, ...
     -(h/4 - cover/2), -(b/2 - cover), (h/4 - cover/2), -(b/2 - cover));
- 
+
 %   Middle rows on right face
 ops.layer('straight', matSteel, 2, As1, ...
     -(h/4 - cover/2), (b/2 - cover), (h/4 - cover/2), (b/2 - cover));
@@ -206,12 +206,12 @@ This section applies the actions on the model. The load pattern and scaling dete
 N_cases  = [0, -500e3, -1000e3, -2000e3];   % [N]
 N_labels = {'N = 0', 'N = -500 kN', 'N = -1000 kN', 'N = -2000 kN'};
 colors   = {'#1f77b4','#ff7f0e','#2ca02c','#d62728'};
- 
+
 maxPhi  = 0.15;   % maximum curvature to push to  [1/m]
 incrPhi = 5e-4;   % base curvature increment       [1/m]
- 
+
 mc_list = cell(numel(N_cases), 1);
- 
+
 % fprintf('\n--- Monotonic analysis ---\n');
 for k = 1:numel(N_cases)
     fprintf('  Case %d: %s\n', k, N_labels{k});
@@ -225,7 +225,7 @@ for k = 1:numel(N_cases)
 end
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Case 1: N = 0
@@ -264,7 +264,7 @@ Yield and ultimate curvature for each case:
 fprintf('\n--- Limit-state identification ---\n');
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 --- Limit-state identification ---
@@ -276,7 +276,7 @@ fprintf('%-18s  %-10s %-12s  %-10s %-12s  %-8s\n', ...
     'Case', 'phi_y[1/m]', 'My[kN.m]', 'phi_u[1/m]', 'Mu[kN.m]', 'mu_phi');
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Case                phi_y[1/m] My[kN.m]      phi_u[1/m] Mu[kN.m]      mu_phi
@@ -284,24 +284,23 @@ Case                phi_y[1/m] My[kN.m]      phi_u[1/m] Mu[kN.m]      mu_phi
 </div>
 
 ```matlab
- 
+
 results = struct();
 for k = 1:numel(N_cases)
     mc = mc_list{k};
- 
+
     % --- Yield point: first yielding of tension steel (matTag=3, eps = +eps_y) ---
     [phi_y, M_y] = mc.getLimitState('matTag', matSteel, 'threshold', eps_y);
- 
+
     % --- Ultimate point: cover concrete crushing (matTag=2, eps = epscuu) ---
     [phi_u1, M_u1] = mc.getLimitState('matTag', matCover, 'threshold', epscuu);
 
-
     % --- Ultimate point: confined concrete crushing (matTag=3, eps = epscu) ---
     [phi_u2, M_u2] = mc.getLimitState('matTag', matConc, 'threshold', epscu);
- 
+
     % --- Ultimate point: 20 % post-peak drop ---
     [phi_u3, M_u3] = mc.getLimitState('peakDrop', 0.20);
- 
+
     % Take the more critical (smaller) ultimate curvature
     if phi_u2 < phi_u3
         phi_u = phi_u2; M_u = M_u2;
@@ -310,9 +309,9 @@ for k = 1:numel(N_cases)
         phi_u = phi_u3; M_u = M_u3;
         ult_ctrl = 'peak-drop';
     end
- 
+
     mu_phi = phi_u / phi_y;   % curvature ductility
- 
+
     results(k).N     = N_cases(k);
     results(k).phi_y = phi_y;
     results(k).M_y   = M_y;
@@ -320,13 +319,13 @@ for k = 1:numel(N_cases)
     results(k).M_u   = M_u;
     results(k).mu    = mu_phi;
     results(k).ctrl  = ult_ctrl;
- 
+
     fprintf('%-18s  %10.4f %12.1f  %10.4f %12.1f  %8.2f  [%s]\n', ...
         N_labels{k}, phi_y, M_y/1e3, phi_u, M_u/1e3, mu_phi, ult_ctrl);
 end
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Warning: matTag 1 strain -0.016 not reached; last step used.
@@ -344,7 +343,7 @@ N = -2000 kN            0.0125        543.1      0.1215        470.6      9.72  
 </div>
 
 ```matlab
- 
+
 % Mark yield and ultimate on the M-phi plot
 hold(ax1, 'on');
 for k = 1:numel(N_cases)
@@ -375,7 +374,7 @@ for k = 1:numel(N_cases)
     mc = mc_list{k};
     r  = results(k);
     ax_k = subplot(numel(N_cases), 1, k, 'Parent', fig2);
- 
+
     [phi_eq, M_eq] = mc.bilinearize( ...
         r.phi_y, r.M_y, r.phi_u, 'plot', true, 'ax', ax_k);
     results(k).phi_eq = phi_eq;
@@ -383,12 +382,12 @@ for k = 1:numel(N_cases)
     title(ax_k, N_labels{k}, 'FontSize',11);
     ax_k.XLabel.FontSize = 10;
     ax_k.YLabel.FontSize = 10;
- 
+
     fprintf('%-18s  %10.4f %12.1f\n', N_labels{k}, phi_eq, M_eq/1e3);
 end
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 N = 0                   0.0096        347.5
@@ -453,7 +452,7 @@ mc_nmm.buildNMM( ...
     'useParallel',    false);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 buildNMM: capacityMode=strain,  21 levels x 2 = 42 analyses.
@@ -500,11 +499,9 @@ This section configures and runs the analysis. The solver, constraints, converge
 N_cyc  = -1000e3;
 mc_cyc = opsMC.new(secTag, N_cyc);
 
-
 % Target drift: phi_u at N=-1000 kN, 12 amplitude levels, 2 repeats each
 phi_u_ref = results(3).phi_u;   % index 3 = N=-1000 kN case
 mc_cyc.setCyclePath(phi_u_ref, 'nCycle', 12, 'nHold', 2);
-
 
 mc_cyc.analyze( ...
     'axis',           'y',          ...
@@ -515,7 +512,7 @@ mc_cyc.analyze( ...
     'smartAnalyze',   true);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 MomentCurvature: analysis complete.
@@ -524,12 +521,11 @@ MomentCurvature: analysis complete.
 
 ```matlab
 
-
 % Plot cyclic M-phi
 fig4 = figure('Position',[940 540 620 440], 'Color','w');
 ax4  = axes(fig4);
 mc_cyc.plotMPhi(ax4);
-title(ax4, sprintf('Cyclic M-\\phi  (N = %.0f kN)', N_cyc/1e3), 'FontSize',14);
+title(ax4, sprintf('Cyclic M-\phi  (N = %.0f kN)', N_cyc/1e3), 'FontSize',14);
 xlabel(ax4, 'Curvature  \phi  [1/m]', 'FontSize',13);
 ylabel(ax4, 'Moment  M  [N\cdotm]',   'FontSize',13);
 ```

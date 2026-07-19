@@ -84,7 +84,7 @@ classdef PlotEigen < handle
 
             opts.unstructured = struct( ...
                 'show',      true,    ...
-                'showEdges', true,    ...
+                'showEdges', false,   ...
                 'edgeColor', 'black', ...
                 'edgeWidth', 0.8);
 
@@ -162,7 +162,7 @@ classdef PlotEigen < handle
                 ''
                 '-- Unstructured (shell / solid) --------------------------------'
                 '  unstructured.show      logical  Draw shell/solid surfaces (default true).'
-                '  unstructured.showEdges logical  Draw mesh edges on surfaces (default true).'
+                '  unstructured.showEdges logical  Draw mesh edges on surfaces (default false).'
                 '  unstructured.edgeColor color   Mesh edge colour (default black).'
                 '  unstructured.edgeWidth double   Mesh edge line width (default 0.8).'
                 ''

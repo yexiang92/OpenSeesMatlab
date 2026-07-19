@@ -269,10 +269,6 @@ classdef FiberSectionMesh < handle
             % ``build``.  Calling ``mesh`` again discards
             % the previous fiber set and resets ``isComputed``.
             %
-            % Parameters
-            % ----------
-            % None
-            %
             % Returns
             % -------
             % None

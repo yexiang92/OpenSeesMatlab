@@ -4,7 +4,7 @@
 
 My name is [Yexiang Yan (闫业祥)](https://orcid.org/0000-0002-1434-6710), and I am currently a postdoctoral researcher at McGill University, Canada, where I collaborate with [Prof. Yazhou Xie](https://scholar.google.com/citations?user=fVIZH78AAAAJ&hl=en&oi=ao).
 
-My research focuses on structural resilience, seismic performance, and lifecycle risk assessment of civil infrastructure, with an emphasis on integrating computational mechanics and data-driven methods.
+My research focuses on ^^structural resilience, seismic performance, and lifecycle risk assessment of civil infrastructure^^, with an emphasis on integrating computational mechanics and data-driven methods.
 
 I received my Ph.D. in Bridge Engineering from *Tongji University*, and my M.S. and B.S. degrees in Civil Engineering from *Southwest Jiaotong University*.
 
@@ -21,8 +21,11 @@ My work has been published in leading journals such as *Reliability Engineering 
 
 I am also passionate about developing open-source projects related to structural earthquake engineering. You can explore other projects here:
 
-[opstool](https://opstool.readthedocs.io/en/latest/index.html)
+<div class="grid cards" markdown>
 
-[gmspy](https://gmspy.readthedocs.io/en/latest/)
+- :fontawesome-brands-python: [opstool](https://opstool.readthedocs.io/en/latest/index.html)
+- :fontawesome-brands-python: [gmspy](https://gmspy.readthedocs.io/en/latest/)
+
+</div>
 
 <!-- **ORCID:** [https://orcid.org/0000-0002-1434-6710](https://orcid.org/0000-0002-1434-6710) -->

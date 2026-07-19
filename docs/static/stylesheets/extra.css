@@ -3,6 +3,107 @@
 --md-primary-fg-color--dark:  #002f5b;
 } */
 
+/* OpenSeesMatlab visual refinements shared by MkDocs and Zensical. */
+/* Use artwork designed for the active light or dark header. */
+[data-md-color-scheme="default"] .md-logo img {
+  content: url("../logo-light.png");
+  transform: scale(1.18);
+  transform-origin: left center;
+}
+
+[data-md-color-scheme="slate"] .md-logo img {
+  content: url("../logo-dark.png");
+}
+
+.md-header {
+  box-shadow: 0 0.15rem 0.6rem rgba(30, 50, 90, 0.16);
+}
+
+.md-typeset h1 {
+  color: var(--md-accent-fg-color);
+}
+
+/* Number headings in the main document using the same hierarchy shown in
+ * the sidebars. Counters are scoped to each page and do not alter heading
+ * text, anchors, or the generated table of contents. */
+.md-content__inner {
+  counter-reset: content-h2;
+}
+
+.md-content__inner > h1 {
+  counter-reset: content-h2;
+}
+
+.md-content__inner > h2 {
+  counter-increment: content-h2;
+  counter-reset: content-h3;
+}
+
+.md-content__inner > h3 {
+  counter-increment: content-h3;
+  counter-reset: content-h4;
+}
+
+.md-content__inner > h4 {
+  counter-increment: content-h4;
+  counter-reset: content-h5;
+}
+
+.md-content__inner > h5 {
+  counter-increment: content-h5;
+  counter-reset: content-h6;
+}
+
+.md-content__inner > h6 {
+  counter-increment: content-h6;
+}
+
+.md-content__inner > h2::before {
+  content: counter(content-h2) ".\00a0";
+}
+
+.md-content__inner > h3::before {
+  content: counter(content-h2) "." counter(content-h3) "\00a0";
+}
+
+.md-content__inner > h4::before {
+  content: counter(content-h2) "." counter(content-h3) "." counter(content-h4) "\00a0";
+}
+
+.md-content__inner > h5::before {
+  content: counter(content-h2) "." counter(content-h3) "." counter(content-h4) "." counter(content-h5) "\00a0";
+}
+
+.md-content__inner > h6::before {
+  content: counter(content-h2) "." counter(content-h3) "." counter(content-h4) "." counter(content-h5) "." counter(content-h6) "\00a0";
+}
+
+.md-content__inner > :is(h2, h3, h4, h5, h6)::before {
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.md-typeset img {
+  border-radius: 0.45rem;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0.45rem;
+  box-shadow: 0 0.15rem 0.5rem rgba(30, 50, 90, 0.08);
+}
+
+.md-typeset table:not([class]) th {
+  background: color-mix(in srgb, var(--md-accent-fg-color) 9%, transparent);
+  font-weight: 700;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 0.45rem;
+  box-shadow: 0 0.15rem 0.5rem rgba(30, 50, 90, 0.08);
+}
+
 [data-md-color-scheme="matlab"] img[src$="#only-dark"],
 [data-md-color-scheme="matlab"] img[src$="#gh-dark-mode-only"] {
   display: none; /* Hide dark images in light mode */
@@ -34,6 +135,29 @@
 .md-typeset .admonition.code,
 .md-typeset details.code {
     border-color: rgb(131, 128, 243);
+}
+
+/* Number the right-hand table of contents according to its visible hierarchy.
+ * Each nested list starts its own counter, while counters() includes all
+ * parent values (for example 2, 2.1, 2.1.1). */
+.md-nav--secondary > .md-nav__list,
+.md-nav--secondary .md-nav__item > .md-nav > .md-nav__list {
+  counter-reset: secondary-nav-item;
+}
+
+.md-nav--secondary .md-nav__item {
+  counter-increment: secondary-nav-item;
+}
+
+.md-nav--secondary .md-nav__item > .md-nav__link::before {
+  content: counters(secondary-nav-item, ".") "\00a0";
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.md-nav--secondary > .md-nav__list > .md-nav__item > .md-nav__link::before {
+  content: counter(secondary-nav-item) ".\00a0";
 }
   
 .md-typeset .code>.admonition-title,

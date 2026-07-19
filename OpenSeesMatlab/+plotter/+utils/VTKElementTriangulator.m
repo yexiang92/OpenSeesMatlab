@@ -1,8 +1,9 @@
 classdef VTKElementTriangulator < handle
     %VTKELEMENTTRIANGULATOR Convert MATLAB cell-based element data to plot-ready mesh data.
     %
-    % This class expands surface / solid VTK-style cells into a triangle mesh
-    % and also provides reusable conversion utilities for line elements.
+    % This class expands surface / solid VTK-style cells into a triangle mesh,
+    % can convert supported solid cells to Polyscope-ready volume cells, and
+    % also provides reusable conversion utilities for line elements.
     %
     % Supported features
     % ------------------
@@ -29,6 +30,7 @@ classdef VTKElementTriangulator < handle
     %   EdgePoints    : NaN-separated surface edge polyline points
     %   MidPoints     : one midpoint per original input cell
     %   TriCellIds    : for each triangle, which original cell it belongs to
+    %   PointNodeIds  : for each expanded point, the original node id (1-based)
     %
     % If node-wise scalars are supplied:
     %   NodeScalars   : original node scalar array
@@ -37,6 +39,9 @@ classdef VTKElementTriangulator < handle
     %
     % If element-wise scalars are supplied:
     %   CellScalars   : original element scalar array
+    %
+    % Line results also include:
+    %   MeshPointNodeIds : for each expanded line-mesh point, the original node id
     %
     % Author: OpenAI ChatGPT
 
@@ -56,6 +61,9 @@ classdef VTKElementTriangulator < handle
         % Expanded triangle-mesh vertices.
         FacePoints double = zeros(0, 3)
 
+        % For each expanded triangle-mesh vertex, the original 1-based node id.
+        FacePointNodeIds double = zeros(0, 1)
+
         % NaN-separated polyline points for surface edges.
         FaceLinePoints double = zeros(0, 3)
 
@@ -67,6 +75,30 @@ classdef VTKElementTriangulator < handle
 
         % For each triangle, which original surface/solid cell it belongs to.
         TriCellIds double = zeros(0, 1)
+
+        % For each generated boundary segment, which original cell it belongs to.
+        EdgeCellIds double = zeros(0, 1)
+
+        % Vertices for supported volume cells. Uses the original point array.
+        VolumePoints double = zeros(0, 3)
+
+        % Tetrahedral cells, size Nt x 4, using 1-based VolumePoints indices.
+        Tets double = zeros(0, 4)
+
+        % Hexahedral cells, size Nh x 8, using 1-based VolumePoints indices.
+        Hexes double = zeros(0, 8)
+
+        % Mixed tet/hex cells, size Nc x 8. Tet rows are padded with -1.
+        VolumeCells double = zeros(0, 8)
+
+        % For each generated volume cell, which original input cell it belongs to.
+        VolumeCellIds double = zeros(0, 1)
+
+        % Original input cell ids for Tets in Polyscope registration order.
+        TetCellIds double = zeros(0, 1)
+
+        % Original input cell ids for Hexes in Polyscope registration order.
+        HexCellIds double = zeros(0, 1)
 
         % Expanded scalar values for FacePoints.
         FaceScalars double = zeros(0, 1)
@@ -85,6 +117,9 @@ classdef VTKElementTriangulator < handle
 
         % Expanded line-mesh vertices for LineSegments.
         LineMeshPoints double = zeros(0, 3)
+
+        % For each expanded line-mesh vertex, the original 1-based node id.
+        LineMeshPointNodeIds double = zeros(0, 1)
 
         % Scalars attached to LineMeshPoints.
         LineScalars double = zeros(0, 1)
@@ -140,13 +175,26 @@ classdef VTKElementTriangulator < handle
         function resetSurfaceData(obj)
             %RESETSURFACEDATA Clear all accumulated surface / solid triangulation results.
             obj.FacePoints = zeros(0, 3);
+            obj.FacePointNodeIds = zeros(0, 1);
             obj.FaceLinePoints = zeros(0, 3);
             obj.FaceMidPoints = zeros(0, 3);
             obj.Triangles = zeros(0, 3);
             obj.TriCellIds = zeros(0, 1);
+            obj.EdgeCellIds = zeros(0, 1);
             obj.FaceScalars = zeros(0, 1);
             obj.FaceLineScalars = zeros(0, 1);
             obj.SurfaceScalarElementIndex = 1;
+        end
+
+        function resetVolumeData(obj)
+            %RESETVOLUMEDATA Clear all accumulated volume-cell conversion results.
+            obj.VolumePoints = zeros(0, 3);
+            obj.Tets = zeros(0, 4);
+            obj.Hexes = zeros(0, 8);
+            obj.VolumeCells = zeros(0, 8);
+            obj.VolumeCellIds = zeros(0, 1);
+            obj.TetCellIds = zeros(0, 1);
+            obj.HexCellIds = zeros(0, 1);
         end
 
         function resetLineData(obj)
@@ -155,6 +203,7 @@ classdef VTKElementTriangulator < handle
             obj.LineMidPoints = zeros(0, 3);
             obj.LineSegments = zeros(0, 2);
             obj.LineMeshPoints = zeros(0, 3);
+            obj.LineMeshPointNodeIds = zeros(0, 1);
             obj.LineScalars = zeros(0, 1);
             obj.LinePolylineScalars = zeros(0, 1);
             obj.LineScalarElementIndex = 1;
@@ -168,6 +217,49 @@ classdef VTKElementTriangulator < handle
             end
         end
 
+        function addVolumeCells(obj, cellTypes, cells)
+            %ADDVOLUMECELLS Add multiple solid cells as tet/hex volume cells.
+            obj.VolumePoints = obj.Points;
+            [cellTypes, cells] = obj.expandInput(cellTypes, cells);
+            for i = 1:numel(cells)
+                obj.addVolumeCell(cellTypes(i), cells{i}, i);
+            end
+        end
+
+        function addVolumeCell(obj, cellType, cellConn, sourceCellId)
+            %ADDVOLUMECELL Add one solid cell as one or more tet/hex cells.
+            conn = obj.normalizeConnectivity(cellConn);
+            [tetsLocal, hexesLocal] = obj.getVolumeCellTuples(cellType, numel(conn));
+            if isempty(tetsLocal) && isempty(hexesLocal)
+                return;
+            end
+
+            if nargin < 4 || isempty(sourceCellId)
+                sourceCellId = numel(obj.VolumeCellIds) + 1;
+            end
+
+            if ~isempty(tetsLocal)
+                tets = conn(tetsLocal + 1);
+                obj.Tets = [obj.Tets; tets]; %#ok<AGROW>
+                obj.VolumeCells = [obj.VolumeCells; ...
+                    [tets, -ones(size(tets, 1), 4)]]; %#ok<AGROW>
+                obj.VolumeCellIds = [obj.VolumeCellIds; ...
+                    repmat(sourceCellId, size(tets, 1), 1)]; %#ok<AGROW>
+                obj.TetCellIds = [obj.TetCellIds; ...
+                    repmat(sourceCellId, size(tets, 1), 1)]; %#ok<AGROW>
+            end
+
+            if ~isempty(hexesLocal)
+                hexes = conn(hexesLocal + 1);
+                obj.Hexes = [obj.Hexes; hexes]; %#ok<AGROW>
+                obj.VolumeCells = [obj.VolumeCells; hexes]; %#ok<AGROW>
+                obj.VolumeCellIds = [obj.VolumeCellIds; ...
+                    repmat(sourceCellId, size(hexes, 1), 1)]; %#ok<AGROW>
+                obj.HexCellIds = [obj.HexCellIds; ...
+                    repmat(sourceCellId, size(hexes, 1), 1)]; %#ok<AGROW>
+            end
+        end
+
         function addCell(obj, cellType, cellConn)
             %ADDCELL Add one surface/solid cell and triangulate it.
             conn = obj.normalizeConnectivity(cellConn);
@@ -176,6 +268,7 @@ classdef VTKElementTriangulator < handle
             baseIdx = size(obj.FacePoints, 1) + 1;
 
             obj.FacePoints = [obj.FacePoints; data]; %#ok<AGROW>
+            obj.FacePointNodeIds = [obj.FacePointNodeIds; conn(:)]; %#ok<AGROW>
             obj.FaceMidPoints = [obj.FaceMidPoints; mean(data, 1)]; %#ok<AGROW>
 
             if ~isempty(obj.Scalars) && ~obj.ScalarsByElement
@@ -211,6 +304,7 @@ classdef VTKElementTriangulator < handle
 
             baseIdx = size(obj.LineMeshPoints, 1) + 1;
             obj.LineMeshPoints = [obj.LineMeshPoints; pts]; %#ok<AGROW>
+            obj.LineMeshPointNodeIds = [obj.LineMeshPointNodeIds; orderedConn(:)]; %#ok<AGROW>
 
             if size(pts, 1) >= 2
                 seg = [(baseIdx:baseIdx + size(pts, 1) - 2).', ...
@@ -231,11 +325,13 @@ classdef VTKElementTriangulator < handle
         function out = getSurfaceResults(obj)
             %GETSURFACERESULTS Return triangulated surface/solid results.
             out = struct();
-            out.Points     = obj.FacePoints;
-            out.EdgePoints = obj.FaceLinePoints;
-            out.MidPoints  = obj.FaceMidPoints;
-            out.Triangles  = obj.Triangles;
-            out.TriCellIds = obj.TriCellIds;
+            out.Points       = obj.FacePoints;
+            out.PointNodeIds = obj.FacePointNodeIds;
+            out.EdgePoints   = obj.FaceLinePoints;
+            out.MidPoints    = obj.FaceMidPoints;
+            out.Triangles    = obj.Triangles;
+            out.TriCellIds   = obj.TriCellIds;
+            out.EdgeCellIds  = obj.EdgeCellIds;
 
             if ~isempty(obj.Scalars)
                 if obj.ScalarsByElement
@@ -248,13 +344,36 @@ classdef VTKElementTriangulator < handle
             end
         end
 
+        function out = getVolumeResults(obj)
+            %GETVOLUMERESULTS Return converted tet/hex volume-cell results.
+            out = struct();
+            out.Points = obj.VolumePoints;
+            out.Tets = obj.Tets;
+            out.Hexes = obj.Hexes;
+            out.Cells = obj.VolumeCells;
+            out.CellIds = obj.VolumeCellIds;
+            out.TetCellIds = obj.TetCellIds;
+            out.HexCellIds = obj.HexCellIds;
+            out.RegisterCellIds = [obj.TetCellIds; obj.HexCellIds];
+
+            if ~isempty(obj.Scalars)
+                if obj.ScalarsByElement
+                    out.CellScalars = obj.Scalars(:);
+                else
+                    out.NodeScalars = obj.Scalars(:);
+                    out.PointScalars = obj.Scalars(:);
+                end
+            end
+        end
+
         function out = getLineResults(obj)
             %GETLINERESULTS Return converted line-element results.
             out = struct();
-            out.Points     = obj.LinePoints;
-            out.MeshPoints = obj.LineMeshPoints;
-            out.MidPoints  = obj.LineMidPoints;
-            out.Segments   = obj.LineSegments;
+            out.Points           = obj.LinePoints;
+            out.MeshPoints       = obj.LineMeshPoints;
+            out.MeshPointNodeIds = obj.LineMeshPointNodeIds;
+            out.MidPoints        = obj.LineMidPoints;
+            out.Segments         = obj.LineSegments;
 
             if ~isempty(obj.Scalars)
                 if obj.ScalarsByElement
@@ -274,6 +393,13 @@ classdef VTKElementTriangulator < handle
             tri = plotter.utils.VTKElementTriangulator(points, varargin{:});
             tri.addCells(cellTypes, cells);
             out = tri.getSurfaceResults();
+        end
+
+        function out = volumize(points, cellTypes, cells, varargin)
+            %VOLUMIZE Convenience static helper for solid tet/hex conversion.
+            tri = plotter.utils.VTKElementTriangulator(points, varargin{:});
+            tri.addVolumeCells(cellTypes, cells);
+            out = tri.getVolumeResults();
         end
 
         function out = convertLineElements(points, cellTypes, cells, varargin)
@@ -423,6 +549,9 @@ classdef VTKElementTriangulator < handle
                 idx = baseIdx + seq(:);
                 pts = obj.FacePoints(idx, :);
                 obj.FaceLinePoints = [obj.FaceLinePoints; pts; nan(1, 3)]; %#ok<AGROW>
+                cellId = size(obj.FaceMidPoints, 1);
+                obj.EdgeCellIds = [obj.EdgeCellIds; ...
+                    repmat(cellId, max(0, numel(seq) - 1), 1)]; %#ok<AGROW>
 
                 if ~isempty(obj.Scalars) && ~obj.ScalarsByElement
                     vals = obj.FaceScalars(idx);
@@ -602,6 +731,59 @@ classdef VTKElementTriangulator < handle
 
                 otherwise
                     conn = zeros(0, 3);
+            end
+        end
+
+        function [tets, hexes] = getVolumeCellTuples(~, cellType, nNode)
+            %GETVOLUMECELLTUPLES Local volume-cell patterns in zero-based form.
+            tets = zeros(0, 4);
+            hexes = zeros(0, 8);
+
+            switch cellType
+                case 10 % VTK_TETRA
+                    if nNode >= 4
+                        tets = [0 1 2 3];
+                    end
+
+                case 24 % VTK_QUADRATIC_TETRA
+                    if nNode >= 10
+                        tets = [ ...
+                            0 4 6 7;
+                            1 5 4 8;
+                            2 6 5 9;
+                            3 7 8 9;
+                            4 5 6 9;
+                            4 8 5 9;
+                            4 7 8 9;
+                            4 6 7 9];
+                    elseif nNode >= 4
+                        tets = [0 1 2 3];
+                    end
+
+                case 12 % VTK_HEXAHEDRON
+                    if nNode >= 8
+                        hexes = [0 1 2 3 4 5 6 7];
+                    end
+
+                case 25 % VTK_QUADRATIC_HEXAHEDRON
+                    if nNode >= 8
+                        hexes = [0 1 2 3 4 5 6 7];
+                    end
+
+                case 29 % TRIQUADRATIC_HEXAHEDRON
+                    if nNode >= 27
+                        hexes = [ ...
+                            0 8 24 11 17 26 20 16;
+                            8 1 9 24 26 18 21 20;
+                            24 9 2 10 20 21 19 22;
+                            11 24 10 3 16 20 22 23;
+                            17 26 20 16 4 12 25 15;
+                            26 18 21 20 12 5 13 25;
+                            20 21 19 22 25 13 6 14;
+                            16 20 22 23 15 25 14 7];
+                    elseif nNode >= 8
+                        hexes = [0 1 2 3 4 5 6 7];
+                    end
             end
         end
 

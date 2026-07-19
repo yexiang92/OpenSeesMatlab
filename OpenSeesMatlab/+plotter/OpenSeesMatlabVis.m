@@ -44,7 +44,7 @@ classdef OpenSeesMatlabVis < handle
     % defaultPlotContinuumResponseOptions : struct
     %     Default option template used by continuum response plotting. See ``.help`` for details.
 
-    properties (Access = private)
+    properties (Access = public)
         parent  % Reference to the parent OpenSeesMatlab object
     end
 
@@ -78,6 +78,10 @@ classdef OpenSeesMatlabVis < handle
         % Default options for plotContinuumResponse, see ``.help`` for details.
     end
 
+    properties (Access = public)
+        polyscope  plotter.OpenSeesMatlabVisPolyscope  % Polyscope-based visualisation interface (plotter.OpenSeesMatlabVisPolyscope)
+    end
+
     methods
         function obj = OpenSeesMatlabVis(parentObj)
             % Construct an OpenSeesMatlabVis visualization interface.
@@ -103,6 +107,7 @@ classdef OpenSeesMatlabVis < handle
                     'A parent OpenSeesMatlab object is required.');
             end
             obj.parent = parentObj;
+            obj.polyscope = plotter.OpenSeesMatlabVisPolyscope(obj);
         end
 
         function h = plotModel(obj, options)
@@ -331,34 +336,34 @@ classdef OpenSeesMatlabVis < handle
             % Parameters
             % ----------
             % nodeRespData : struct
-            %   Nodal response data, typically obtained from
-            %   ``opsmat.post.getNodalResponse(odbTag)``. The struct must include an
-            %   odbTag field so the corresponding model information can be
-            %   loaded.
+            %     Nodal response data, typically obtained from
+            %     ``opsmat.post.getNodalResponse(odbTag)``. The struct must include an
+            %     odbTag field so the corresponding model information can be
+            %     loaded.
             % respType : string, optional
-            %   Response type to visualize. Default is "disp". Common values
-            %   include "disp", "vel", "accel", "reaction",
-            %   "reactionIncInertia", "rayleighForces", and "pressure".
-            %   Custom fields in nodeRespData are also accepted.
+            %     Response type to visualize. Default is "disp". Common values
+            %     include "disp", "vel", "accel", "reaction",
+            %     "reactionIncInertia", "rayleighForces", and "pressure".
+            %     Custom fields in nodeRespData are also accepted.
             % respComponent : string, optional
-            %   Response component to visualize. Default is "magnitude". For
-            %   vector responses, common values include "ux", "uy", "uz", "rx",
-            %   "ry", "rz", and "magnitude". For custom fields, use a name in
-            %   nodeRespData.(respType).dofs or a Layout-C subfield name.
-            %   Scalar custom fields may use any label for the colorbar.
+            %     Response component to visualize. Default is "magnitude". For
+            %     vector responses, common values include "ux", "uy", "uz", "rx",
+            %     "ry", "rz", and "magnitude". For custom fields, use a name in
+            %     nodeRespData.(respType).dofs or a Layout-C subfield name.
+            %     Scalar custom fields may use any label for the colorbar.
             % stepIdx : integer or string, optional
-            %   Analysis step selector. Default is "absMax".
+            %     Analysis step selector. Default is "absMax".
             %
-            %   - "absMax": step with the maximum absolute response.
-            %   - "absMin": step with the minimum absolute response.
-            %   - "Max": step with the maximum response.
-            %   - "Min": step with the minimum response.
-            %   - integer: explicit step index.
+            %     - "absMax": step with the maximum absolute response.
+            %     - "absMin": step with the minimum absolute response.
+            %     - "Max": step with the maximum response.
+            %     - "Min": step with the minimum response.
+            %     - integer: explicit step index.
             % opts : struct, optional
-            %   Visualization options passed to plotter.PlotNodalResp. Start
-            %   from vis.defaultPlotNodalResponseOptions for customization.
+            %     Visualization options passed to plotter.PlotNodalResp. Start
+            %     from vis.defaultPlotNodalResponseOptions for customization.
             % ax : matlab.graphics.axis.Axes, optional
-            %   Target axes. If omitted or empty, a new figure/axes is created.
+            %     Target axes. If omitted or empty, a new figure/axes is created.
             %
             % Custom node response field layouts
             % ----------------------------------
@@ -535,23 +540,23 @@ classdef OpenSeesMatlabVis < handle
             % Parameters
             % ----------
             % respData : struct
-            %   Frame response data containing element response information,
-            %   typically obtained from
-            %   ``opsmat.post.getElementResponse(odbTag, eleType="Frame")``.
+            %     Frame response data containing element response information,
+            %     typically obtained from
+            %     ``opsmat.post.getElementResponse(odbTag, eleType="Frame")``.
             % respType : string, optional. The type of response to visualize. Default is "sectionForces". Common options include
-            %   - 'sectionForces'
-            %   - 'sectionDeformations'
-            %   - 'basicForces'
-            %   - 'basicDeformations'
-            %   - 'localForces'
-            %   - 'plasticDeformation'
-            %   - Any custom field in respData.
+            %     - 'sectionForces'
+            %     - 'sectionDeformations'
+            %     - 'basicForces'
+            %     - 'basicDeformations'
+            %     - 'localForces'
+            %     - 'plasticDeformation'
+            %     - Any custom field in respData.
             % respComponent : string, optional. The component of the response to visualize. Default is "MZ". Common options include
-            %   - For 'sectionForces' and 'sectionDeformations', components include 'N','MZ','VY','MY','VZ','T'.
-            %   - For 'basicForces', 'basicDeformations' and 'plasticDeformation', components include 'N','MZ','MY','T'.
-            %   - For 'localForces', components include 'FX','FY','MZ' in 2D
+            %     - For 'sectionForces' and 'sectionDeformations', components include 'N','MZ','VY','MY','VZ','T'.
+            %     - For 'basicForces', 'basicDeformations' and 'plasticDeformation', components include 'N','MZ','MY','T'.
+            %     - For 'localForces', components include 'FX','FY','MZ' in 2D
             %       and 'FX','FY','FZ','MX','MY','MZ' in 3D.
-            %   - For custom fields, use a name listed in respData.(respType).dofs or a Layout-C subfield name. Scalar custom fields may use any label for the colorbar.
+            %     - For custom fields, use a name listed in respData.(respType).dofs or a Layout-C subfield name. Scalar custom fields may use any label for the colorbar.
             %
             % responseLocation : string, optional
             %     Controls where values are placed along each frame element.

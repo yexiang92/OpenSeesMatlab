@@ -1,4 +1,7 @@
-# <span style="color:rgb(213,80,0)">**Laterally loaded tapered support structure (Shell element)**</span>
+<!-- matlab-script-download -->
+[:material-download: Download MATLAB script](./verify_quad_shell.m){ .md-button .md-button--primary }
+
+# <span style="color:var(--md-accent-fg-color)">**Laterally loaded tapered support structure (Shell element)**</span>
 
 This live script is written as a guided walkthrough for a verification benchmark. It compares a known structural response with the result produced by the OpenSeesMatlab workflow. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
 
@@ -10,7 +13,16 @@ Shell element in OpenSees
 
 ```matlab
 clear; clc;
+```
 
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
+<div style="font-weight:600;">Output</div>
+<div style="white-space:pre-wrap; font-family:Consolas;">
+[OpenSeesMatlab]  [EXCEPTION] Polyscope has not been initialized
+</div>
+</div>
+
+```matlab
 
 %% Get OpenSeesMatlab instance
 opsMAT = OpenSeesMatlab();
@@ -23,64 +35,51 @@ This section creates the finite\-element idealization used by the rest of the ex
 
 ```matlab
 
-
 %% Clean model
 ops.wipe();
 ops.model('basic', '-ndm', 3, '-ndf', 6);
-
 
 %% Material and thickness
 E  = 30e6;    % psi
 nu = 0.0;
 t  = 2.0;     % in
 
-
 matTag = 1;
 ops.nDMaterial('ElasticIsotropic', matTag, E, nu);
 secTag = 1;
 ops.section('PlateFiber', secTag, matTag, t);
 
-
 %% Mesh control
 nElem = 50;          % number of quad elements along the beam length
 nNodePerEdge = nElem + 1;
-
 
 %% Geometry
 % Top edge:    from (25,  0) to (75,  0)
 % Bottom edge: from (25, -3) to (75, -9)
 
-
 xTop = linspace(25, 75, nNodePerEdge);
 yTop = zeros(1, nNodePerEdge);
 
-
 xBot = linspace(25, 75, nNodePerEdge);
 yBot = linspace(-3, -9, nNodePerEdge);
-
 
 % Node numbering:
 % top    : 1 ~ nNodePerEdge
 % bottom : nNodePerEdge+1 ~ 2*nNodePerEdge
 
-
 for i = 1:nNodePerEdge
     ops.node(i, xTop(i), 0.0, yTop(i));
 end
-
 
 for i = 1:nNodePerEdge
     ops.node(nNodePerEdge + i, xBot(i), 0.0, yBot(i));
 end
 
-
 %% Elements
 % Counterclockwise ordering:
 % [bottom-left, bottom-right, top-right, top-left]
 
-
 conn = zeros(nElem, 4);
-
 
 for e = 1:nElem
     nBL = nNodePerEdge + e;
@@ -88,9 +87,7 @@ for e = 1:nElem
     nTR = e + 1;
     nTL = e;
 
-
     conn(e, :) = [nBL, nBR, nTR, nTL];
-
 
     % ops.element('quad', e, nBL, nBR, nTR, nTL, t, 'PlaneStress', matTag);
     % ops.element('ShellMITC4', e, nBL, nBR, nTR, nTL, secTag);
@@ -98,7 +95,7 @@ for e = 1:nElem
 end
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSees] Using ASDShellQ4 - Developed by: Massimo Petracca, Guido Camata, ASDEA Software Technology
@@ -107,16 +104,13 @@ end
 
 ```matlab
 
-
 %% Boundary conditions
 % Fixed end at x = 75 -> top last node and bottom last node
 topFixed = nNodePerEdge;
 botFixed = 2 * nNodePerEdge;
 
-
 ops.fix(topFixed, 1, 1, 1, 1, 1, 1);
 ops.fix(botFixed, 1, 1, 1, 1, 1, 1);
-
 
 %% Load
 % Concentrated vertical load at top-left node
@@ -137,7 +131,7 @@ opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSeesMatlab] Model summary
@@ -172,7 +166,7 @@ ops.analysis('Static');
 ODB = opsMAT.post.createODB("myODB", projectGaussToNodes="extrapolate");  % create ODB
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5
@@ -197,7 +191,6 @@ opts = opsMAT.vis.defaultPlotNodalResponseOptions;
 opts.fixed.show = true;
 opts.surf.showEdges = false;
 opts.deform.show = true;
-
 
 opsMAT.vis.plotNodalResponse(nodeResp, respType="disp", stepIdx="absMax", respComponent="UZ", opts=opts);
 colormap("jet")
@@ -228,7 +221,6 @@ opsMAT.vis.plotShellResponseGUI(shellResp);
 ```matlab
 sxx = shellResp.StressAtNode.sxx;   % sxx
 
-
 nodeTags = shellResp.nodeTags;
 ```
 
@@ -244,12 +236,9 @@ for i = 1:nNodePerEdge
     coords(nNodePerEdge + i, :) = [xBot(i), yBot(i)];
 end
 
-
 fixedNode = localFindNearestNode(coords, [75, 0]);
 
-
 fixedIdx = nodeTags == fixedNode;
-
 
 % get stress
 sxxFixed = sxx(:, fixedIdx, :);  % nStep * nFiber
@@ -269,15 +258,30 @@ fprintf('end sigma_x: target = %.2f, MAPDL182 = %.2f, OpenSeesMatlab = %.2f, rat
     target_end, mapdl182_end, fixed_end_stress_osp, fixed_end_stress_osp / target_end);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 end sigma_x: target = 7407.00, MAPDL182 = 7151.10, OpenSeesMatlab = 7481.59, ratio = 1.0101
 </div>
 </div>
 
-Local function:
+## Visualization by Polyscope GUI
+```matlab
+opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
+```
 
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
+<div style="font-weight:600;">Output</div>
+<div style="white-space:pre-wrap; font-family:Consolas;">
+[OpenSeesMatlab] Backend: openGL3_glfw -- Loaded openGL version: 3.3.0 NVIDIA 561.09
+</div>
+</div>
+
+```matlab
+opsMAT.vis.polyscope.plotShellResponse(shellResp);
+```
+
+## Local function:
 ```matlab
 function nodeId = localFindNearestNode(coords, pt)
     d2 = (coords(:,1) - pt(1)).^2 + (coords(:,2) - pt(2)).^2;

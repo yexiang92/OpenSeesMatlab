@@ -6,7 +6,7 @@ This section provides comprehensive API documentation for all classes and functi
 
 ## Architecture Overview
 
-OpenSeesMatlab is organized into five main namespaces, each exposed as a property of the root `OpenSeesMatlab` class:
+OpenSeesMatlab is organized into six main namespaces, each exposed as a property of the root `OpenSeesMatlab` class:
 
 ```matlab
 opsMAT = OpenSeesMatlab();
@@ -14,6 +14,7 @@ ops    = opsMAT.opensees;   % Native OpenSees commands
 pre    = opsMAT.pre;        % Preprocessing utilities
 post   = opsMAT.post;       % Post-processing & ODB
 vis    = opsMAT.vis;        % Visualization
+anlys  = opsMAT.anlys;      % Higher-level analysis workflows
 utils  = opsMAT.utils;      % General utilities
 ```
 
@@ -44,6 +45,7 @@ The root interface class. Instantiates the MEX bridge to OpenSees and provides a
 | `pre` | `OpenSeesMatlabPre` | Preprocessing helpers |
 | `post` | `OpenSeesMatlabPost` | Post-processing and ODB management |
 | `vis` | `OpenSeesMatlabVis` | Visualization functions |
+| `anlys` | `OpenSeesMatlabAnalysis` | Higher-level analysis workflows |
 | `utils` | `OpenSeesMatlabTool` | General utility functions |
 
 ---
@@ -132,6 +134,22 @@ High-level plotting functions for models, eigen modes, and analysis results.
 
 ---
 
+### [Interactive Polyscope Visualization (OpenSeesMatlabVisPolyscope)](OpenSeesMatlabVisPolyscope.md)
+
+Recommended interactive backend for static exploration and animation.
+
+| Function | Purpose |
+|----------|---------|
+| `plotModel` | Inspect model geometry and display options |
+| `plotEigen` | Select and animate eigen mode shapes |
+| `plotNodalResponse` | Explore and animate nodal response fields and histories |
+| `plotFrameResponse` | Explore and animate frame response diagrams |
+| `plotShellResponse` | Explore shell response fields |
+| `plotContinuumResponse` | Explore plane and solid response fields |
+| `plotUnstruResponse` | General low-level unstructured-response viewer |
+
+---
+
 ### [Analysis (OpenSeesMatlabAnalysis)](OpenSeesMatlabAnalysis.md)
 
 Advanced analysis utilities.
@@ -177,5 +195,6 @@ General helper functions.
 - [OpenSeesMatlabPre](OpenSeesMatlabPre.md) — Preprocessing
 - [OpenSeesMatlabPost](OpenSeesMatlabPost.md) — Post-processing
 - [OpenSeesMatlabVis](OpenSeesMatlabVis.md) — Visualization
+- [OpenSeesMatlabVisPolyscope](OpenSeesMatlabVisPolyscope.md) — Interactive Polyscope visualization
 - [OpenSeesMatlabAnalysis](OpenSeesMatlabAnalysis.md) — Analysis utilities
 - [OpenSeesMatlabTool](OpenSeesMatlabTool.md) — Utilities

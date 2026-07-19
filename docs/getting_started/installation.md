@@ -1,66 +1,87 @@
 # Installation
 
-OpenSeesMatlab can be installed either as a MATLAB toolbox or from GitHub source code.
+OpenSeesMatlab is currently distributed as a MATLAB toolbox for Windows. MATLAB R2023a or later is required.
 
----
+## Install a released version
 
-## Option 1: Install from GitHub
-
-1. Go to the [OpenSeesMatlab GitHub Repository](https://github.com/yexiang92/OpenSeesMatlab) or [OpenSeesMatlab Gitee Repository (中国)](https://gitee.com/yexiang-yan/opensees-interface-for-matlab).
-2. Go to the [release directory](https://github.com/yexiang92/OpenSeesMatlab/releases) or [release directory, gitee (中国)](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases) and choose the version you want. Download it.
-3. Open MATLAB, then install the toolbox package by running:
-
+1. Download a release from [GitHub](https://github.com/yexiang92/OpenSeesMatlab/releases) or [Gitee (China)](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases).
+2. Extract the release to a directory where you have write permission.
+3. In MATLAB, change to that directory and run:
    ```matlab
-   cd path_to_openseesmatlab_directory  % Change workspace path
-   installOpenSeesMatlab
+   cd('path_to_openseesmatlab_directory');
+   installOpenSeesMatlab;
    ```
+4. Restart MATLAB if the installer requests it.
 
-## Option 2: Install from MATLAB File Exchange
+The MATLAB File Exchange package is not yet available.
 
-Coming soon
+## Verify the installation
 
----
-:clap: :clap: :clap:
-After installation, explore and run example models in the `examples/` directory (You need to use it as your working directory):
+Run this in a new MATLAB session:
 
-- Open any `.mlx` file in `examples/` with MATLAB Live Editor, e.g.:
-- `examples/earthquake_frame3D_transient.mlx`
-- `examples/structural_nonlinear_truss.mlx`
-- `examples/geotechnical_PM4Sand.mlx`
-- `examples/post_2d_Portal_Frame.mlx`
-- Click "Run" in MATLAB to execute and interact with the example.
+```matlab
+opsMat = OpenSeesMatlab();
+opsMat.version
+opsMat.opensees.wipe();
+```
 
-!!! tip "Performance Tip"
+A returned version and no constructor error indicate that MATLAB can find both the toolbox and its OpenSees MEX module.
 
-    If you want **maximum runtime efficiency** — identical to using OpenSees directly —
-    use only the **`opensees`** module (`opsMAT.opensees`).
+You can also check which installation MATLAB resolves:
 
-    Use standard OpenSees `recorder` commands to write result files, or use query
-    commands such as `nodeDisp`, `nodeReaction`, `eleForce`, `eleResponse`, etc.
-    to return data directly into MATLAB variables during or after analysis.
+```matlab
+which OpenSeesMatlab -all
+```
 
-    The additional pre/post-processing layers (`pre`, `post`, `vis`) provide
-    convenience but add overhead. For large models or long transient analyses,
-    sticking to the core `opensees` command interface gives the best performance.
+If more than one copy is listed, remove old copies from the MATLAB path so that scripts do not load a different release than expected.
 
----
+## Run an example
 
-## Versioning
+The `examples` directory contains Live Scripts grouped by engineering topic. Open a `.mlx` file in MATLAB Live Editor and run its sections in order. A good first choice is a small structural example; response and visualization examples are useful after you understand the basic command workflow.
 
-OpenSeesMatlab uses a four-part version number in the format `MAJOR.MINOR.PATCH.BUILD`. The `MAJOR.MINOR.PATCH` portion matches the official OpenSees release version, while `BUILD` identifies the incremental OpenSeesMatlab revision built for that specific OpenSees release. For example, in version `3.8.0.1`, `3.8.0` refers to the corresponding official OpenSees version, and `1` indicates the OpenSeesMatlab release built on top of it.
+Next, follow [Your first analysis](quickstart.md) for a complete model–analysis–result cycle, or browse the [examples](../examples/index.md).
 
----
+## Requirements and limitations
 
-## Requirements
+| Item | Requirement |
+|---|---|
+| MATLAB | R2023a or later |
+| Operating system | Windows |
+| OpenSees engine | Included through the OpenSeesMatlab MEX interface |
+| Interactive Polyscope viewer | Requires the packaged Polyscope MEX binary |
 
-MATLAB R2023a or later
+!!! note "Polyscope is optional for core analysis"
 
-Windows operating system (currently only supported on Windows)
+    The OpenSees command interface and regular MATLAB visualization do not
+    depend on opening a Polyscope window. Use `opsMat.vis.polyscope` only when
+    you want the interactive Polyscope GUI.
 
----
+## Troubleshooting
 
-## Changes Log
+### `OpenSeesMatlab` is not found
 
-[Changes Log](changelog.md)
+- Confirm that installation completed without an error.
+- Run `which OpenSeesMatlab -all`.
+- Re-run `installOpenSeesMatlab` from the extracted release directory.
 
----
+### The MEX file cannot be loaded
+
+- Confirm that you are using supported 64-bit Windows and MATLAB R2023a or later.
+- Do not mix files from different OpenSeesMatlab releases.
+- Check whether endpoint security software quarantined a packaged binary.
+
+### A Polyscope viewer cannot start
+
+- Confirm that the release contains the packaged Polyscope MEX binary.
+- Update the graphics driver and try a regular MATLAB plot with `opsMat.vis.plotModel()` to distinguish a graphics-backend issue from a model issue.
+- Core OpenSees analyses can still run without the interactive viewer.
+
+## Performance guidance
+
+For the lowest overhead, use `opsMat.opensees` with standard OpenSees recorders or direct query commands. The `.pre`, `.post`, and `.vis` modules trade some overhead for MATLAB-friendly workflows, structured data, and interactive exploration.
+
+## Version numbers
+
+OpenSeesMatlab uses `MAJOR.MINOR.PATCH.BUILD`. The first three fields identify the corresponding OpenSees release; `BUILD` identifies an OpenSeesMatlab revision built on it. For example, `3.8.0.2` is the second OpenSeesMatlab build based on OpenSees 3.8.0.
+
+See the [changelog](changelog.md) for release-specific changes.

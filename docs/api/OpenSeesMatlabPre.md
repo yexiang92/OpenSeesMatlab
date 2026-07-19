@@ -1,7 +1,7 @@
 ::: pre.OpenSeesMatlabPre
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 2
       separate_signature: true
@@ -28,7 +28,7 @@
 ::: pre.UnitSystem
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 1
       separate_signature: true
@@ -45,7 +45,7 @@
 ::: pre.Gmsh2OPS
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 1
       separate_signature: true
@@ -75,7 +75,7 @@
 ::: pre.FiberSectionMesh
     handler: matlab
     options:
-      parse_arguments: true
+      parse_arguments: false
       show_root_toc_entry: true
       heading_level: 1
       separate_signature: true

@@ -1,4 +1,7 @@
-# <span style="color:rgb(213,80,0)">**Read a GMSH model by physical groups**</span>
+<!-- matlab-script-download -->
+[:material-download: Download MATLAB script](./post_Gmsh2OPS_solid.m){ .md-button .md-button--primary }
+
+# <span style="color:var(--md-accent-fg-color)">**Read a GMSH model by physical groups**</span>
 
 This live script is written as a guided walkthrough for a post\-processing workflow. It focuses on retrieving, organizing, and visualizing model or response data after an OpenSees analysis. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
 
@@ -16,14 +19,12 @@ clc; clear;
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 
-
 g2o = opsMAT.pre.Gmsh2OPS;
-
 
 g2o.readGmshFile('utils/t15.msh');
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Info:: 5 Physical Names.
@@ -57,7 +58,7 @@ physicalGroups = g2o.getPhysicalGroups();
 disp(physicalGroups.keys());
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 {'Boundary'}    {'Load'}    {'Volume'}
@@ -69,7 +70,6 @@ ops.wipe()
 % Initialize a basic 3D model with 3 degrees of freedom per node
 ops.model("basic", "-ndm", 3, "-ndf", 3)
 
-
 % Define an elastic isotropic material
 % Material ID: 1
 % Elastic modulus: 3e7
@@ -78,10 +78,8 @@ ops.model("basic", "-ndm", 3, "-ndf", 3)
 matTag = 1;
 ops.nDMaterial("ElasticIsotropic", matTag, 3e7, 0.2, 2.55)
 
-
 % Create OpenSeesPy node commands based on all nodes
-g2o.createNodeCmds();  
-
+g2o.createNodeCmds();
 
 % Create OpenSeesPy element commands for specific entities
 % FourNodeTetrahedron elements
@@ -91,20 +89,18 @@ eleTags = g2o.createElementCmds(...
     OpsEleArgs={matTag}, ...  % Additional arguments for the element (e.g., mat tag)
     PhysicalGroupNames="Volume");
 
-
 % fixed nodes
 fix_node_tags = g2o.getNodeTags(PhysicalGroupNames="Boundary");
 for i = 1: numel(fix_node_tags)
     ops.fix(fix_node_tags(i), 1, 1, 1);
 end
 
-
 % If there are too many geometries on the boundary, you can iterate through and extract all lines and points on a geometry using the following commands:
 boundary_dim_tags = g2o.getBoundaryDimTags(DimEntityTags=[2, 18], IncludeSelf=true);
 disp(boundary_dim_tags);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 0     1
@@ -123,7 +119,7 @@ disp(boundary_dim_tags);
 disp(physicalGroups("Boundary"));
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 0     1
@@ -142,7 +138,7 @@ disp(physicalGroups("Boundary"));
 opsMAT.vis.plotModel();
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSeesMatlab] Model summary
@@ -159,7 +155,6 @@ Eigen analysis:
 tag = 1;
 opsMAT.post.saveEigenData(tag, 10, solver='-genBandArpack');
 eigenData = opsMAT.post.getEigenData(odbTag=tag);
-
 
 opts = opsMAT.vis.defaultPlotEigenOptions;
 opts.color.useColormap = true;
@@ -187,7 +182,7 @@ load_ele_tags = g2o.createElementCmds(...
     PhysicalGroupNames="Load");
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSees] TriSurfaceLoad element - Written: J. A. Abell (UANDES). Inspired by the makers of SurfaceLoad
@@ -197,11 +192,9 @@ load_ele_tags = g2o.createElementCmds(...
 ```matlab
 load_ele_tags = num2cell(load_ele_tags);
 
-
 ops.timeSeries("Linear", 1)
 ops.pattern("Plain", 1, 1)
 ops.eleLoad("-ele", load_ele_tags{:}, "-type", "-surfaceLoad")
-
 
 ops.constraints("Transformation")
 ops.numberer("RCM")

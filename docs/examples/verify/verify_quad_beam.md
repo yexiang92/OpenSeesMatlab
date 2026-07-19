@@ -1,4 +1,7 @@
-# <span style="color:rgb(213,80,0)">**Laterally loaded tapered support structure (Quad plane element)**</span>
+<!-- matlab-script-download -->
+[:material-download: Download MATLAB script](./verify_quad_beam.m){ .md-button .md-button--primary }
+
+# <span style="color:var(--md-accent-fg-color)">**Laterally loaded tapered support structure (Quad plane element)**</span>
 
 This live script is written as a guided walkthrough for a verification benchmark. It compares a known structural response with the result produced by the OpenSeesMatlab workflow. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
 
@@ -8,7 +11,6 @@ This live script is written as a guided walkthrough for a verification benchmark
 
 ```matlab
 clear; clc;
-
 
 %% Get OpenSeesMatlab instance
 opsMAT = OpenSeesMatlab();
@@ -21,62 +23,49 @@ This section creates the finite\-element idealization used by the rest of the ex
 
 ```matlab
 
-
 %% Clean model
 ops.wipe();
 ops.model('basic', '-ndm', 2, '-ndf', 2);
-
 
 %% Material and thickness
 E  = 30e6;    % psi
 nu = 0.0;
 t  = 2.0;     % in
 
-
 matTag = 1;
 ops.nDMaterial('ElasticIsotropic', matTag, E, nu);
-
 
 %% Mesh control
 nElem = 100;          % number of quad elements along the beam length
 nNodePerEdge = nElem + 1;
 
-
 %% Geometry
 % Top edge:    from (25,  0) to (75,  0)
 % Bottom edge: from (25, -3) to (75, -9)
 
-
 xTop = linspace(25, 75, nNodePerEdge);
 yTop = zeros(1, nNodePerEdge);
 
-
 xBot = linspace(25, 75, nNodePerEdge);
 yBot = linspace(-3, -9, nNodePerEdge);
-
 
 % Node numbering:
 % top    : 1 ~ nNodePerEdge
 % bottom : nNodePerEdge+1 ~ 2*nNodePerEdge
 
-
 for i = 1:nNodePerEdge
     ops.node(i, xTop(i), yTop(i));
 end
-
 
 for i = 1:nNodePerEdge
     ops.node(nNodePerEdge + i, xBot(i), yBot(i));
 end
 
-
 %% Elements
 % Counterclockwise ordering:
 % [bottom-left, bottom-right, top-right, top-left]
 
-
 conn = zeros(nElem, 4);
-
 
 for e = 1:nElem
     nBL = nNodePerEdge + e;
@@ -84,23 +73,18 @@ for e = 1:nElem
     nTR = e + 1;
     nTL = e;
 
-
     conn(e, :) = [nBL, nBR, nTR, nTL];
-
 
     ops.element('quad', e, nBL, nBR, nTR, nTL, t, 'PlaneStress', matTag);
 end
-
 
 %% Boundary conditions
 % Fixed end at x = 75 -> top last node and bottom last node
 topFixed = nNodePerEdge;
 botFixed = 2 * nNodePerEdge;
 
-
 ops.fix(topFixed, 1, 1);
 ops.fix(botFixed, 1, 1);
-
 
 %% Load
 % Concentrated vertical load at top-left node
@@ -121,7 +105,7 @@ opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 [OpenSeesMatlab] Model summary
@@ -155,7 +139,7 @@ ops.analysis('Static');
 ODB = opsMAT.post.createODB("myODB", projectGaussToNodes="extrapolate");  % create ODB
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5
@@ -181,7 +165,6 @@ opts.fixed.show = true;
 opts.surf.showEdges = false;
 opts.deform.show = true;
 
-
 opsMAT.vis.plotNodalResponse(nodeResp, respType="disp", stepIdx="absMax", respComponent="UY", opts=opts);
 colormap("jet")
 axis off
@@ -205,7 +188,6 @@ title("Von Mises Stress");
 vm = planeResp.StressMeasureAtNode.vonMises;  % Von Mises
 sxx = planeResp.StressAtNode.sxx;   % sxx
 
-
 nodeTags = planeResp.nodeTags;
 ```
 
@@ -221,14 +203,11 @@ for i = 1:nNodePerEdge
     coords(nNodePerEdge + i, :) = [xBot(i), yBot(i)];
 end
 
-
 fixedNode = localFindNearestNode(coords, [75, 0]);
 midNode   = localFindNearestNode(coords, [50, 0]);
 
-
 fixedIdx = nodeTags == fixedNode;
 midIdx = nodeTags == midNode;
-
 
 % get stress
 sxxFixed = sxx(:, fixedIdx);  % nStep * 1
@@ -241,7 +220,6 @@ fixed_end_stress_osp = max(sxxFixed);
 %% Reference values from ANSYS example
 target_mid = 8333.0;  % theory value
 target_end = 7407.0;
-
 
 mapdl182_mid = 8163.66;  % only 6 elements
 mapdl182_end = 7151.10;
@@ -262,7 +240,7 @@ fprintf([ ...
     'end sigma_x', target_end, mapdl182_end, fixed_end_stress_osp, fixed_end_stress_osp / target_end);
 ```
 
-<div style="font-size:0.85em; color:#87ae73;">
+<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
 <div style="font-weight:600;">Output</div>
 <div style="white-space:pre-wrap; font-family:Consolas;">
 ---------------- OpenSeesMatlab vs Reference ----------------

@@ -91,7 +91,7 @@ classdef PlotNodalResp < handle
                 'show',true, 'lineWidth',1.5, 'lineStyle','-', ...
                 'undeformedLineWidth',0.8);
 
-            opts.surf   = struct('show',true, 'showEdges',true, 'edgeColor','black', 'edgeWidth',0.8);
+            opts.surf   = struct('show',true, 'showEdges',false, 'edgeColor','black', 'edgeWidth',0.8);
 
             opts.nodes  = struct('show',false, 'size',20, 'marker','o', 'filled',true, 'edgeColor','none');
 

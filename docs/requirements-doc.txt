@@ -1,2 +1,4 @@
-mkdocs-material
+zensical==0.0.50
+mkdocs>=1.6,<2
+mkdocs-material>=9.7.6,<10
 mkdocstrings-matlab==2.1.0

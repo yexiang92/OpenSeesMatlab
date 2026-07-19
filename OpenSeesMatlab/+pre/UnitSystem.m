@@ -52,12 +52,12 @@ classdef UnitSystem < handle
             %
             % Parameters
             % ----------
-            % lengthUnit: string, default "m"
-   ,         %   one of "inch", "ft", "mm", "cm", "m", "km"
-            % forceUnit: string, default "kn"
-            %   one of "lb", "lbf", "kip", "n", "kn", "mn", "kgf", "tonf"
-            % timeUnit: string, default "sec"
-            %   one of "msec", "sec", "min", "hour", "day", "year"
+            % lengthUnit : string, default "m"
+            %     One of "inch", "ft", "mm", "cm", "m", or "km".
+            % forceUnit : string, default "kn"
+            %     One of "lb", "lbf", "kip", "n", "kn", "mn", "kgf", or "tonf".
+            % timeUnit : string, default "sec"
+            %     One of "msec", "sec", "min", "hour", "day", or "year".
             if nargin < 2 || isempty(lengthUnit), lengthUnit = "m"; end
             if nargin < 3 || isempty(forceUnit),  forceUnit  = "kN"; end
             if nargin < 4 || isempty(timeUnit),   timeUnit   = "sec"; end

@@ -1,6 +1,9 @@
 site_name: OpenSeesMatlab Documentation
 site_url: https://openseesmatlab.readthedocs.io/en/latest/
 docs_dir: docs
+# Rebuild generated API pages when MATLAB source docstrings change.
+watch:
+  - OpenSeesMatlab
 site_description: "⚡ Documentation for OpenSeesMatlab, a MATLAB interface to the OpenSees program."
 site_author: Yexiang Yan
 repo_name: yexiang92/OpenSeesMatlab
@@ -10,7 +13,9 @@ copyright: Copyright &copy; 2026 - 2026 Yexiang Yan. All rights reserved.
 
 theme:
   name: material
-  logo: static/logo.png
+  variant: modern
+  language: en
+  logo: static/logo-light.png
   favicon: static/logo2.png
   features:
     - announce.dismiss
@@ -19,37 +24,47 @@ theme:
     - content.code.annotate
     - content.code.copy
     - content.code.select
+    - content.tabs.link
     - content.tooltips
     - navigation.footer
     - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.path
     - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.top
     - search.highlight
+    - search.share
     - search.suggest
     - toc.follow
   icon:
     repo: fontawesome/brands/github
   font:
-    text: Open Sans
-    code: Cascadia Mono
+    text: Inter
+    code: Google Sans Code
   # custom_dir: docs/static/overrides
   palette:
     - media: "(prefers-color-scheme)"
+      scheme: default
+      primary: indigo
+      # accent: deep orange
       toggle:
         icon: material/brightness-auto
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
-      scheme: matlab
-      primary: indigo
+      scheme: default
+      # primary: indigo
+      accent: indigo
       toggle:
         icon: material/weather-sunny
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: black
-      accent: lime
+      # primary: lime
+      # accent: light blue
       toggle:
         icon: material/weather-night
         name: Switch to system preference
@@ -63,17 +78,31 @@ extra_javascript:
   - https://unpkg.com/katex@0/dist/katex.min.js
   - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
 
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yexiang92/OpenSeesMatlab
+      name: OpenSeesMatlab on GitHub
+    - icon: fontawesome/solid/book-open
+      link: https://openseesmatlab.readthedocs.io/
+      name: OpenSeesMatlab documentation
+
 markdown_extensions:
   - abbr
   - attr_list
   - admonition
   - footnotes
+  - tables
   - md_in_html
   - pymdownx.blocks.admonition
   - pymdownx.details
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
   - pymdownx.blocks.tab:
       alternate_style: true
       slugify: !!python/object/apply:pymdownx.slugs.slugify
@@ -112,12 +141,15 @@ markdown_extensions:
 
 plugins:
   - search
+  - autorefs:
+      resolve_closest: true
   - mkdocstrings:
       default_handler: matlab
       handlers:
         matlab:
           paths: ["OpenSeesMatlab"]
-          tree_sitter_logging_level: DEBUG
+          # Keep parser internals quiet; Zensical --strict still reports site errors.
+          tree_sitter_logging_level: ERROR
           paths_recursive: true
           options:
             show_inheritance_diagram: false
@@ -125,13 +157,13 @@ plugins:
             heading_level: 3
             argument_headings: false
             show_root_heading: true
-            show_root_toc_entry: false
+            show_root_toc_entry: true
             show_root_full_path: true
             show_root_members_full_path: false
             show_object_full_path: false
             show_category_heading: false
-            show_symbol_type_heading: false
-            show_symbol_type_toc: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
 
             hidden_members: false
             private_members: false
@@ -142,7 +174,7 @@ plugins:
             show_attributes: true
 
             docstring_style: numpy
-            docstring_section_style: table
+            docstring_section_style: list
             parse_arguments: false
             merge_constructor_into_class: false
             show_if_no_docstring: false
@@ -153,7 +185,7 @@ plugins:
             show_docstring_output_arguments: true
 
             show_signature: true
-            show_signature_types: false
+            show_signature_types: true
             separate_signature: false
 # hooks:
 #   - tools/mkdocs_hooks.py
@@ -161,25 +193,26 @@ nav:
   - Home: "index.md"
 
   - Getting Started:
+      - OpenSeesMatlab at a Glance: "getting_started/overview.md"
       - Installation: "getting_started/installation.md"
+      - Your First Analysis: "getting_started/quickstart.md"
       - OpenSees Command Interface: "getting_started/opensees.md"
       - Pre- and post-processing and visualization: "getting_started/post.md"
+      - Extensions: "getting_started/extensions.md"
       - Changelog: "getting_started/changelog.md"
 
   - Examples:
       - "examples/index.md"
       - Pre, Post-processing and Visualization: "examples/post/index.md"
-      - Structural Analysis: "examples/structural/index.md"
-      - Geotechnical Analysis: "examples/geotechnical/index.md"
-      - Earthquake Analysis: "examples/earthquake/index.md"
-      - Thermal Analysis: "examples/thermal/index.md"
-      - Sensitivity Analysis: "examples/sensitivity/index.md"
+      - OpenSees command examples: "examples/opscmds/index.md"
+      - Extended OpenSees commands by OpenSeesMatlab: "examples/extension/index.md"
       - Verification: "examples/verify/index.md"
 
   - API Reference:
       - OpenSeesMatlab: "api/OpenSeesMatlab.md"
       - OpenSeesMatlabCmds: "api/OpenSeesMatlabCmds.md"
       - OpenSeesMatlabVis: "api/OpenSeesMatlabVis.md"
+      - OpenSeesMatlabVisPolyscope: "api/OpenSeesMatlabVisPolyscope.md"
       - OpenSeesMatlabPost: "api/OpenSeesMatlabPost.md"
       - OpenSeesMatlabPre: "api/OpenSeesMatlabPre.md"
       - OpenSeesMatlabAnalysis: "api/OpenSeesMatlabAnalysis.md"
