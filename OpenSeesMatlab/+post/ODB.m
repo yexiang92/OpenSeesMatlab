@@ -24,10 +24,15 @@ classdef ODB < handle
             arguments
                 ops
                 odbTag
-                options.flushEvery                       = 20
-                options.recordDt                         =  0
-                options.floatPrecision                   = "double"
-                options.intPrecision                     = "int32"
+                options.flushEvery (1,1) double {mustBeInteger, mustBePositive} = 20
+                options.recordDt (1,1) double {mustBeNonnegative} = 0
+                options.floatPrecision {mustBeTextScalar, mustBeMember(options.floatPrecision, ...
+                    ["double", "float64", "f64", "fp64", "float", "single", "float32", "f32", "fp32"])} = "double"
+                options.intPrecision {mustBeTextScalar, mustBeMember(options.intPrecision, ...
+                    ["int32", "i32", "32", "int64", "i64", "64"])} = "int32"
+                options.compressionLevel (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(options.compressionLevel, 0), mustBeLessThanOrEqual(options.compressionLevel, 9)} = 4
+                options.includeModel           logical = true
+                options.recordInitialState     logical = true
 
                 options.saveNodalResp           logical = true
                 options.saveFrameResp           logical = true
@@ -49,10 +54,11 @@ classdef ODB < handle
                 options.solidTags               double = []
                 options.contactTags             double = []
 
-                options.elasticFrameSecPoints   double {mustBeInteger, mustBePositive} = 7
-                options.interpolateBeamDisp            = false
-                options.computeMechanicalMeasures      = {"principal", "tauMax", "sigmaOct", "tauOct", "vonMises"}
-                options.projectGaussToNodes     string = "copy"
+                options.elasticFrameSecPoints (1,1) double {mustBeInteger, mustBePositive} = 9
+                options.interpolateBeamDisp = "off"
+                options.computeMechanicalMeasures = {"principal", "tauMax", "octahedral", "vonMises"}
+                options.projectGaussToNodes {mustBeTextScalar, mustBeMember(options.projectGaussToNodes, ...
+                    ["off", "none", "nearest", "copy", "average", "avg", "extrapolate"])} = "extrapolate"
             end
 
             obj.ops         = ops;
@@ -85,6 +91,20 @@ classdef ODB < handle
             
             if ~isempty(obj.kargs.intPrecision)
                 args = [args, {'-intPrecision', obj.kargs.intPrecision}];
+            end
+
+            args = [args, {'-compression', obj.kargs.compressionLevel}];
+
+            if obj.kargs.includeModel
+                args = [args, {'-includeModel'}];
+            else
+                args = [args, {'-excludeModel'}];
+            end
+
+            if obj.kargs.recordInitialState
+                args = [args, {'-recordInitialState'}];
+            else
+                args = [args, {'-skipInitialState'}];
             end
 
             if obj.kargs.saveNodalResp

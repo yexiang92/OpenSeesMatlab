@@ -334,7 +334,13 @@ classdef OpenSeesMatlabPost < handle
             %
             % Example
             % -------
-            %     odb = post.createODB("MyODB", flushEvery=50);
+            %     odb = post.createODB("MyODB", recordDt=0.02);
+            %
+            %     % Smaller and faster output for visualization workloads:
+            %     odb = post.createODB("MyODB", ...
+            %         floatPrecision="float", compressionLevel=4, ...
+            %         recordDt=0.01, projectGaussToNodes="off", ...
+            %         computeMechanicalMeasures={}, saveFiberSecResp=false);
             %
             % Parameters
             % ----------
@@ -348,6 +354,15 @@ classdef OpenSeesMatlabPost < handle
             %     Precision for floating-point data in the ODB. Options are "float" or "double". 'double' reflects the full precision of MATLAB's default numeric type, while 'float' uses single-precision storage to reduce file size at the cost of precision.
             % intPrecision : char | string, optional, default "int32"
             %     Precision for integer data in the ODB. Options are "int32" or "int64". 'int32' is sufficient for most models and results in smaller file sizes, while 'int64' allows for larger models with more nodes/elements at the cost of increased file size.
+            % compressionLevel : integer, optional, default 4
+            %     HDF5 deflate compression level from 0 (disabled) to 9.
+            %     Level 4 normally provides a good balance between file size and
+            %     write speed. Higher levels can consume substantially more CPU
+            %     time for only a small additional reduction in file size.
+            % includeModel : logical, optional, default true
+            %     Store model geometry and topology in the ODB.
+            % recordInitialState : logical, optional, default true
+            %     Record the state at recorder creation before analysis steps.
             % elasticFrameSecPoints : integer, optional, default 9
             %     Number of points to use for elastic frame section integration.
             % interpolateBeamDisp : char | string | integer, optional, default "off"
@@ -361,11 +376,12 @@ classdef OpenSeesMatlabPost < handle
             %     - "tauMax" (maximum shear stress)
 
             % projectGaussToNodes : char | string, optional, default "extrapolate"
-            %     Method to project Gauss point data to nodes for shell responses. Options are "
+            %     Method to project Gauss point data to nodes for shell, plane, and solid responses.
             %
             %     - "copy" (copy values from nearest Gauss point)
             %     - "extrapolate" (interpolate values from all Gauss points).
             %     - "average" (average values from all Gauss points).
+            %     - "off" (do not store projected nodal values).
             % saveNodalResp: logical, optional, default true
             %     Flag to save nodal response data.
             % nodeTags: double array, optional
@@ -407,15 +423,46 @@ classdef OpenSeesMatlabPost < handle
             % -------
             % odb : post.ODB
             %     The created output database object.
+            %
+            % File size and performance
+            % -------------------------
+            % The most effective way to reduce both file size and recording
+            % overhead is to write fewer values: set recordDt to the required
+            % output interval, disable unused response families, and provide tag
+            % lists when only selected nodes or elements are needed.
+            %
+            % Fiber responses, Gauss-point-to-node projection, interpolated beam
+            % displacement, and mechanical measures add derived datasets and
+            % computation. Keep saveFiberSecResp=false, use
+            % projectGaussToNodes="off", interpolateBeamDisp="off", and
+            % computeMechanicalMeasures={} unless those outputs are required.
+            %
+            % floatPrecision="float" approximately halves raw response storage
+            % and usually reduces I/O time, but limits responses to about 6-7
+            % decimal significant digits. Use "double" for verification and
+            % precision-sensitive analysis.
+            %
+            % compressionLevel=4 is the recommended general-purpose setting.
+            % Levels 1-4 can improve total runtime when reduced disk I/O outweighs
+            % compression CPU cost; level 0 can be faster on a very fast disk when
+            % storage size is unimportant. Levels 7-9 are generally not recommended
+            % during analysis. Increasing flushEvery can reduce flush overhead,
+            % but leaves more recent steps buffered if analysis terminates
+            % unexpectedly; flushEvery does not change how many steps are stored.
 
             arguments
                 obj (1,1) post.OpenSeesMatlabPost
                 odbTag  = ""
 
-                options.flushEvery                       = 10
-                options.recordDt                         =  0
-                options.floatPrecision                   = "double"
-                options.intPrecision                     = "int32"
+                options.flushEvery (1,1) double {mustBeInteger, mustBePositive} = 20
+                options.recordDt (1,1) double {mustBeNonnegative} = 0
+                options.floatPrecision {mustBeTextScalar, mustBeMember(options.floatPrecision, ...
+                    ["double", "float64", "f64", "fp64", "float", "single", "float32", "f32", "fp32"])} = "double"
+                options.intPrecision {mustBeTextScalar, mustBeMember(options.intPrecision, ...
+                    ["int32", "i32", "32", "int64", "i64", "64"])} = "int32"
+                options.compressionLevel (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(options.compressionLevel, 0), mustBeLessThanOrEqual(options.compressionLevel, 9)} = 4
+                options.includeModel           logical = true
+                options.recordInitialState     logical = true
 
                 options.saveNodalResp           logical = true
                 options.saveFrameResp           logical = true
@@ -439,7 +486,8 @@ classdef OpenSeesMatlabPost < handle
                 options.elasticFrameSecPoints   double {mustBeInteger, mustBePositive} = 9
                 options.interpolateBeamDisp             = "off"
                 options.computeMechanicalMeasures       = {"principal", "tauMax", "octahedral", "vonMises"}
-                options.projectGaussToNodes {mustBeTextScalar, mustBeMember(options.projectGaussToNodes, ["extrapolate", "average", "copy"])} = "extrapolate"
+                options.projectGaussToNodes {mustBeTextScalar, mustBeMember(options.projectGaussToNodes, ...
+                    ["off", "none", "nearest", "copy", "average", "avg", "extrapolate"])} = "extrapolate"
             end
             odbTag = string(odbTag);
             if strlength(odbTag) == 0
