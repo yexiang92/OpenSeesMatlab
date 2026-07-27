@@ -36,12 +36,25 @@ classdef Polyscope < handle
             % frame_begin()/frame_end(). Otherwise, defer to the native C++ show().
             if ~isempty(obj.userCallback_)
                 obj.show_window();
+                windowCleanup = onCleanup(@() obj.hide_window_safely_()); %#ok<NASGU>
                 if nargin < 2
                     while ~obj.window_requests_close()
                         tFrame = tic;
                         obj.frame_begin();
-                        obj.userCallback_();
-                        obj.frame_end();
+                        frameOpen = true;
+                        try
+                            obj.userCallback_();
+                            obj.frame_end();
+                            frameOpen = false;
+                        catch err
+                            if frameOpen
+                                try
+                                    obj.frame_end();
+                                catch
+                                end
+                            end
+                            rethrow(err);
+                        end
                         obj.wait_after_frame_(toc(tFrame));
                     end
                 else
@@ -49,13 +62,24 @@ classdef Polyscope < handle
                     while frame <= forFrames && ~obj.window_requests_close()
                         tFrame = tic;
                         obj.frame_begin();
-                        obj.userCallback_();
-                        obj.frame_end();
+                        frameOpen = true;
+                        try
+                            obj.userCallback_();
+                            obj.frame_end();
+                            frameOpen = false;
+                        catch err
+                            if frameOpen
+                                try
+                                    obj.frame_end();
+                                catch
+                                end
+                            end
+                            rethrow(err);
+                        end
                         obj.wait_after_frame_(toc(tFrame));
                         frame = frame + 1;
                     end
                 end
-                obj.hide_window();
             else
                 if nargin < 2
                     call_mex('show');
@@ -797,6 +821,13 @@ classdef Polyscope < handle
     end
 
     methods (Access = private)
+        function hide_window_safely_(obj)
+            try
+                obj.hide_window();
+            catch
+            end
+        end
+
         function wait_after_frame_(obj, elapsed)
             targetPeriod = 1 / max(1, double(obj.maxFps_));
             remaining = targetPeriod - elapsed;

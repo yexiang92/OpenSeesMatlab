@@ -23,14 +23,25 @@ classdef (Abstract) ViewerBase < handle
         windowSizeCache_ double = zeros(0, 2)
         windowSizeCacheTimer_ = []
         screenAxesUpdateTimer_ = []
+        guiEnabled_ logical = false
     end
 
     methods
-        function show(obj)
+        function show(obj, forFrames)
             if ~obj.built_
                 obj.build();
             end
-            obj.App.show();
+            if obj.guiEnabled_
+                obj.App.setUserCallback(@obj.guiCallback_);
+            end
+            % Treat closing the native window as the end of this Polyscope
+            % session. onCleanup also covers callback/MEX exceptions.
+            cleanup = onCleanup(@() obj.closeViewerSession_()); %#ok<NASGU>
+            if nargin < 2
+                obj.App.show();
+            else
+                obj.App.show(forFrames);
+            end
         end
 
         function frameTick(obj)
@@ -52,6 +63,7 @@ classdef (Abstract) ViewerBase < handle
                 obj.build();
             end
             obj.initGuiState_();
+            obj.guiEnabled_ = true;
             obj.App.setUserCallback(@obj.guiCallback_);
         end
 
@@ -79,6 +91,19 @@ classdef (Abstract) ViewerBase < handle
         function applySlicePlanes(obj)
             %APPLYSLICEPLANES Apply current slice-plane state to Polyscope.
             obj.applySlicePlane_();
+        end
+
+        function close(obj)
+            %CLOSE Close the native window and release its graphics session.
+            % The MATLAB viewer remains valid and may be shown again.
+            obj.closeViewerSession_();
+        end
+
+        function delete(obj)
+            try
+                obj.closeViewerSession_();
+            catch
+            end
         end
     end
 
@@ -1719,11 +1744,27 @@ classdef (Abstract) ViewerBase < handle
             end
         end
 
-        function delete(obj)
+        function closeViewerSession_(obj)
+            % Break callback ownership first, then destroy the native window,
+            % OpenGL/GLFW context, and process-global Polyscope state.
             try
-                obj.App.shutdown();
+                obj.App.clearUserCallback();
             catch
             end
+            try
+                obj.App.closeWindow();
+            catch
+            end
+
+            % Native structure handles become invalid after shutdown. Force a
+            % complete rebuild if this MATLAB viewer is shown again.
+            obj.built_ = false;
+            obj.handles_ = struct();
+            obj.query_ = struct();
+            obj.highlight_ = struct();
+            obj.windowSizeCache_ = zeros(0, 2);
+            obj.windowSizeCacheTimer_ = [];
+            obj.screenAxesUpdateTimer_ = [];
         end
 
     end
