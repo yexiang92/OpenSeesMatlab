@@ -98,10 +98,18 @@ classdef PolyscopeApp < handle
         end
 
         function shutdown(obj)
-            if ~obj.initialized_, return; end
             % Clear the local flag first so repeated/re-entrant destruction is
             % harmless. Polyscope itself is process-global, whereas several
             % viewer wrappers may each believe they own the initialized state.
+            %
+            % Always release the MATLAB callback, even when the native session
+            % was already shut down. A bound-method callback otherwise retains
+            % its viewer and creates a Viewer -> App -> Polyscope -> Viewer cycle.
+            try
+                obj.ps_.clear_user_callback();
+            catch
+            end
+            if ~obj.initialized_, return; end
             obj.initialized_ = false;
             try
                 if obj.ps_.is_initialized()
@@ -111,6 +119,13 @@ classdef PolyscopeApp < handle
                 % Destructors must remain silent if another viewer has already
                 % shut down Polyscope or the MEX is being cleared by MATLAB.
             end
+        end
+
+        function closeWindow(obj)
+            %CLOSEWINDOW Release all resources owned by this viewer session.
+            % Closing the native window is a terminal operation for the current
+            % scene. A later show rebuilds and initializes a fresh session.
+            obj.shutdown();
         end
 
         function removeAllStructures(obj)
