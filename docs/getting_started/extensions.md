@@ -4,6 +4,15 @@ OpenSeesMatlab includes optional features that extend the standard OpenSees
 command workflow. These extensions use the same `ops` interface as native
 commands, but they are implemented and maintained by OpenSeesMatlab.
 
+## Adaptive analysis recovery
+
+[`adaptiveAnalyze`][ops.OpenSeesMatlabCmds.adaptiveAnalyze] is a replacement
+for `analyze` that advances the model one step at a time and applies recovery
+strategies only after a step fails. It supports static, fixed-step transient,
+and `VariableTransient` analyses without requiring changes to OpenSees.
+
+[Read the adaptive analysis guide](extensions/adaptive_analysis.md){ .md-button .md-button--primary }
+
 ## MATLAB numerical substructure analysis
 
 [`matlabSubstructure`][ops.OpenSeesMatlabCmds.matlabSubstructure] connects an
