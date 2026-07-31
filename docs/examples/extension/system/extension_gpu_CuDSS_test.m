@@ -65,7 +65,7 @@ opsMat = OpenSeesMatlab();
 ops = opsMat.opensees;
 % Benchmark definition
 
-RequestedDOFs = [100 500 1000 2000 5000 10000 20000 50000 100000 500000];
+RequestedDOFs = [100 500 1000 2000 5000 10000 20000 50000 100000 1000000];
 TargetDOFs = sort(unique(RequestedDOFs,"stable"));
 Solvers = ["CuDSS" "CuDSSSPD" "UmfPack" "SuperLU" "SparseSPD" "BandSPD" "ProfileSPD" "BandGeneral"];
 NumberOfLoadSteps = 3;
@@ -106,7 +106,7 @@ rows = cell(0,1);
 for targetDOF = TargetDOFs
     for solver = Solvers
         
-        if ismember(targetDOF, [500000, 1000000]) && ~ismember(solver, ["CuDSS", "CuDSSSPD", "UmfPack"])
+        if targetDOF >= 500000 && ~ismember(solver, ["CuDSS", "CuDSSSPD", "UmfPack"])
             fprintf("Skipping target %d DOF with %s...\n", targetDOF, solver);
             continue;
         end
@@ -160,64 +160,213 @@ Results
 % 
 % Plot first and repeated solve times
 
-figure("Name","Plane-element solver time","Color","w", 'Position', [100, 100, 800, 500]);
-tiledlayout(1,2,"TileSpacing","compact","Padding","compact");
+% Eight distinct solver styles
+fontName = "Times New Roman";
+fontSize = 13;
+lineWidth = 1.6;
+markerSize = 7;
+axisLineWidth = 1.0;
 
-nexttile;
-plotMetric(Results,"FirstSolveSeconds",Solvers);
-ax = gca;
-ax.XScale = "log";
-title("First solve for each new system");
-ylabel("Time (s)");
+plotColors = [
+    0.0000, 0.4470, 0.7410   % Blue
+    0.8500, 0.3250, 0.0980   % Orange
+    0.4660, 0.6740, 0.1880   % Green
+    0.4940, 0.1840, 0.5560   % Purple
+    0.9290, 0.6940, 0.1250   % Yellow
+    0.3010, 0.7450, 0.9330   % Cyan
+    0.6350, 0.0780, 0.1840   % Dark red
+    0.2500, 0.2500, 0.2500   % Dark gray
+    ];
 
-nexttile;
-plotMetric(Results,"WarmSolveSeconds",Solvers);
-ax = gca;
-ax.XScale = "log";
-title("Repeated tangent solve");
-ylabel("Median time (s)");
-legend("Location","northwest");
+plotMarkers = {'o', 's', '^', 'd', 'v', '>', '<', 'p'};
+
+nSolvers = numel(Solvers);
+%%
+figTime = figure( ...
+    "Name", "Plane-element solver time", ...
+    "Color", "w", ...
+    "Position", [100, 100, 1050, 430]);
+
+tl = tiledlayout(figTime, 1, 2, ...
+    "TileSpacing", "compact", ...
+    "Padding", "compact");
+
+% -------------------------------------------------------------------------
+% First solve
+% -------------------------------------------------------------------------
+
+ax1 = nexttile(tl);
+hold(ax1, "on");
+
+plotSolverMetric( ...
+    ax1, Results, Solvers, "FirstSolveSeconds", ...
+    plotColors, plotMarkers, lineWidth, markerSize);
+
+setPublicationAxes(ax1, fontName, fontSize, axisLineWidth);
+
+set(ax1, "XScale", "log");
+
+xlabel(ax1, "Number of active equations");
+ylabel(ax1, "Solution time (s)");
+title(ax1, "(a) First solution of each system", ...
+    "FontWeight", "normal");
+
+% -------------------------------------------------------------------------
+% Repeated solve
+% -------------------------------------------------------------------------
+
+ax2 = nexttile(tl);
+hold(ax2, "on");
+
+plotSolverMetric( ...
+    ax2, Results, Solvers, "WarmSolveSeconds", ...
+    plotColors, plotMarkers, lineWidth, markerSize);
+
+setPublicationAxes(ax2, fontName, fontSize, axisLineWidth);
+
+set(ax2, "XScale", "log");
+
+xlabel(ax2, "Number of active equations");
+ylabel(ax2, "Median solution time (s)");
+title(ax2, "(b) Repeated tangent solution", ...
+    "FontWeight", "normal");
+
+legend(ax2, ...
+    "Location", "northwest", ...
+    "Box", "off", ...
+    "FontName", fontName, ...
+    "FontSize", fontSize - 1);
+
+% exportgraphics(figTime, ...
+%     "figures/PlaneElementSolverTime.pdf", ...
+%     "ContentType", "vector");
 % Plot displacement accuracy
 
 % Zero UmfPack self-error is replaced only for plotting on a logarithmic axis;
 % the Results table retains the exact zero.
 
-figure("Name","Plane-element solver accuracy","Color","w");
-hold on;
-for solver = Solvers
-    data = Results(Results.Solver == solver & Results.Status == "ok",:);
-    plotError = max(data.RelativeTipError,eps);
-    loglog(data.ActualDOF,plotError,"-o","LineWidth",1.4, ...
-        "DisplayName",solver);
+
+figAccuracy = figure( ...
+    "Name", "Plane-element solver accuracy", ...
+    "Color", "w", ...
+    "Position", [100, 100, 600, 450]);
+
+ax3 = axes(figAccuracy);
+hold(ax3, "on");
+
+for i = 1:nSolvers
+    solver = Solvers(i);
+
+    data = Results( ...
+        Results.Solver == solver & Results.Status == "ok", :);
+
+    if isempty(data)
+        continue;
+    end
+
+    data = sortrows(data, "ActualDOF");
+
+    % Replace exact zero only for logarithmic plotting
+    plotError = max(abs(data.RelativeTipError), eps);
+
+    loglog(ax3, ...
+        data.ActualDOF, ...
+        plotError, ...
+        "-", ...
+        "Color", plotColors(i, :), ...
+        "Marker", plotMarkers{mod(i - 1, numel(plotMarkers)) + 1}, ...
+        "MarkerSize", markerSize, ...
+        "MarkerFaceColor", "w", ...
+        "LineWidth", lineWidth, ...
+        "DisplayName", solver);
 end
-ax = gca;
-ax.XScale = "log";
-ax.YScale = "log";
-grid on;
-xlabel("Active equations");
-ylabel("Relative loaded-edge displacement error vs UmfPack");
-title("Double-precision solution agreement");
-legend("Location","best");
+
+setPublicationAxes(ax3, fontName, fontSize, axisLineWidth);
+
+xlabel(ax3, "Number of active equations");
+ylabel(ax3, "Relative displacement error");
+% title(ax3, "Loaded-edge displacement error relative to UmfPack", ...
+%     "FontWeight", "normal");
+set(ax3, "XScale", "log");
+set(ax3, "YScale", "log");
+
+legend(ax3, ...
+    "Location", "best", ...
+    "Box", "off", ...
+    "FontName", fontName, ...
+    "FontSize", fontSize - 1);
+
+exportgraphics(figAccuracy, ...
+    "CUDSSSolverAccuracy.pdf", ...
+    "ContentType", "vector");
 % Plot speedup relative to UmfPack
 % 
 
 % A value greater than one means that the solver is faster than UmfPack.
 
-figure("Name","Plane-element solver speedup","Color","w");
-hold on;
-for solver = Solvers
-    data = Results(Results.Solver == solver & Results.Status == "ok",:);
-    semilogx(data.ActualDOF,data.WarmSpeedupVsUmfPack,"-o", ...
-        "LineWidth",1.4,"DisplayName",solver);
+figSpeedup = figure( ...
+    "Name", "Plane-element solver speedup", ...
+    "Color", "w", ...
+    "Position", [100, 100, 600, 450]);
+
+ax4 = axes(figSpeedup);
+hold(ax4, "on");
+
+for i = 1:nSolvers
+    solver = Solvers(i);
+
+    data = Results( ...
+        Results.Solver == solver & Results.Status == "ok", :);
+
+    if isempty(data)
+        continue;
+    end
+
+    data = sortrows(data, "ActualDOF");
+
+    semilogx(ax4, ...
+        data.ActualDOF, ...
+        data.WarmSpeedupVsUmfPack, ...
+        "-", ...
+        "Color", plotColors(i, :), ...
+        "Marker", plotMarkers{mod(i - 1, numel(plotMarkers)) + 1}, ...
+        "MarkerSize", markerSize, ...
+        "MarkerFaceColor", "w", ...
+        "LineWidth", lineWidth, ...
+        "DisplayName", solver);
 end
-yline(1,"--","UmfPack baseline","HandleVisibility","off");
-grid on;
-ax = gca;
-ax.XScale = "log";
-xlabel("Active equations");
-ylabel("Repeated-solve speedup vs UmfPack");
-title("Solver speedup after one-time GPU initialization");
-legend("Location","bestoutside");
+
+set(ax4, "XScale", "log");
+% set(ax4, "YScale", "log");
+
+yline(ax4, ...
+    1.0, ...
+    "--", ...
+    "UmfPack baseline", ...
+    "Color", [0.25, 0.25, 0.25], ...
+    "LineWidth", 1.1, ...
+    "LabelHorizontalAlignment", "right", ...
+    "LabelVerticalAlignment", "top", ...
+    "FontName", fontName, ...
+    "FontSize", fontSize - 1, ...
+    "HandleVisibility", "off");
+
+setPublicationAxes(ax4, fontName, fontSize, axisLineWidth);
+
+xlabel(ax4, "Number of active equations");
+ylabel(ax4, "Repeated-solve speedup");
+% title(ax4, "Solver speedup relative to UmfPack", ...
+%     "FontWeight", "normal");
+
+legend(ax4, ...
+    "Location", "best", ...
+    "Box", "off", ...
+    "FontName", fontName, ...
+    "FontSize", fontSize - 1);
+
+exportgraphics(figSpeedup, ...
+    "CUDSSSolverSpeedup.pdf", ...
+    "ContentType", "vector");
 % 
 % Local benchmark functions
 
@@ -336,4 +485,65 @@ function [nx,ny,actualDOF] = balancedMesh(targetDOF)
     nx = best(3);
     ny = best(4);
     actualDOF = 2*nx*(ny+1);
+end
+
+function plotSolverMetric( ...
+    ax, Results, Solvers, metricName, ...
+    plotColors, plotMarkers, lineWidth, markerSize)
+
+for i = 1:numel(Solvers)
+    solver = Solvers(i);
+
+    data = Results( ...
+        Results.Solver == solver & Results.Status == "ok", :);
+
+    if isempty(data)
+        continue;
+    end
+
+    data = sortrows(data, "ActualDOF");
+
+    x = data.ActualDOF;
+    y = data.(metricName);
+
+    valid = isfinite(x) & isfinite(y) & x > 0 & y >= 0;
+
+    plot(ax, ...
+        x(valid), ...
+        y(valid), ...
+        "-", ...
+        "Color", plotColors(i, :), ...
+        "Marker", plotMarkers{mod(i - 1, numel(plotMarkers)) + 1}, ...
+        "MarkerSize", markerSize, ...
+        "MarkerFaceColor", "w", ...
+        "LineWidth", lineWidth, ...
+        "DisplayName", solver);
+end
+end
+
+
+function setPublicationAxes(ax, fontName, fontSize, axisLineWidth)
+
+box(ax, "on");
+grid(ax, "on");
+
+ax.XMinorGrid = "off";
+ax.YMinorGrid = "off";
+ax.GridAlpha = 0.18;
+ax.GridLineStyle = "-";
+
+set(ax, ...
+    "FontName", fontName, ...
+    "FontSize", fontSize, ...
+    "LineWidth", axisLineWidth, ...
+    "TickDir", "in", ...
+    "TickLength", [0.015, 0.015], ...
+    "Layer", "top");
+
+ax.XLabel.FontName = fontName;
+ax.YLabel.FontName = fontName;
+ax.Title.FontName = fontName;
+ax.XLabel.FontSize = fontSize + 1;
+ax.YLabel.FontSize = fontSize + 1;
+ax.Title.FontSize = fontSize + 1;
 end

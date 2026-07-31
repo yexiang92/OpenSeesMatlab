@@ -293,3 +293,9 @@ axis equal
 title("Von Mises Stress")
 colormap("jet")
 opsMAT.vis.plotContinuumResponseGUI(planeResp);
+%% 
+% 
+
+opsMAT.vis.polyscope.plotContinuumResponse(planeResp);
+%% 
+%

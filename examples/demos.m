@@ -42,6 +42,8 @@ tasks = [
     "extension", "system",         "extension_gpu_CuDSS_test";
     "extension", "material",       "extension_MatlabUniaxialMaterial_linear";
     "extension", "material",       "extension_MatlabUniaxialMaterial_nonlinear";
+    "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_static";
+    "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_dynamic";
 ];
 
 rootDir = "../docs/examples";
@@ -637,6 +639,8 @@ function titleStr = localSubgroupTitle(category, subgroup)
                     titleStr = "Solver of equations for linear systems";
                 case "material"
                     titleStr = "Connecting MATLAB's custom materials to the OpenSees domain";
+                case "adaptiveAnalyze"
+                    titleStr = "Adaptive Analysis";
                 otherwise
                     titleStr = localPrettyTitle(subgroup);
             end
