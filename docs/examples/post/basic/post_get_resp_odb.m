@@ -12,7 +12,7 @@ clc; clear; close all;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-% Model 
+% OpenSees Model Creating 
 % Nodes
 
 %% Model
@@ -217,9 +217,12 @@ for i = [5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17, 18]
     ops.load(i, 0.0, 0.0, -p, 0.0, 0.0, 0.0);
 end
 % Earthquake Analysis
-% [tabasFN.txt](../utils/tabasFN.txt)   
+% Acceleration input:
 % 
-% [tabasFP.txt](../utils/tabasFP.txt)
+% [tabasFN.txt](../../utils/tabasFN.txt)   
+% 
+% [tabasFP.txt](../../utils/tabasFP.txt)
+% Rayleigh damping
 
 % set rayleigh damping factors
 ops.rayleigh(0.0, 0.0, 0.0, 0.0018);
@@ -240,8 +243,7 @@ ops.timeSeries("Path", 3, "-values", tabasFP(:), "-dt", dt, "-factor", g);
 %                         tag dir         accel series args
 ops.pattern("UniformExcitation", 2, 1, "-accel", 2);
 ops.pattern("UniformExcitation", 3, 2, "-accel", 3);
-%% 
-% Analysis:
+% Analysis parameters
 
 % create the system of equation
 ops.system("UmfPack");
@@ -257,26 +259,45 @@ ops.algorithm("KrylovNewton");
 ops.integrator("Newmark", 0.5, 0.25);
 % create the analysis object
 ops.analysis("Transient");
-%% 
-% Create ODB object.
-% 
-% OpenSeesMatlab creates a *new recorder object* in C++ for post-processing 
-% data. Therefore, data is automatically recorded during subsequent analysis.
 
 tic;
-ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=7);  % Create ODB
+% Create ODB object
+% OpenSeesMatlab creates a *new recorder object* in C++ for post-processing 
+% data. Therefore, data is automatically recorded during subsequent analysis.
+% 
+% Here:
+%% 
+% * `interpolateBeamDisp=7` means that 7 points are used for interpolation within 
+% the beam element;
+% * `floatPrecision="float"` means that "float32" precision is used for floating-point 
+% numbers, which reduces memory usage by half compared to the default "double 
+% 64" precision, but at the cost of precision. However, this is sufficient for 
+% general analysis;
+% * `compressionLevel=4` compresses the saved HDF5 file. The higher the value, 
+% the higher the compression level, but the more time it will take. 4 is a recommended 
+% value.
+
+ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=7, floatPrecision="float", compressionLevel=4);  % Create ODB
+% Implementation Analysis
+
 ops.analyze(npts, dt);  % Automatically write data to the ODB.
+%% 
+% 
 
 elapsedTime = toc;
 fprintf('Elapsed time for analysis %.2f sec\n', elapsedTime);
-
+% wipe model, this will ensure that the ODB file is written to disk.
 ops.wipe();
 fprintf("Analysis Done!")
 % Post-processing
 % Nodal results
 
 nodeResp = opsMAT.post.getNodalResponse("myODB");
-nodeTags = nodeResp.nodeTags;
+nodeTags = nodeResp.nodeTags;  % node tags to track
+%% 
+% 
+
+disp(nodeResp);
 %% 
 % 
 
@@ -303,9 +324,13 @@ title('Node 1 Reaction');
 % Element results
 
 eleResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
+eleTags = eleResp.eleTags;
+disp(eleResp);
+%% 
+% 
+
 sectionForces = eleResp.sectionForces;
 sectionDefos = eleResp.sectionDeformations;
-eleTags = eleResp.eleTags;
 disp(fieldnames(sectionForces));
 %% 
 % 
