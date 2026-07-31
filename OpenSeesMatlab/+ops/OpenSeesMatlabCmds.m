@@ -1839,6 +1839,125 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             [varargout{1:nargout}] = obj.mexHandle('analyze', numIncr, analyzeArgs{:});
         end
 
+        function varargout = adaptiveAnalyze(obj, numSteps, adaptiveArgs)
+            % Run a static or transient analysis with isolated recovery attempts.
+            %
+            % .. Note::
+            %
+            %    This command is not part of the OpenSees core. It is
+            %    implemented by the OpenSeesMatlab extension.
+            %
+            % adaptiveAnalyze advances the configured OpenSees analysis one
+            % attempted step at a time. A successful attempt is committed. After
+            % a failed attempt, OpenSees reverts to the last committed state and
+            % adaptiveAnalyze may increase the iteration limit, try fallback
+            % algorithms or tests, and subdivide the current target step.
+            %
+            % Outer variable stepping and inner failed-step subdivision are
+            % separate. The current outer target must be completed in full before
+            % the next static increment or VariableTransient time step is chosen.
+            %
+            % Syntax
+            % ------
+            %     % Static; the step comes from LoadControl or
+            %     % DisplacementControl:
+            %     ok = ops.adaptiveAnalyze(numSteps)
+            %     ok = ops.adaptiveAnalyze(numSteps, groups...)
+            %
+            %     % Fixed-step transient:
+            %     ok = ops.adaptiveAnalyze(numSteps, dt, groups...)
+            %
+            %     % VariableTransient:
+            %     ok = ops.adaptiveAnalyze(numSteps, dt, ...
+            %         '-variableTransient', dtMin, dtMax, Jd, groups...)
+            %
+            % Parameters
+            % ----------
+            % numSteps : int
+            %     Number of static/fixed-transient outer targets. For
+            %     VariableTransient, numSteps*dt defines the total requested
+            %     model-time increment.
+            % dt : double
+            %     Initial outer time step for Transient or VariableTransient.
+            % groups : varargin
+            %     Optional grouped recovery controls listed as follows. The
+            %     presence of a group name enables that feature; no Boolean
+            %     switch follows it. Omitted recovery groups are disabled.
+            %
+            %     - '-iterations', multiplier, maxIterations
+            %         - Retry a failed substep with a larger convergence-test maxIter.
+            %           Suggested values are 3 and 200.
+            %     - '-algorithms', algorithmSpec...
+            %         - Try fallback algorithms in order. Argument-free algorithms may be
+            %           consecutive strings. Parameterized algorithms must use cells,
+            %           where each outer cell element is one complete algorithm command.
+            %     - '-subdivision', reduction, minStep, maxSubdivisions
+            %         - Subdivide only the current failed outer target. Suggested
+            %           values are 0.5, abs(initialStep)*1e-6, and 10.
+            %     - '-tests', testSpecs
+            %         - Configure fallback tests. Each inner cell is
+            %           {testType, tolerance, maxIter, printFlag}.
+            %     - '-variableTransient', dtMin, dtMax, Jd
+            %         - Required only after analysis('VariableTransient'). This group
+            %           has no Boolean switch because the analysis type controls it.
+            %     - '-limits', maxRecoveryAttempts
+            %         - Maximum real analysis attempts within one outer target.
+            %            Defaults to 1000.
+            %     - '-log', filePath
+            %         - Write a CSV record of every recovery attempt.
+            %     - '-debug'
+            %         - Print every attempt. A final success or failure summary is
+            %           printed regardless of this setting.
+            %
+            % Returns
+            % -------
+            % ok : int
+            %     Zero when the requested analysis range is complete; negative
+            %     when recovery or configuration restoration fails.
+            %
+            % Examples
+            % --------
+            %     ops.integrator('LoadControl', 0.01);
+            %     ops.analysis('Static');
+            %     ok = ops.adaptiveAnalyze(100, ...
+            %         '-algorithms', 'KrylovNewton', 'Newton', ...
+            %         '-subdivision', 0.5, 1e-6, 10);
+            %
+            %     ops.analysis('VariableTransient');
+            %     algorithms = { ...
+            %         {'KrylovNewton', '-maxDim', 20}, ...
+            %         {'Newton'}};
+            %     ok = ops.adaptiveAnalyze(1000, 0.01, ...
+            %         '-algorithms', algorithms, ...
+            %         '-subdivision', 0.5, 1e-6, 10, ...
+            %         '-variableTransient', 1e-5, 0.02, 8);
+            %
+            % Notes
+            % -----
+            %     Static outer variable stepping is read from the configured
+            %     LoadControl or DisplacementControl numIter/min/max arguments.
+            %     VariableTransient parameters are rejected for Static or
+            %     ordinary Transient analysis.
+            %
+            %     With no recovery groups, adaptiveAnalyze performs only the
+            %     original one-step analysis attempts and does not change the
+            %     algorithm, convergence test, or step size.
+            %
+            %     After every successful or failed attempt, the user's original
+            %     algorithm, convergence test, and static integrator are restored.
+
+            arguments
+                obj
+                numSteps (1,1) {mustBeNumeric}
+            end
+            arguments (Repeating)
+                adaptiveArgs
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'adaptiveAnalyze', numSteps, adaptiveArgs{:});
+        end
+
         function varargout = eigen(obj, varargin)
             % Run an eigenvalue analysis.
             %

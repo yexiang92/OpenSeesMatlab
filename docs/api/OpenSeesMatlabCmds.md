@@ -118,6 +118,7 @@ For details, please refer to their official documentation, You can call it in th
         - integrator
         - analysis
         - analyze
+        - adaptiveAnalyze
         - eigen
         - modalProperties
         - responseSpectrumAnalysis
