@@ -161,6 +161,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.historyShowValue = true;
             obj.gui_.historyFieldIdx = obj.gui_.fieldIdx;
             obj.gui_.historyCompIdx = obj.gui_.compIdx;
+            obj.initHistoryPlotAppearanceGui_();
 
             obj.gui_.showField = obj.Opts.field.show;
             obj.gui_.showDeform = obj.Opts.deform.show;
@@ -171,8 +172,14 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.useInterpolation = obj.getOptField_(obj.Opts.interp, 'useInterpolation', true);
             obj.gui_.showSurfaces = obj.Opts.surf.show;
             obj.gui_.showSurfaceEdges = obj.Opts.surf.showEdges;
+            obj.gui_.surfaceRenderModeIdx = obj.indexOf_( ...
+                {'surface','wireframe'}, ...
+                obj.getOptField_(obj.Opts.surf, 'renderMode', 'surface'));
             obj.gui_.showNodes = obj.Opts.nodes.show;
             obj.gui_.showFixed = obj.Opts.fixed.show;
+            obj.gui_.showMP = obj.getOptField_(obj.Opts.polyscope, 'showMPConstraints', true);
+            obj.gui_.fixedSymbolScale = obj.getOptField_( ...
+                obj.Opts.fixed, 'symbolScale', 1.0);
             obj.gui_.showVectors = obj.Opts.vector.show;
             obj.gui_.vectorAuto = obj.Opts.vector.autoScale;
             obj.gui_.vectorScale = obj.Opts.vector.scale;
@@ -481,6 +488,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             GB.sameLine();
             obj.gui_.historyAutoStep = GB.checkbox('Follow current step', obj.gui_.historyAutoStep);
             obj.gui_.historyShowValue = GB.checkbox('Show current value', obj.gui_.historyShowValue);
+            obj.drawHistoryPlotAppearanceGui_('##nodal_history');
 
             [x, y, label] = obj.nodeHistorySeries_();
             finiteY = y(isfinite(y));
@@ -511,7 +519,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 ip.SetupAxes('time / step', label);
                 ip.SetupAxesLimits(xmin, xmax, ymin, ymax, ...
                     int32(polyscope.ImPlot.get_constant('ImPlotCond_Always')));
-                [lineColor, markerFill, markerOutline] = obj.historyPlotColors_();
+                [lineColor, markerFill, markerOutline] = obj.historyLineStyle_();
                 ip.SetNextLineStyle(lineColor, 2.0);
                 ip.PlotLineXY('response##history_line', x(:), y(:));
                 if obj.currentStep_ >= 0 && obj.currentStep_ < numel(x)
@@ -615,12 +623,21 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.showLines = GB.checkbox('Lines', obj.gui_.showLines);
             GB.sameLine();
             obj.gui_.useInterpolation = GB.checkbox('Interpolated lines', obj.gui_.useInterpolation);
-            obj.gui_.showSurfaces = GB.checkbox('Surfaces / solids', obj.gui_.showSurfaces);
-            GB.sameLine();
-            obj.gui_.showSurfaceEdges = GB.checkbox('Mesh edges', obj.gui_.showSurfaceEdges);
+            renderModes = {'surface','wireframe'};
+            obj.gui_.surfaceRenderModeIdx = GB.combo('Non-line elements##nodal_geometry', ...
+                obj.gui_.surfaceRenderModeIdx, renderModes);
+            obj.Opts.surf.renderMode = renderModes{obj.gui_.surfaceRenderModeIdx};
+            obj.gui_.showSurfaces = ~strcmp(obj.Opts.surf.renderMode, 'wireframe');
+            obj.gui_.showSurfaceEdges = GB.checkbox('Mesh edges##nodal_geometry', ...
+                obj.gui_.showSurfaceEdges);
             GB.sameLine();
             obj.gui_.showNodes = GB.checkbox('Model nodes', obj.gui_.showNodes);
             obj.gui_.showFixed = GB.checkbox('Fixed nodes', obj.gui_.showFixed);
+            GB.sameLine();
+            obj.gui_.showMP = GB.checkbox('MP constraints##nodal_geometry', obj.gui_.showMP);
+            GB.sameLine();
+            obj.gui_.fixedSymbolScale = GB.sliderFloat('Size##nodal_fixed_symbol', ...
+                obj.gui_.fixedSymbolScale, 0.1, 2.0);
             GB.separator();
             GB.subtitle('Vector display');
             obj.gui_.vectorAuto = GB.checkbox('Vector auto scale', obj.gui_.vectorAuto);
@@ -632,8 +649,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
 
             obj.syncOptsFromGui_();
             visibilityChanged = obj.guiChanged_(oldState, {'showLines','showSurfaces', ...
-                'showSurfaceEdges','showNodes','showFixed','vectorAuto','vectorScale'});
-            needsRebuild = obj.guiChanged_(oldState, {'useInterpolation'});
+                'showSurfaceEdges','surfaceRenderModeIdx','showNodes','showFixed','showMP','vectorAuto','vectorScale'});
+            needsRebuild = obj.guiChanged_(oldState, ...
+                {'useInterpolation','fixedSymbolScale'});
             if visibilityChanged
                 obj.registerMissingOptionalStructures_();
                 obj.applyVisibility_();
@@ -721,6 +739,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             if obj.Opts.fixed.show
                 obj.registerFixed_(ps, segIdx);
             end
+            obj.handles_.def_MPConstraint = obj.registerMPConstraintStructure_( ...
+                obj.ModelInfo(segIdx), obj.P0_, obj.structName_('MPConstraint', 'def'));
             if obj.Opts.vector.show
                 obj.registerVectorCloud_(ps, segIdx);
             end
@@ -833,13 +853,16 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 h.set_edge_width(0);
                 obj.handles_.(['def_' nm]) = h;
                 edgeHandle = obj.registerCellEdgeNetwork_(ps, nm, obj.P0_, double(S.CellTypes), double(S.Cells), 'def');
+                wireHandle = obj.registerCellEdgeNetwork_(ps, [nm 'Wireframe'], obj.P0_, ...
+                    double(S.CellTypes), double(S.Cells), 'def');
+                if ~isempty(wireHandle), wireHandle.set_color(obj.asRgb_(obj.gui_.solidColor)); end
                 pointNodeIds = out.PointNodeIds;
                 if isempty(pointNodeIds)
                     pointNodeIds = (1:size(out.Points, 1)).';
                 end
                 obj.surfData_.(nm) = struct('cellTypes', double(S.CellTypes), 'cells', double(S.Cells), ...
                     'points', out.Points, 'triangles', out.Triangles, 'pointNodeIds', pointNodeIds, ...
-                    'edgeHandle', edgeHandle);
+                    'edgeHandle', edgeHandle, 'wireHandle', wireHandle);
             end
         end
 
@@ -865,8 +888,11 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 h.set_material(obj.Opts.polyscope.surfaceMaterial);
                 obj.handles_.(['def_' nm]) = h;
                 edgeHandle = obj.registerCellEdgeNetwork_(ps, nm, obj.P0_, double(S.CellTypes), double(S.Cells), 'def');
+                wireHandle = obj.registerCellEdgeNetwork_(ps, [nm 'Wireframe'], obj.P0_, ...
+                    double(S.CellTypes), double(S.Cells), 'def');
+                if ~isempty(wireHandle), wireHandle.set_color(obj.asRgb_(obj.gui_.solidColor)); end
                 obj.volumeData_.(nm) = struct('cellTypes', double(S.CellTypes), 'cells', double(S.Cells), ...
-                    'edgeHandle', edgeHandle);
+                    'edgeHandle', edgeHandle, 'wireHandle', wireHandle);
             end
         end
 
@@ -912,11 +938,13 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
 
         function registerFixed_(obj, ps, segIdx)
             [Pfix, edges] = plotter.polyscope.SupportGlyphs.build(obj.ModelInfo(segIdx), ...
-                obj.P0_, max(obj.L_, eps) * 0.035);
+                obj.P0_, max(obj.L_, eps) * 0.035 * ...
+                max(0.05, double(obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0))));
             if isempty(Pfix) || isempty(edges), return; end
             h = ps.register_curve_network(obj.structName_('Fixed', 'def'), Pfix, edges);
-            h.set_radius(obj.Opts.polyscope.edgeRadius * 1.35, true);
-            h.set_color(obj.asRgb_(plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
+            h.set_radius(obj.Opts.polyscope.edgeRadius * ...
+                obj.getOptField_(obj.Opts.polyscope, 'supportLineRadiusFactor', 0.80), true);
+            h.set_color(obj.supportColor_());
             obj.handles_.def_Fixed = h;
         end
 
@@ -1109,6 +1137,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                     h.add_vertex_scalar_quantity(qname, zeros(size(Ptri, 1), 1), 'enabled', false);
                 end
                 obj.updateEdgeNetwork_(data.edgeHandle, Pdef);
+                obj.updateResponseWire_(data.wireHandle, Pdef, Snode, qargs, qname);
             end
         end
 
@@ -1127,6 +1156,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                     end
                 end
                 obj.updateEdgeNetwork_(data.edgeHandle, Pdef);
+                obj.updateResponseWire_(data.wireHandle, Pdef, Snode, qargs, qname);
             end
         end
 
@@ -1142,12 +1172,16 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             end
             if isfield(obj.handles_, 'def_Fixed')
                 [Pfix, ~, ~, fixedRows] = plotter.polyscope.SupportGlyphs.build( ...
-                    obj.ModelInfo(segIdx), Pdef, max(obj.L_, eps) * 0.035);
+                    obj.ModelInfo(segIdx), Pdef, max(obj.L_, eps) * 0.035 * ...
+                    max(0.05, double(obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0))));
                 if ~isempty(Pfix)
                     obj.handles_.def_Fixed.update_node_positions(Pfix);
                 end
-                obj.handles_.def_Fixed.set_color(obj.asRgb_( ...
-                    plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
+                obj.handles_.def_Fixed.set_color(obj.supportColor_());
+            end
+            if isfield(obj.handles_, 'def_MPConstraint') && ...
+                    ~isempty(obj.handles_.def_MPConstraint)
+                obj.handles_.def_MPConstraint.update_node_positions(Pdef);
             end
             try
                 obj.App.polyscopeHandle().request_redraw();
@@ -1177,21 +1211,37 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             end
         end
 
+        function updateResponseWire_(~, h, P, Snode, qargs, qname)
+            if isempty(h) || isempty(P), return; end
+            try, h.update_node_positions(P); catch, end
+            try
+                if ~isempty(Snode)
+                    h.add_node_scalar_quantity(qname, Snode, qargs{:});
+                else
+                    h.add_node_scalar_quantity(qname, zeros(size(P, 1), 1), 'enabled', false);
+                end
+            catch
+            end
+        end
+
         function applyVisibility_(obj)
             names = fieldnames(obj.lineData_);
             for k = 1:numel(names), obj.setEnabled_(['def_' names{k}], obj.Opts.line.show); end
             names = fieldnames(obj.surfData_);
             for k = 1:numel(names)
                 obj.setEnabled_(['def_' names{k}], obj.Opts.surf.show);
-                obj.setEdgeEnabled_(obj.surfData_.(names{k}).edgeHandle, obj.Opts.surf.showEdges && obj.Opts.surf.show);
+                obj.setEdgeEnabled_(obj.surfData_.(names{k}).wireHandle, ~obj.Opts.surf.show);
+                obj.setEdgeEnabled_(obj.surfData_.(names{k}).edgeHandle, obj.Opts.surf.showEdges);
             end
             names = fieldnames(obj.volumeData_);
             for k = 1:numel(names)
                 obj.setEnabled_(['def_' names{k}], obj.Opts.surf.show);
-                obj.setEdgeEnabled_(obj.volumeData_.(names{k}).edgeHandle, obj.Opts.surf.showEdges && obj.Opts.surf.show);
+                obj.setEdgeEnabled_(obj.volumeData_.(names{k}).wireHandle, ~obj.Opts.surf.show);
+                obj.setEdgeEnabled_(obj.volumeData_.(names{k}).edgeHandle, obj.Opts.surf.showEdges);
             end
             obj.setEnabled_('def_Nodes', obj.Opts.nodes.show);
             obj.setEnabled_('def_Fixed', obj.Opts.fixed.show);
+            obj.setEnabled_('def_MPConstraint', obj.Opts.polyscope.showMPConstraints);
             obj.setEnabled_('def_Vectors', obj.Opts.vector.show);
             ghostNames = fieldnames(obj.handles_);
             for k = 1:numel(ghostNames)
@@ -1211,6 +1261,10 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                         h.set_transparency(obj.Opts.color.undeformedAlpha);
                     elseif contains(allNames{k}, 'Vectors')
                         h.set_color(obj.asRgb_(obj.gui_.vectorColor));
+                    elseif contains(allNames{k}, 'Fixed')
+                        h.set_color(obj.supportColor_());
+                    elseif contains(allNames{k}, 'MPConstraint')
+                        h.set_color(obj.asRgb_(obj.Opts.polyscope.mpConstraintColor));
                     else
                         h.set_color(obj.asRgb_(obj.gui_.solidColor));
                         if isa(h, 'polyscope.SurfaceMesh') || isa(h, 'polyscope.VolumeMesh')
@@ -1242,6 +1296,23 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                         end
                     end
                 catch
+                end
+            end
+            groups = {obj.surfData_, obj.volumeData_};
+            for g = 1:numel(groups)
+                names = fieldnames(groups{g});
+                for k = 1:numel(names)
+                    data = groups{g}.(names{k});
+                    try
+                        data.edgeHandle.set_color(obj.asRgb_(obj.Opts.surf.edgeColor));
+                        data.edgeHandle.set_radius(obj.Opts.polyscope.edgeRadius * 0.55, true);
+                    catch
+                    end
+                    try
+                        data.wireHandle.set_color(obj.asRgb_(obj.gui_.solidColor));
+                        data.wireHandle.set_radius(obj.Opts.polyscope.edgeRadius, true);
+                    catch
+                    end
                 end
             end
         end
@@ -1280,8 +1351,12 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.Opts.interp.useInterpolation = logical(obj.gui_.useInterpolation);
             obj.Opts.surf.show = logical(obj.gui_.showSurfaces);
             obj.Opts.surf.showEdges = logical(obj.gui_.showSurfaceEdges);
+            renderModes = {'surface','wireframe'};
+            obj.Opts.surf.renderMode = renderModes{obj.gui_.surfaceRenderModeIdx};
             obj.Opts.nodes.show = logical(obj.gui_.showNodes);
             obj.Opts.fixed.show = logical(obj.gui_.showFixed);
+            obj.Opts.fixed.symbolScale = double(obj.gui_.fixedSymbolScale);
+            obj.Opts.polyscope.showMPConstraints = logical(obj.gui_.showMP);
             obj.Opts.vector.show = logical(obj.gui_.showVectors);
             obj.Opts.vector.autoScale = logical(obj.gui_.vectorAuto);
             obj.Opts.vector.scale = obj.gui_.vectorScale;

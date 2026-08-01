@@ -1072,6 +1072,51 @@ classdef (Abstract) ViewerBase < handle
             end
         end
 
+        function rgb = supportColor_(obj)
+            color = obj.getOptField_(obj.Opts.polyscope, 'supportColor', '#21FC0D');
+            rgb = obj.asRgb_(plotter.polyscope.utils.colorToRgb(color));
+        end
+
+        function h = registerMPConstraintStructure_(obj, modelInfo, P, name)
+            h = [];
+            edges = plotter.polyscope.ModelAdapter.mpConstraintEdges(modelInfo);
+            if isempty(edges) || isempty(P), return; end
+            h = obj.App.polyscopeHandle().register_curve_network(name, P, edges);
+            h.set_color(obj.asRgb_(obj.getOptField_(obj.Opts.polyscope, ...
+                'mpConstraintColor', [0.64, 0.28, 0.34])));
+            h.set_radius(obj.Opts.polyscope.edgeRadius, true);
+            h.set_material('flat');
+            h.set_enabled(logical(obj.getOptField_(obj.Opts.polyscope, ...
+                'showMPConstraints', true)));
+        end
+
+        function initHistoryPlotAppearanceGui_(obj)
+            [themeColor, ~, ~] = obj.historyPlotColors_();
+            color = obj.getOptField_(obj.Opts.color, 'historyLineColor', []);
+            if isempty(color), color = themeColor(1:3); end
+            obj.gui_.historyLineColor = obj.asRgb_(color);
+            obj.gui_.historyLineAlpha = min(1, max(0, double( ...
+                obj.getOptField_(obj.Opts.color, 'historyLineAlpha', 1.0))));
+        end
+
+        function drawHistoryPlotAppearanceGui_(obj, idSuffix)
+            if nargin < 2, idSuffix = '##history'; end
+            GB = plotter.polyscope.GuiBuilder;
+            GB.subtitle('Plot appearance');
+            [~, obj.gui_.historyLineColor] = GB.colorEdit3( ...
+                ['Curve color' idSuffix], obj.gui_.historyLineColor);
+            obj.gui_.historyLineAlpha = GB.sliderFloat( ...
+                ['Curve opacity' idSuffix], obj.gui_.historyLineAlpha, 0, 1);
+            obj.Opts.color.historyLineColor = obj.asRgb_(obj.gui_.historyLineColor);
+            obj.Opts.color.historyLineAlpha = double(obj.gui_.historyLineAlpha);
+        end
+
+        function [lineColor, markerFill, markerOutline] = historyLineStyle_(obj)
+            [~, markerFill, markerOutline] = obj.historyPlotColors_();
+            lineColor = [obj.asRgb_(obj.gui_.historyLineColor), ...
+                min(1, max(0, double(obj.gui_.historyLineAlpha)))];
+        end
+
         function dirs = screenAxisDirections_(obj)
             dirs = [1, 0; 0, -1; 0, 0];
             try

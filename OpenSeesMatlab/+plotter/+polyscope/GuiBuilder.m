@@ -84,6 +84,15 @@ classdef GuiBuilder
                 col = [1, 1, 1];
             end
             [changed, col] = polyscope.ImGui.ColorEdit3(label, col);
+            % Some ImGui MEX builds expose ColorEdit3 through an internal
+            % ImVec4 and return RGBA. All Polyscope geometry color setters
+            % require exactly RGB, so normalize at this shared boundary.
+            col = double(col(:).');
+            if isempty(col), col = [1, 1, 1]; end
+            if numel(col) < 3
+                col = [col, repmat(col(end), 1, 3 - numel(col))];
+            end
+            col = max(0, min(1, col(1:3)));
         end
 
         function colorKey(label, col, idSuffix, inlineBefore)
@@ -178,12 +187,11 @@ classdef GuiBuilder
         function subtitle(txt)
             txt = char(string(txt));
             try
-                % A small colored glyph is clearer and lighter than ImGui's
-                % trailing SeparatorText rule. Geometric Unicode glyphs are
-                % more reliable than color emoji in the bundled font atlas.
+                % Use a basic-font accent bar. Unicode geometric glyphs can
+                % become '?' when the active ImGui font lacks that codepoint.
                 accentIdx = polyscope.ImGui.get_constant('ImGuiCol_CheckMark');
                 accent = polyscope.ImGui.GetStyleColorVec4(accentIdx);
-                polyscope.ImGui.TextColored(accent, char(9670)); % ◆
+                polyscope.ImGui.TextColored(accent, '|');
                 polyscope.ImGui.SameLine(0, 6);
                 polyscope.ImGui.Text(txt);
             catch
