@@ -11,6 +11,7 @@ classdef Options
             opts = plotter.PlotModel.defaultOptions();
             % Shared boundary/support green for model and deformation views.
             opts.fixed.color = '#21FC0D';
+            opts.fixed.symbolScale = 1.0;
             if isfield(opts, 'style') && isfield(opts.style, 'familyColors')
                 opts.style.familyColors.Fixed = '#21FC0D';
             end
@@ -58,6 +59,7 @@ classdef Options
         function opts = defaultEigenOptions()
             opts = plotter.PlotEigen.defaultOptions();
             opts.fixed.color = '#21FC0D';
+            opts.fixed.symbolScale = 1.0;
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.003;
@@ -97,6 +99,7 @@ classdef Options
         function opts = defaultNodalResponseOptions()
             opts = plotter.PlotNodalResp.defaultOptions();
             opts.fixed.color = '#21FC0D';
+            opts.fixed.symbolScale = 1.0;
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.0025;
@@ -111,7 +114,10 @@ classdef Options
             opts.polyscope.vectorColor      = [0.85 0.33 0.10];
             opts.polyscope.vectorLength     = 0.05;  % relative
             opts.polyscope.vectorRadius     = 0.001; % relative
+            opts.color.historyLineColor = [];
+            opts.color.historyLineAlpha = 1.0;
             opts.surf.showEdges = false;
+            opts.surf.renderMode = 'surface';
             opts.animation = struct('play', false, 'fps', [], ...
                                     'loop', true, 'pingpong', false, ...
                                     'updateColors', true, 'updateVectors', false);
@@ -133,6 +139,7 @@ classdef Options
         function opts = defaultUnstructuredResponseOptions()
             opts = plotter.PlotUnstruResponse.defaultOptions();
             opts.fixed.color = '#21FC0D';
+            opts.fixed.symbolScale = 1.0;
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.0025;
@@ -148,8 +155,11 @@ classdef Options
                                     'loop', true, 'pingpong', false, ...
                                     'updateColors', true);
             opts.color.climMode = 'step';
+            opts.color.historyLineColor = [];
+            opts.color.historyLineAlpha = 1.0;
             opts.nodes = struct('show', false);
             opts.surf.showEdges = false;
+            opts.surf.renderMode = 'surface';
             opts.slice = struct();
             opts.slice.show = false;
             opts.slice.name = 'Slice plane';
@@ -171,6 +181,7 @@ classdef Options
 
         function opts = defaultFrameResponseOptions()
             opts = plotter.PlotFrameResp.defaultOptions();
+            opts.fixed = struct('show', true, 'color', '#21FC0D', 'symbolScale', 1.0);
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.edgeRadius = 0.0009;
@@ -187,8 +198,12 @@ classdef Options
                                     'updateColors', true);
             opts.stepIdx = 'absmax';
             opts.color.climMode = 'current';
+            % Empty uses the light/dark theme-aware history-curve color.
+            opts.color.historyLineColor = [];
+            opts.color.historyLineAlpha = 1.0;
             opts.surf.show = false;
             opts.showZeroLine = false;
+            opts.showMPConstraint = true;
             opts.showMaxMinLabel = 'none';
             opts.slice = struct();
             opts.slice.show = false;
@@ -242,7 +257,16 @@ classdef Options
             p.groundPlaneMode = 'none'; % 'shadow_only', 'tile', or 'none'
             p.backFacePolicy = 'identical'; % 'identical', 'different', 'custom', or 'cull'
             p.showModelInfo = false; % show the Model Info window (nodes, elements)
+            p.showNodeLabels = false;
+            p.showElementLabels = false;
+            p.maxLabels = 0; % 0 = all labels; positive values impose a per-kind limit
+            p.nodeLabelColor = []; % empty = theme-aware
+            p.elementLabelColor = []; % empty = theme-aware
             p.scalarColorMap = 'coolwarm';   % default scalar color map for all viewers
+            p.supportColor = '#21FC0D';      % shared boundary/support glyph colour
+            p.supportLineRadiusFactor = 0.80;
+            p.showMPConstraints = true;
+            p.mpConstraintColor = [0.64, 0.28, 0.34];
             p.onscreenColorbar = false;
             p.onscreenColorbarLocation = [];
             p.colorbarTitle = '';

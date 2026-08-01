@@ -27,6 +27,10 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         historyRawKey_ char = ''
         historyRawX_ double = []
         historyRawValues_ cell = {}
+        historySampleKey_ char = ''
+        historySampleChoicesCache_ cell = {}
+        historySampleLabel_ char = ''
+        historyBeamInfoCache_ cell = {}
     end
 
     methods
@@ -135,6 +139,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.showDiagram = true;
             obj.gui_.showModel = obj.Opts.showModel;
             obj.gui_.showZeroLine = obj.Opts.showZeroLine;
+            obj.gui_.showFixed = obj.getOptField_(obj.Opts.fixed, 'show', true);
+            obj.gui_.showMP = obj.getOptField_(obj.Opts, 'showMPConstraint', true);
+            obj.gui_.fixedSymbolScale = obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0);
             obj.gui_.showWire = obj.Opts.surf.show;
             obj.gui_.useColormap = obj.Opts.color.useColormap;
             obj.gui_.showColorbar = obj.getOptField_(obj.Opts.cbar, 'show', true);
@@ -162,6 +169,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if ~isempty(info.tags), obj.gui_.historyEleTag = info.tags(1); end
             obj.gui_.historyShowValue = true;
             obj.gui_.historySampleMode = 'absMax';
+            obj.initHistoryPlotAppearanceGui_();
             obj.initColorbarGuiState_(obj.scalarQuantityName_());
             obj.initSliceGuiState_();
         end
@@ -294,7 +302,13 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if ~visible, return; end
 
             GB = plotter.polyscope.GuiBuilder;
-            info = obj.beamInfo_(max(1, obj.currentSeg_), obj.nodeCoords_(max(1, obj.currentSeg_)));
+            segIdx = max(1, obj.currentSeg_);
+            if isfield(obj.beamInfoCache_, 'segIdx') && obj.beamInfoCache_.segIdx == segIdx
+                info = obj.beamInfoCache_.info;
+            else
+                info = obj.beamInfo_(segIdx, obj.nodeCoords_(segIdx));
+                obj.beamInfoCache_ = struct('segIdx', segIdx, 'info', info);
+            end
             tags = info.tags(:);
             if isempty(tags)
                 polyscope.ImGui.TextDisabled('No frame elements are available.');
@@ -343,6 +357,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.invalidateHistoryReducedCache_();
             end
             obj.gui_.historyShowValue = GB.checkbox('Show current value', obj.gui_.historyShowValue);
+            obj.drawHistoryPlotAppearanceGui_('##frame_history');
 
             [x, y] = obj.responseHistorySeries_();
             finite = isfinite(x) & isfinite(y);
@@ -361,7 +376,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 ip.SetupAxes('time / step', 'Response');
                 ip.SetupAxesLimits(xmin-xp, xmax+xp, ymin-yp, ymax+yp, ...
                     int32(polyscope.ImPlot.get_constant('ImPlotCond_Always')));
-                [lineColor, markerFill, markerOutline] = obj.historyPlotColors_();
+                [lineColor, markerFill, markerOutline] = obj.historyLineStyle_();
                 ip.SetNextLineStyle(lineColor, 2.0);
                 ip.PlotLineXY('response##frame_history_line', x(:), y(:));
                 k = obj.currentStep_ + 1;
@@ -390,10 +405,15 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             GB.sameLine();
             obj.gui_.showModel = GB.checkbox('Model##frame_geom', obj.gui_.showModel);
             obj.gui_.showZeroLine = GB.checkbox('Zero line##frame_geom', obj.gui_.showZeroLine);
+            obj.gui_.showFixed = GB.checkbox('Fixed nodes##frame_geom', obj.gui_.showFixed);
             GB.sameLine();
-            obj.gui_.showWire = GB.checkbox('Wire edges##frame_geom', obj.gui_.showWire);
+            obj.gui_.showMP = GB.checkbox('MP constraints##frame_geom', obj.gui_.showMP);
+            obj.gui_.fixedSymbolScale = GB.sliderFloat('Support size##frame_geom', ...
+                obj.gui_.fixedSymbolScale, 0.1, 2.0);
+            GB.sameLine();
+            obj.gui_.showWire = GB.checkbox('Diagram mesh edges##frame_geom', obj.gui_.showWire);
             styles = {'surface','wireframe'};
-            obj.gui_.styleIdx = GB.combo('Style##frame_geom', obj.gui_.styleIdx, styles);
+            obj.gui_.styleIdx = GB.combo('Diagram representation##frame_geom', obj.gui_.styleIdx, styles);
             obj.Opts.style = styles{obj.gui_.styleIdx};
             scales = {'current','global'};
             obj.gui_.scaleModeIdx = GB.combo('Scale mode##frame_geom', obj.gui_.scaleModeIdx, scales);
@@ -409,9 +429,14 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.setStep(obj.currentStep_, true);
             end
             obj.syncOptsFromGui_();
+            supportScaleChanged = obj.gui_.fixedSymbolScale ~= old.fixedSymbolScale;
+            if supportScaleChanged
+                obj.setStep(obj.currentStep_, true);
+            end
             changed = obj.guiChanged_(old, {'showDiagram','showModel','showZeroLine','showWire', ...
-                'styleIdx','scaleModeIdx','scale','heightFrac'});
-            styleOnly = changed && ~obj.guiChanged_(old, {'styleIdx','scaleModeIdx','scale','heightFrac'});
+                'showFixed','showMP','fixedSymbolScale','styleIdx','scaleModeIdx','scale','heightFrac'});
+            styleOnly = changed && ~obj.guiChanged_(old, ...
+                {'styleIdx','scaleModeIdx','scale','heightFrac'});
         end
 
         function [dataChanged, styleChanged] = drawStyleGui_(obj)
@@ -604,6 +629,19 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.handles_.def_ZeroLine = h;
             end
             obj.modelData_.nZeroPts = size(data.zeroPts, 1);
+            P = obj.nodeCoords_(obj.currentSeg_);
+            [Pfix, edges] = plotter.polyscope.SupportGlyphs.build( ...
+                obj.ModelInfo(obj.currentSeg_), P, max(obj.L_, eps) * 0.035 * ...
+                max(0.05, double(obj.Opts.fixed.symbolScale)));
+            if ~isempty(Pfix) && ~isempty(edges)
+                h = ps.register_curve_network(obj.structName_('Fixed', 'def'), Pfix, edges);
+                h.set_radius(obj.Opts.polyscope.edgeRadius * 0.8, true);
+                h.set_color(obj.supportColor_());
+                h.set_enabled(obj.Opts.fixed.show);
+                obj.handles_.def_Fixed = h;
+            end
+            obj.handles_.def_MPConstraint = obj.registerMPConstraintStructure_( ...
+                obj.ModelInfo(obj.currentSeg_), P, obj.structName_('MPConstraint', 'def'));
         end
 
         function applyStyle_(obj)
@@ -640,12 +678,18 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.setEnabled_('def_DiagramWire', showDiagramWire);
             obj.setEnabled_('def_Model', obj.Opts.showModel && obj.Opts.showBeamModel);
             obj.setEnabled_('def_ZeroLine', obj.Opts.showZeroLine);
+            obj.setEnabled_('def_Fixed', obj.Opts.fixed.show);
+            obj.setEnabled_('def_MPConstraint', obj.Opts.showMPConstraint);
         end
 
         function syncOptsFromGui_(obj)
             obj.Opts.showModel = logical(obj.gui_.showModel);
             obj.Opts.showBeamModel = logical(obj.gui_.showModel);
             obj.Opts.showZeroLine = logical(obj.gui_.showZeroLine);
+            obj.Opts.fixed.show = logical(obj.gui_.showFixed);
+            obj.Opts.fixed.symbolScale = double(obj.gui_.fixedSymbolScale);
+            obj.Opts.showMPConstraint = logical(obj.gui_.showMP);
+            obj.Opts.polyscope.showMPConstraints = logical(obj.gui_.showMP);
             obj.Opts.surf.show = logical(obj.gui_.showWire);
             obj.Opts.color.useColormap = logical(obj.gui_.useColormap);
             obj.Opts.cbar.show = logical(obj.getOptField_(obj.gui_, 'onscreenColorbar', false));
@@ -1644,6 +1688,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.historyRawKey_ = '';
             obj.historyRawX_ = [];
             obj.historyRawValues_ = {};
+            obj.historySampleKey_ = '';
+            obj.historySampleChoicesCache_ = {};
+            obj.historySampleLabel_ = '';
         end
 
         function invalidateHistoryReducedCache_(obj)
@@ -1662,6 +1709,15 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         end
 
         function [choices, label] = historySampleChoices_(obj, info, tags)
+            cacheKey = sprintf('%s|%s|tag:%g|idx:%g|use:%d|seg:%d', ...
+                char(string(obj.Opts.respType)), char(string(obj.Opts.component)), ...
+                obj.gui_.historyEleTag, obj.gui_.historyEleIndex, ...
+                logical(obj.gui_.historyUseTag), obj.currentSeg_);
+            if strcmp(obj.historySampleKey_, cacheKey) && ~isempty(obj.historySampleChoicesCache_)
+                choices = obj.historySampleChoicesCache_;
+                label = obj.historySampleLabel_;
+                return;
+            end
             nValue = 1;
             row = obj.historyElementIndex_(tags);
             values = obj.respPerEle_(obj.currentSeg_, obj.currentLocalStep_, info);
@@ -1676,6 +1732,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             else
                 label = 'Value / reduce';
             end
+            obj.historySampleKey_ = cacheKey;
+            obj.historySampleChoicesCache_ = choices;
+            obj.historySampleLabel_ = label;
         end
 
         function value = reduceHistoryValues_(~, values, mode)
@@ -1744,8 +1803,14 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             targetIndex = round(obj.gui_.historyEleIndex);
             for si = 1:numel(obj.segStepCounts_)
                 fr = obj.FrameResp(si);
-                P = obj.nodeCoords_(si);
-                info = obj.beamInfo_(si, P);
+                if numel(obj.historyBeamInfoCache_) >= si && ...
+                        ~isempty(obj.historyBeamInfoCache_{si})
+                    info = obj.historyBeamInfoCache_{si};
+                else
+                    P = obj.nodeCoords_(si);
+                    info = obj.beamInfo_(si, P);
+                    obj.historyBeamInfoCache_{si} = info;
+                end
                 if isempty(info.tags), continue; end
                 row = [];
                 if obj.gui_.historyUseTag, row = find(info.tags == targetTag, 1);
@@ -1755,13 +1820,74 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 offset = obj.segOffsets_(si);
                 tv = [];
                 if isfield(fr, 'time') && ~isempty(fr.time), tv = double(fr.time(:)); end
-                for ls = 1:nLocal
-                    g = offset + ls - 1;
-                    x(g + 1) = g;
-                    if ls <= numel(tv), x(g + 1) = tv(ls); end
-                    if isempty(row), continue; end
-                    values = obj.respPerEle_(si, ls, info);
-                    if row <= numel(values), rawValues{g + 1} = double(values{row}(:)); end
+                ids = offset + (1:nLocal);
+                x(ids) = offset + (0:nLocal-1);
+                nt = min(nLocal, numel(tv));
+                if nt > 0, x(ids(1:nt)) = tv(1:nt); end
+                if isempty(row), continue; end
+                rawValues(ids) = obj.extractOneElementHistory_(si, row, info, nLocal);
+            end
+        end
+
+        function values = extractOneElementHistory_(obj, segIdx, elementRow, info, nLocal)
+            % Extract only the selected element. The old path rebuilt values
+            % for every element at every step, which dominated GUI latency.
+            values = cell(nLocal, 1);
+            rt = obj.normalizeRespType_(segIdx, obj.Opts.respType);
+            A = obj.getRespData_(segIdx, rt);
+            if isempty(A), return; end
+            n = min(nLocal, size(A, 1));
+            dofs = obj.getRespDofs_(segIdx, rt);
+            ci = obj.componentIndex_(rt, obj.Opts.component, dofs);
+            rows = zeros(n, 1);
+            targetTag = NaN;
+            if elementRow <= numel(info.tags), targetTag = info.tags(elementRow); end
+            [firstTags, firstTagRows] = obj.respEleTags_(segIdx, rt, 1, size(A, 2));
+            firstHit = [];
+            if ~isempty(firstTags) && isfinite(targetTag)
+                firstHit = find(double(firstTags(:)) == double(targetTag), 1);
+            end
+            rawTags = [];
+            fr = obj.FrameResp(segIdx);
+            if isfield(fr, rt) && isstruct(fr.(rt)) && isfield(fr.(rt), 'eleTags')
+                rawTags = fr.(rt).eleTags;
+            elseif isfield(fr, 'eleTags')
+                rawTags = fr.eleTags;
+            end
+            if isvector(rawTags) && ~isempty(firstHit) && firstHit <= numel(firstTagRows)
+                rows(:) = firstTagRows(firstHit);
+                firstDynamicStep = n + 1;
+            else
+                firstDynamicStep = 1;
+            end
+            for ls = firstDynamicStep:n
+                [respTags, tagRows] = obj.respEleTags_(segIdx, rt, ls, size(A, 2));
+                if ~isempty(respTags) && isfinite(targetTag)
+                    hit = find(double(respTags(:)) == double(targetTag), 1);
+                    if ~isempty(hit) && hit <= numel(tagRows), rows(ls) = tagRows(hit); end
+                elseif elementRow <= size(A, 2)
+                    rows(ls) = elementRow;
+                end
+            end
+            nd = ndims(A);
+            pair = [];
+            if nd == 3
+                pair = obj.componentEndPair_(rt, obj.Opts.component, dofs, size(A, 3));
+            end
+            for ls = 1:n
+                r = rows(ls);
+                if r < 1 || r > size(A, 2), continue; end
+                if nd == 2
+                    values{ls} = double(A(ls, r));
+                elseif nd == 3
+                    if numel(pair) == 2 && all(pair > 0) && all(pair <= size(A, 3))
+                        values{ls} = reshape(double(A(ls, r, pair)), [], 1);
+                    elseif ci > 0 && ci <= size(A, 3)
+                        values{ls} = double(A(ls, r, ci));
+                    end
+                elseif nd >= 4 && ci > 0 && ci <= size(A, 4)
+                    v = reshape(double(A(ls, r, :, ci)), [], 1);
+                    values{ls} = v(isfinite(v));
                 end
             end
         end

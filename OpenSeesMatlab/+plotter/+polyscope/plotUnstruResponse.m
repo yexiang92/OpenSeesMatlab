@@ -24,6 +24,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         historyCacheX_ double = []
         historyCacheY_ double = []
         historyCacheLabel_ char = ''
+        historyTagsKey_ char = ''
+        historyTags_ double = []
         initialOpts_ struct
     end
 
@@ -243,8 +245,14 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.showUndeformed = obj.Opts.deform.showUndeformed;
             obj.gui_.showMesh = obj.Opts.surf.show;
             obj.gui_.showEdges = obj.Opts.surf.showEdges;
+            obj.gui_.surfaceRenderModeIdx = obj.indexOf_( ...
+                {'surface','wireframe'}, ...
+                obj.getOptField_(obj.Opts.surf, 'renderMode', 'surface'));
             obj.gui_.showNodes = obj.getOptField_(obj.Opts.nodes, 'show', false);
             obj.gui_.showFixed = obj.Opts.fixed.show;
+            obj.gui_.showMP = obj.getOptField_(obj.Opts.polyscope, 'showMPConstraints', true);
+            obj.gui_.fixedSymbolScale = obj.getOptField_( ...
+                obj.Opts.fixed, 'symbolScale', 1.0);
             obj.gui_.showLines = obj.Opts.line.show;
             obj.gui_.useInterpolation = obj.Opts.interp.useInterpolation;
             obj.gui_.deformedAlpha = obj.Opts.color.deformedAlpha;
@@ -278,6 +286,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.historyIndex = 1;
             obj.gui_.historyAutoStep = true;
             obj.gui_.historyShowValue = true;
+            obj.initHistoryPlotAppearanceGui_();
             obj.invalidateHistoryCache_();
         end
 
@@ -340,6 +349,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 'gpReduceIdx','gpIndex','stepModeIdx','step','showField'});
             if changed
                 obj.invalidateScalarCaches_();
+            end
+            if obj.guiChanged_(old, {'eleTypeIdx','respIdx','compIdx','fiberIdx', ...
+                    'locIdx','gpReduceIdx','gpIndex'})
                 obj.invalidateHistoryCache_();
             end
         end
@@ -348,12 +360,20 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
             GB.subtitle('Model visibility');
-            obj.gui_.showMesh = GB.checkbox('Surfaces / solids##unstru_geometry', obj.gui_.showMesh);
-            GB.sameLine();
+            renderModes = {'surface','wireframe'};
+            obj.gui_.surfaceRenderModeIdx = GB.combo('Non-line elements##unstru_geometry', ...
+                obj.gui_.surfaceRenderModeIdx, renderModes);
+            obj.Opts.surf.renderMode = renderModes{obj.gui_.surfaceRenderModeIdx};
+            obj.gui_.showMesh = ~strcmp(obj.Opts.surf.renderMode, 'wireframe');
             obj.gui_.showEdges = GB.checkbox('Mesh edges##unstru_geometry', obj.gui_.showEdges);
             obj.gui_.showNodes = GB.checkbox('Model nodes##unstru_geometry', obj.gui_.showNodes);
             GB.sameLine();
             obj.gui_.showFixed = GB.checkbox('Fixed nodes##unstru_geometry', obj.gui_.showFixed);
+            GB.sameLine();
+            obj.gui_.showMP = GB.checkbox('MP constraints##unstru_geometry', obj.gui_.showMP);
+            GB.sameLine();
+            obj.gui_.fixedSymbolScale = GB.sliderFloat('Size##unstru_fixed_symbol', ...
+                obj.gui_.fixedSymbolScale, 0.1, 2.0);
             obj.gui_.showLines = GB.checkbox('Line elements##unstru_geometry', obj.gui_.showLines);
             GB.sameLine();
             obj.gui_.useInterpolation = GB.checkbox('Interpolated lines##unstru_geometry', obj.gui_.useInterpolation);
@@ -368,9 +388,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             GB.subtitle('Render quality');
             obj.drawSsaaGui_('##unstru_geometry');
             obj.syncOptsFromGui_();
-            changed = obj.guiChanged_(old, {'showMesh','showEdges','showNodes','showFixed', ...
+            changed = obj.guiChanged_(old, {'showMesh','showEdges','surfaceRenderModeIdx','showNodes','showFixed','showMP', ...
                 'showLines','showDeform','autoScale','deformScale','showUndeformed'});
-            rebuild = obj.guiChanged_(old, {'useInterpolation'});
+            rebuild = obj.guiChanged_(old, {'useInterpolation','fixedSymbolScale'});
             geometryChanged = obj.guiChanged_(old, {'showDeform','autoScale','deformScale'});
             visibilityOnly = changed && ~geometryChanged && ~rebuild;
         end
@@ -492,6 +512,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.registerLineStructures_(ps, segIdx, Pdef, Snode, clim);
             if obj.Opts.nodes.show, obj.registerNodes_(ps, Pdef, Snode, clim); end
             if obj.Opts.fixed.show, obj.registerFixed_(ps, segIdx, Pdef, Snode, clim); end
+            obj.handles_.def_MPConstraint = obj.registerMPConstraintStructure_( ...
+                obj.ModelInfo(segIdx), Pdef, obj.structName_('MPConstraint', 'def'));
             if obj.Opts.deform.showUndeformed, obj.registerGhost_(ps, segIdx); end
             if ~obj.isOverlayScreenAxes_()
                 obj.registerScreenAxes3D_();
@@ -556,10 +578,10 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             try, h.set_edge_width(0); catch, end
             h.set_enabled(obj.Opts.surf.show);
             obj.handles_.def_Response = h;
-            obj.registerMeshEdges_(ps, Pdef);
+            obj.registerMeshEdges_(ps, Pdef, Snode, clim);
         end
 
-        function registerMeshEdges_(obj, ps, P)
+        function registerMeshEdges_(obj, ps, P, Snode, clim)
             if isempty(obj.meshData_) || ~isfield(obj.meshData_, 'cells'), return; end
             edgePoints = obj.meshEdgePolylineFromRows_(P);
             if isempty(edgePoints)
@@ -569,11 +591,29 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             end
             [nodes, edges] = plotter.polyscope.ModelAdapter.edgePointsToCurveNetwork(edgePoints);
             if isempty(nodes) || isempty(edges), return; end
+            [tf, nodeRows] = ismember(nodes, P, 'rows');
+            nodeRows(~tf) = 0;
+            obj.meshData_.edgeNodeRows = nodeRows(:);
             h = ps.register_curve_network(obj.structName_('MeshEdges', 'def'), nodes, edges);
             h.set_radius(obj.Opts.polyscope.edgeRadius, true);
             h.set_color(obj.asRgb_(obj.Opts.surf.edgeColor));
-            h.set_enabled(obj.Opts.surf.showEdges && obj.Opts.surf.show);
+            h.set_enabled(obj.Opts.surf.showEdges);
             obj.handles_.def_MeshEdges = h;
+
+            hw = ps.register_curve_network(obj.structName_('ResponseWireframe', 'def'), nodes, edges);
+            hw.set_radius(obj.Opts.polyscope.edgeRadius, true);
+            hw.set_color(obj.asRgb_(obj.Opts.color.solidColor));
+            if ~isempty(Snode)
+                edgeScalars = NaN(size(nodes, 1), 1);
+                valid = nodeRows > 0 & nodeRows <= numel(Snode);
+                edgeScalars(valid) = Snode(nodeRows(valid));
+                edgeScalars(~isfinite(edgeScalars)) = 0;
+                qargs = obj.scalarArgs_(clim);
+                hw.add_node_scalar_quantity(obj.scalarQuantityName_(), edgeScalars, ...
+                    qargs{:});
+            end
+            hw.set_enabled(~obj.Opts.surf.show);
+            obj.handles_.def_ResponseWireframe = hw;
         end
 
         function registerLineStructures_(obj, ps, segIdx, Pdef, ~, ~)
@@ -616,11 +656,13 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
 
         function registerFixed_(obj, ps, segIdx, Pdef, ~, ~)
             [Pfix, edges] = plotter.polyscope.SupportGlyphs.build(obj.ModelInfo(segIdx), ...
-                Pdef, max(obj.L_, eps) * 0.035);
+                Pdef, max(obj.L_, eps) * 0.035 * ...
+                max(0.05, double(obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0))));
             if isempty(Pfix) || isempty(edges), return; end
             h = ps.register_curve_network(obj.structName_('Fixed', 'def'), Pfix, edges);
-            h.set_radius(obj.Opts.polyscope.edgeRadius * 1.35, true);
-            h.set_color(obj.asRgb_(plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
+            h.set_radius(obj.Opts.polyscope.edgeRadius * ...
+                obj.getOptField_(obj.Opts.polyscope, 'supportLineRadiusFactor', 0.80), true);
+            h.set_color(obj.supportColor_());
             h.set_enabled(obj.Opts.fixed.show);
             obj.handles_.def_Fixed = h;
         end
@@ -674,7 +716,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                     end
                 end
             end
-            obj.updateMeshEdges_(Pdef);
+            obj.updateMeshEdges_(Pdef, Snode, clim);
             obj.updateLines_(Pdef, Snode, clim);
             obj.updateNodes_(segIdx, Pdef, Snode, clim);
             obj.applyVisibility_();
@@ -684,12 +726,26 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 obj.currentStep_, scale));
         end
 
-        function updateMeshEdges_(obj, P)
-            if ~isfield(obj.handles_, 'def_MeshEdges') || isempty(obj.meshData_), return; end
+        function updateMeshEdges_(obj, P, Snode, clim)
+            if isempty(obj.meshData_), return; end
             edgePoints = obj.meshEdgePolylineFromRows_(P);
             [nodes, ~] = plotter.polyscope.ModelAdapter.edgePointsToCurveNetwork(edgePoints);
-            if ~isempty(nodes)
+            if ~isempty(nodes) && isfield(obj.handles_, 'def_MeshEdges')
                 obj.handles_.def_MeshEdges.update_node_positions(nodes);
+            end
+            if ~isempty(nodes) && isfield(obj.handles_, 'def_ResponseWireframe')
+                obj.handles_.def_ResponseWireframe.update_node_positions(nodes);
+            end
+            if ~isempty(Snode) && isfield(obj.meshData_, 'edgeNodeRows') && ...
+                    isfield(obj.handles_, 'def_ResponseWireframe')
+                rows = obj.meshData_.edgeNodeRows(:);
+                vals = zeros(numel(rows), 1);
+                valid = rows > 0 & rows <= numel(Snode);
+                vals(valid) = Snode(rows(valid));
+                vals(~isfinite(vals)) = 0;
+                qargs = obj.scalarArgs_(clim);
+                obj.handles_.def_ResponseWireframe.add_node_scalar_quantity( ...
+                    obj.scalarQuantityName_(), vals, qargs{:});
             end
         end
 
@@ -716,21 +772,27 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             end
             if isfield(obj.handles_, 'def_Fixed')
                 [Pfix, ~] = plotter.polyscope.SupportGlyphs.build(obj.ModelInfo(segIdx), ...
-                    Pdef, max(obj.L_, eps) * 0.035);
+                    Pdef, max(obj.L_, eps) * 0.035 * ...
+                    max(0.05, double(obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0))));
                 if ~isempty(Pfix)
                     obj.handles_.def_Fixed.update_node_positions(Pfix);
                 end
-                obj.handles_.def_Fixed.set_color(obj.asRgb_( ...
-                    plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
+                obj.handles_.def_Fixed.set_color(obj.supportColor_());
+            end
+            if isfield(obj.handles_, 'def_MPConstraint') && ...
+                    ~isempty(obj.handles_.def_MPConstraint)
+                obj.handles_.def_MPConstraint.update_node_positions(Pdef);
             end
         end
 
         function applyVisibility_(obj)
             obj.setEnabled_('def_Response', obj.Opts.surf.show);
-            obj.setEnabled_('def_MeshEdges', obj.Opts.surf.show && obj.Opts.surf.showEdges);
+            obj.setEnabled_('def_ResponseWireframe', ~obj.Opts.surf.show);
+            obj.setEnabled_('def_MeshEdges', obj.Opts.surf.showEdges);
             obj.setEnabled_('def_Line', obj.Opts.line.show);
             obj.setEnabled_('def_Nodes', obj.Opts.nodes.show);
             obj.setEnabled_('def_Fixed', obj.Opts.fixed.show);
+            obj.setEnabled_('def_MPConstraint', obj.Opts.polyscope.showMPConstraints);
             obj.setEnabled_('ghost_Response', obj.Opts.deform.showUndeformed);
         end
 
@@ -774,6 +836,11 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 h.set_color(obj.asRgb_(obj.Opts.surf.edgeColor));
                 h.set_radius(obj.Opts.polyscope.edgeRadius, true);
             end
+            if isfield(obj.handles_, 'def_ResponseWireframe')
+                h = obj.handles_.def_ResponseWireframe;
+                h.set_color(obj.asRgb_(obj.Opts.color.solidColor));
+                h.set_radius(obj.Opts.polyscope.edgeRadius, true);
+            end
             if isfield(obj.handles_, 'def_Line')
                 obj.handles_.def_Line.set_radius(obj.Opts.polyscope.edgeRadius, true);
                 obj.handles_.def_Line.set_color(obj.asRgb_(obj.Opts.color.solidColor));
@@ -783,8 +850,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 obj.handles_.def_Nodes.set_color(obj.asRgb_(obj.Opts.color.solidColor));
             end
             if isfield(obj.handles_, 'def_Fixed')
-                obj.handles_.def_Fixed.set_radius(obj.Opts.polyscope.edgeRadius * 1.35, true);
-                obj.handles_.def_Fixed.set_color(obj.asRgb_(plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
+                obj.handles_.def_Fixed.set_radius(obj.Opts.polyscope.edgeRadius * ...
+                    obj.getOptField_(obj.Opts.polyscope, 'supportLineRadiusFactor', 0.80), true);
+                obj.handles_.def_Fixed.set_color(obj.supportColor_());
             end
             if isfield(obj.handles_, 'ghost_Response')
                 obj.handles_.ghost_Response.set_color(obj.asRgb_(obj.Opts.color.undeformedColor));
@@ -797,6 +865,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.historyCacheX_ = [];
             obj.historyCacheY_ = [];
             obj.historyCacheLabel_ = '';
+            obj.historyTagsKey_ = '';
+            obj.historyTags_ = [];
         end
 
         function drawResponseHistoryWindow_(obj, ws)
@@ -833,9 +903,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             isNode = strcmpi(obj.gui_.historyTargetType, 'node');
             polyscope.ImGui.Text(sprintf('Target: %s', char(string(obj.gui_.historyTargetType))));
             if isNode
-                tags = obj.historyNodeTags_(obj.currentSeg_);
+                tags = obj.historyTargetTagsCached_(true);
             else
-                tags = obj.historyElementTags_(obj.currentSeg_);
+                tags = obj.historyTargetTagsCached_(false);
             end
             nTarget = numel(tags);
             if nTarget == 0
@@ -886,6 +956,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             GB.sameLine();
             obj.gui_.historyAutoStep = GB.checkbox('Follow current step##history', obj.getOptField_(obj.gui_, 'historyAutoStep', true));
             obj.gui_.historyShowValue = GB.checkbox('Show current value##history', obj.getOptField_(obj.gui_, 'historyShowValue', true));
+            obj.drawHistoryPlotAppearanceGui_('##unstru_history');
 
             if obj.guiChanged_(oldState, {'historyTargetType','historyUseTag'})
                 obj.invalidateHistoryCache_();
@@ -933,7 +1004,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 ip.SetupAxes('time / step', 'response');
                 ip.SetupAxesLimits(xmin, xmax, ymin, ymax, ...
                     int32(polyscope.ImPlot.get_constant('ImPlotCond_Always')));
-                [lineColor, markerFill, markerOutline] = obj.historyPlotColors_();
+                [lineColor, markerFill, markerOutline] = obj.historyLineStyle_();
                 ip.SetNextLineStyle(lineColor, 2.0);
                 ip.PlotLineXY('response##history_line', x(:), y(:));
                 if obj.currentStep_ >= 0 && obj.currentStep_ < numel(x)
@@ -1005,7 +1076,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         end
 
         function key = computeHistoryCacheKey_(obj)
-            key = sprintf('%s|%s|%s|%s|%s|%s|%s|%g|%g|%d|%s|%d', ...
+            key = sprintf('%s|%s|%s|%s|%s|%s|%g|%s|%g|%g|%d|%s|%d', ...
                 char(string(obj.Opts.eleType)), ...
                 char(string(obj.Opts.respType)), ...
                 char(string(obj.Opts.component)), ...
@@ -1019,6 +1090,22 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 logical(obj.getOptField_(obj.gui_, 'historyUseTag', true)), ...
                 obj.responseShapeSignature_(), ...
                 obj.nSteps_);
+        end
+
+        function tags = historyTargetTagsCached_(obj, isNode)
+            key = sprintf('%d|%d|%s|%s', obj.currentSeg_, logical(isNode), ...
+                char(string(obj.Opts.eleType)), obj.responseShapeSignature_());
+            if strcmp(obj.historyTagsKey_, key)
+                tags = obj.historyTags_;
+                return;
+            end
+            if isNode
+                tags = obj.historyNodeTags_(obj.currentSeg_);
+            else
+                tags = obj.historyElementTags_(obj.currentSeg_);
+            end
+            obj.historyTagsKey_ = key;
+            obj.historyTags_ = tags;
         end
 
         function [tags, vals] = responseNodeValues_(obj, segIdx, localStep)
@@ -1114,8 +1201,12 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         function syncOptsFromGui_(obj)
             obj.Opts.surf.show = logical(obj.gui_.showMesh);
             obj.Opts.surf.showEdges = logical(obj.gui_.showEdges);
+            renderModes = {'surface','wireframe'};
+            obj.Opts.surf.renderMode = renderModes{obj.gui_.surfaceRenderModeIdx};
             obj.Opts.nodes.show = logical(obj.gui_.showNodes);
             obj.Opts.fixed.show = logical(obj.gui_.showFixed);
+            obj.Opts.fixed.symbolScale = double(obj.gui_.fixedSymbolScale);
+            obj.Opts.polyscope.showMPConstraints = logical(obj.gui_.showMP);
             obj.Opts.line.show = logical(obj.gui_.showLines);
             obj.Opts.interp.useInterpolation = logical(obj.gui_.useInterpolation);
             obj.Opts.deform.show = logical(obj.gui_.showDeform);
@@ -1477,8 +1568,10 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             end
             mode = lower(char(string(obj.Opts.color.climMode)));
             if any(strcmp(mode, {'global','range','absmax','absmin'}))
-                key = sprintf('%s|%s|%s|%s|%d', obj.Opts.eleType, obj.Opts.respType, ...
-                    obj.Opts.component, obj.Opts.responseLocation, obj.nSteps_);
+                key = sprintf('%s|%s|%s|%s|%s|%g|%s|%d', ...
+                    obj.Opts.eleType, obj.Opts.respType, obj.Opts.component, ...
+                    obj.Opts.responseLocation, obj.Opts.surf.gpReduce, ...
+                    obj.Opts.surf.gpIndex, char(string(obj.Opts.fiberPoint)), obj.nSteps_);
                 clim = obj.cachedRange_('unstruClim', key, @() obj.computeGlobalClim_());
             else
                 clim = obj.localClim_(vals);
@@ -1496,12 +1589,21 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         end
 
         function clim = computeGlobalClim_(obj)
-            allv = [];
-            for g = 0:obj.nSteps_ - 1
-                [s, l] = obj.resolveGlobalStep_(g);
-                allv = [allv; obj.rawStepScalar_(s, l)]; %#ok<AGROW>
+            lo = Inf;
+            hi = -Inf;
+            for s = 1:numel(obj.segStepCounts_)
+                vals = obj.responseScalarHistoryMatrix_(s);
+                if isempty(vals), continue; end
+                slo = min(vals, [], 'all', 'omitnan');
+                shi = max(vals, [], 'all', 'omitnan');
+                if isfinite(slo), lo = min(lo, slo); end
+                if isfinite(shi), hi = max(hi, shi); end
             end
-            clim = obj.localClim_(allv);
+            if isfinite(lo) && isfinite(hi)
+                clim = obj.localClim_([lo, hi]);
+            else
+                clim = [];
+            end
         end
 
         function clim = localClim_(~, vals)
@@ -1780,19 +1882,98 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             bestVal = -inf;
             if ~wantMax, bestVal = inf; end
             step = 0;
-            for g = 0:obj.nSteps_ - 1
-                [s, l] = obj.resolveGlobalStep_(g);
-                vals = obj.rawStepScalar_(s, l);
-                vals = vals(isfinite(vals));
+            for s = 1:numel(obj.segStepCounts_)
+                vals = obj.responseScalarHistoryMatrix_(s);
                 if isempty(vals), continue; end
                 if useAbs, vals = abs(vals); end
                 if wantMax
-                    v = max(vals);
-                    if v > bestVal, bestVal = v; step = g; end
+                    perStep = max(vals, [], 2, 'omitnan');
+                    [v, k] = max(perStep, [], 'omitnan');
+                    if ~isempty(v) && isfinite(v) && v > bestVal
+                        bestVal = v; step = obj.segOffsets_(s) + k - 1;
+                    end
                 else
-                    v = min(vals);
-                    if v < bestVal, bestVal = v; step = g; end
+                    perStep = min(vals, [], 2, 'omitnan');
+                    [v, k] = min(perStep, [], 'omitnan');
+                    if ~isempty(v) && isfinite(v) && v < bestVal
+                        bestVal = v; step = obj.segOffsets_(s) + k - 1;
+                    end
                 end
+            end
+        end
+
+        function B = responseScalarHistoryMatrix_(obj, segIdx)
+            % Vectorized form of rawStepScalar_ for a complete segment.
+            B = [];
+            er = obj.safeSeg_(obj.EleResp, segIdx);
+            rt = obj.normalizeRespType_(segIdx, obj.Opts.respType);
+            if ~isstruct(er) || ~isfield(er, rt), return; end
+            [A, dofs] = obj.responseHistoryArray_(er.(rt));
+            if isempty(A), return; end
+            n = min(obj.segStepCounts_(segIdx), size(A, 1));
+            subs = repmat({':'}, 1, ndims(A));
+            subs{1} = 1:n;
+            A = A(subs{:});
+            nd = ndims(A);
+            if nd == 2
+                B = reshape(double(A), n, []);
+                return;
+            end
+            idx = obj.componentIndex_(dofs, obj.Opts.component, size(A, nd));
+            if idx == 0
+                A = sqrt(sum(double(A).^2, nd, 'omitnan'));
+            else
+                subs = repmat({':'}, 1, nd);
+                subs{nd} = idx;
+                A = double(A(subs{:}));
+            end
+            % Component selection leaves time x element x GP x fiber.
+            if nd >= 5
+                if strcmpi(char(string(obj.Opts.eleType)), 'Shell')
+                    subs = repmat({':'}, 1, ndims(A));
+                    subs{4} = obj.fiberIndex_(size(A, 4));
+                    A = A(subs{:});
+                else
+                    A = mean(A, 4, 'omitnan');
+                end
+            end
+            if nd >= 4
+                mode = lower(char(string(obj.Opts.surf.gpReduce)));
+                switch mode
+                    case 'max'
+                        A = max(A, [], 3, 'omitnan');
+                    case 'min'
+                        A = min(A, [], 3, 'omitnan');
+                    case 'index'
+                        gp = min(max(1, round(obj.Opts.surf.gpIndex)), size(A, 3));
+                        A = A(:,:,gp,:);
+                    otherwise
+                        A = mean(A, 3, 'omitnan');
+                end
+            end
+            B = reshape(A, n, []);
+            B(~isfinite(B)) = NaN;
+        end
+
+        function [A, dofs] = responseHistoryArray_(~, entry)
+            A = [];
+            dofs = {};
+            if isstruct(entry) && isfield(entry, 'data') && isnumeric(entry.data)
+                A = double(entry.data);
+                if isfield(entry, 'dofs'), dofs = cellstr(string(entry.dofs)); end
+            elseif isstruct(entry)
+                fn = fieldnames(entry);
+                fn = fn(~ismember(lower(fn), {'nodetags','eletags','dofs','tags'}));
+                parts = {};
+                for i = 1:numel(fn)
+                    if isnumeric(entry.(fn{i}))
+                        parts{end+1} = double(entry.(fn{i})); %#ok<AGROW>
+                        dofs{end+1} = fn{i}; %#ok<AGROW>
+                    end
+                end
+                if ~isempty(parts), A = cat(ndims(parts{1}) + 1, parts{:}); end
+            elseif isnumeric(entry)
+                A = double(entry);
             end
         end
 
@@ -1808,11 +1989,12 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         end
 
         function key = extremeStepCacheKey_(obj, mode)
-            key = sprintf('%s|%s|%s|%s|%s|%s|%s|%d|%s', ...
+            key = sprintf('%s|%s|%s|%s|%s|%s|%g|%s|%d|%s', ...
                 lower(char(string(mode))), char(string(obj.Opts.eleType)), ...
                 char(string(obj.Opts.respType)), char(string(obj.Opts.component)), ...
                 obj.responseLocation_(), char(string(obj.Opts.surf.gpReduce)), ...
-                char(string(obj.Opts.fiberPoint)), obj.nSteps_, obj.responseShapeSignature_());
+                obj.Opts.surf.gpIndex, char(string(obj.Opts.fiberPoint)), ...
+                obj.nSteps_, obj.responseShapeSignature_());
         end
 
         function sig = responseShapeSignature_(obj)
@@ -1850,7 +2032,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         function invalidateScalarCaches_(obj)
             obj.invalidateCachedRange_('unstruClim');
             obj.invalidateCachedRange_('unstruDeform');
-            obj.extremeStepCache_ = struct();
+            % EleResp is immutable while the viewer is open. Extreme-step
+            % entries have complete selector keys, so retain them when the
+            % GUI changes and reuse them when switching back.
         end
 
         function umax = globalDeformUmax_(obj)

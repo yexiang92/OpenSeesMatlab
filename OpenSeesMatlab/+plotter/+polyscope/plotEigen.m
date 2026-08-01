@@ -180,6 +180,8 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             obj.gui_.wireframe = obj.getOptField_(obj.Opts.unstructured, 'wireframe', false);
             obj.gui_.showNodes = obj.Opts.nodes.show;
             obj.gui_.showFixed = obj.Opts.fixed.show;
+            obj.gui_.fixedSymbolScale = obj.getOptField_( ...
+                obj.Opts.fixed, 'symbolScale', 1.0);
             obj.gui_.showMP = obj.Opts.mpConstraint.show;
 
             obj.gui_.deformedAlpha = obj.Opts.color.deformedAlpha;
@@ -436,13 +438,15 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 return;
             end
             [Pfixed, edges] = plotter.polyscope.SupportGlyphs.build( ...
-                obj.ModelInfo, obj.P0_, max(obj.L_, eps) * 0.035);
+                obj.ModelInfo, obj.P0_, max(obj.L_, eps) * 0.035 * ...
+                max(0.05, double(obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0))));
             if isempty(Pfixed) || isempty(edges), return; end
             ps = obj.App.polyscopeHandle();
             name = obj.structName_('Fixed');
-            rgb = plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color);
+            rgb = obj.supportColor_();
             pc = ps.register_curve_network(name, Pfixed, edges);
-            pc.set_radius(obj.Opts.polyscope.edgeRadius * 1.35, true);
+            pc.set_radius(obj.Opts.polyscope.edgeRadius * ...
+                obj.getOptField_(obj.Opts.polyscope, 'supportLineRadiusFactor', 0.80), true);
             pc.set_color(rgb); pc.set_material(obj.Opts.polyscope.lineMaterial);
             obj.handles_.Fixed = pc;
         end
@@ -803,12 +807,12 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             end
             if isfield(obj.handles_, 'Fixed')
                 [Pfixed, ~] = plotter.polyscope.SupportGlyphs.build( ...
-                    obj.ModelInfo, Pdef, max(obj.L_, eps) * 0.035);
+                    obj.ModelInfo, Pdef, max(obj.L_, eps) * 0.035 * ...
+                    max(0.05, double(obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0))));
                 if ~isempty(Pfixed)
                     obj.handles_.Fixed.update_node_positions(Pfixed);
                 end
-                obj.handles_.Fixed.set_color( ...
-                    plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color));
+                obj.handles_.Fixed.set_color(obj.supportColor_());
             end
         end
 
@@ -1246,14 +1250,17 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 needsRebuild = false;
                 needsSetMode = false;
                 sliceDirty = false;
-                if obj.drawPlotThemeGui_('##eigen_theme')
-                    needsSetMode = true;
+                if GB.collapsingHeader('[T] Theme##eigen_theme_section', int32(0))
+                    if obj.drawPlotThemeGui_('##eigen_theme')
+                        needsSetMode = true;
+                    end
                 end
 
                 components = {'magnitude', 'ux', 'uy', 'uz'};
                 views = obj.viewNames_();
                 cmapNames = obj.colormapNames_();
 
+                if GB.collapsingHeader('[M] Mode##eigen_mode_section', int32(0))
                 % Mode
                 labels = obj.modeLabels_();
                 newIdx = GB.combo('Mode', obj.gui_.modeIdx, labels);
@@ -1283,7 +1290,11 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                     obj.Opts.mode.showUndeformed = tf;
                     needsRebuild = needsRebuild || obj.applyVisibility_();
                 end
-                tf = GB.checkbox('Wireframe mode', obj.gui_.wireframe);
+                representations = {'surface / solid','wireframe'};
+                representationIdx = 1 + double(obj.gui_.wireframe);
+                representationIdx = GB.combo('Non-line elements##eigen_render', ...
+                    representationIdx, representations);
+                tf = representationIdx == 2;
                 if tf ~= obj.gui_.wireframe
                     obj.gui_.wireframe = tf;
                     obj.Opts.unstructured.wireframe = tf;
@@ -1300,9 +1311,9 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                     obj.gui_.showModeInfo = tf;
                     obj.Opts.polyscope.showModelInfo = tf;
                 end
+                end
 
-                GB.separator();
-                GB.subtitle('Geometry');
+                if GB.collapsingHeader('[G] Geometry##eigen_geometry_section', int32(0))
                 tf = GB.checkbox('Lines', obj.gui_.showLines);
                 if tf ~= obj.gui_.showLines
                     obj.gui_.showLines = tf;
@@ -1315,7 +1326,7 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                     obj.Opts.unstructured.show = tf;
                     obj.applySurfaceVisibility_();
                 end
-                tf = GB.checkbox('Surface edges', obj.gui_.showSurfaceEdges);
+                tf = GB.checkbox('Mesh edges', obj.gui_.showSurfaceEdges);
                 if tf ~= obj.gui_.showSurfaceEdges
                     obj.gui_.showSurfaceEdges = tf;
                     obj.Opts.unstructured.showEdges = tf;
@@ -1333,15 +1344,23 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                     obj.Opts.fixed.show = tf;
                     needsRebuild = needsRebuild || obj.applyVisibility_();
                 end
+                GB.sameLine();
+                fixedScale = GB.sliderFloat('Size##eigen_fixed_symbol', ...
+                    obj.gui_.fixedSymbolScale, 0.1, 2.0);
+                if abs(fixedScale - obj.gui_.fixedSymbolScale) > eps
+                    obj.gui_.fixedSymbolScale = fixedScale;
+                    obj.Opts.fixed.symbolScale = fixedScale;
+                    needsRebuild = true;
+                end
                 tf = GB.checkbox('MP constraints', obj.gui_.showMP);
                 if tf ~= obj.gui_.showMP
                     obj.gui_.showMP = tf;
                     obj.Opts.mpConstraint.show = tf;
                     needsRebuild = needsRebuild || obj.applyVisibility_();
                 end
+                end
 
-                GB.separator();
-                GB.subtitle('Appearance');
+                if GB.collapsingHeader('[A] Appearance##eigen_appearance_section', int32(0))
                 s = GB.sliderFloat('Scale', obj.gui_.scale, 0.01, 20);
                 if abs(s - obj.gui_.scale) > eps
                     obj.gui_.scale = s;
@@ -1379,9 +1398,9 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                     obj.Opts.color.undeformedColor = obj.gui_.undeformedColor;
                     obj.applyStyle_();
                 end
+                end
 
-                GB.separator();
-                GB.subtitle('Colormap && Colorbar');
+                if GB.collapsingHeader('[C] Colormap & Colorbar##eigen_color_section', int32(0))
                 tf = GB.checkbox('Use colormap', obj.gui_.useColormap);
                 if tf ~= obj.gui_.useColormap
                     obj.gui_.useColormap = tf;
@@ -1400,15 +1419,16 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                     obj.gui_.colorbarForcePos = true;
                     needsSetMode = true;
                 end
+                end
 
-                GB.separator();
-                GB.subtitle('View && Quality');
+                if GB.collapsingHeader('[V] View & Quality##eigen_view_section', int32(0))
                 newView = GB.combo('View', obj.gui_.viewIdx, views);
                 if newView ~= obj.gui_.viewIdx
                     obj.gui_.viewIdx = newView;
                     obj.setCameraView_(views{newView});
                 end
                 obj.drawSsaaGui_('##eigen_view');
+                end
 
                 % Slice plane panel
                 if obj.drawSlicePlaneGui_()

@@ -451,6 +451,13 @@ classdef Polyscope < handle
             ray = call_mex('screen_coords_to_world_ray', screenCoords);
         end
 
+        function screenCoords = world_coords_to_screen(~, worldCoords)
+            %WORLD_COORDS_TO_SCREEN Project N-by-3 world points to the GUI.
+            % Returns [x, y, visible], in logical screen pixels with a
+            % top-left origin suitable for ImGui drawing.
+            screenCoords = call_mex('world_coords_to_screen', worldCoords);
+        end
+
         function set_camera_view_matrix(~, mat)
             call_mex('set_camera_view_matrix', mat);
         end
@@ -633,7 +640,8 @@ classdef Polyscope < handle
         end
 
         % === Point clouds =================================================
-        function pc = register_point_cloud(~, name, points, varargin)
+        function pc = register_point_cloud(obj, name, points, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_point_cloud', name, points, varargin{:});
             pc = polyscope.PointCloud(name);
         end
@@ -647,7 +655,8 @@ classdef Polyscope < handle
         end
 
         % === Surface meshes ===============================================
-        function sm = register_surface_mesh(~, name, vertices, faces, varargin)
+        function sm = register_surface_mesh(obj, name, vertices, faces, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_surface_mesh', name, vertices, faces, varargin{:});
             sm = polyscope.SurfaceMesh(name);
         end
@@ -661,22 +670,26 @@ classdef Polyscope < handle
         end
 
         % === Curve networks ===============================================
-        function cn = register_curve_network(~, name, nodes, edges, varargin)
+        function cn = register_curve_network(obj, name, nodes, edges, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_curve_network', name, nodes, edges, varargin{:});
             cn = polyscope.CurveNetwork(name);
         end
 
-        function cn = register_curve_network_line(~, name, nodes, varargin)
+        function cn = register_curve_network_line(obj, name, nodes, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_curve_network_line', name, nodes, varargin{:});
             cn = polyscope.CurveNetwork(name);
         end
 
-        function cn = register_curve_network_loop(~, name, nodes, varargin)
+        function cn = register_curve_network_loop(obj, name, nodes, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_curve_network_loop', name, nodes, varargin{:});
             cn = polyscope.CurveNetwork(name);
         end
 
-        function cn = register_curve_network_segments(~, name, nodes, varargin)
+        function cn = register_curve_network_segments(obj, name, nodes, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_curve_network_segments', name, nodes, varargin{:});
             cn = polyscope.CurveNetwork(name);
         end
@@ -690,22 +703,26 @@ classdef Polyscope < handle
         end
 
         % === Volume meshes ================================================
-        function vm = register_tet_mesh(~, name, vertices, tets, varargin)
+        function vm = register_tet_mesh(obj, name, vertices, tets, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_tet_mesh', name, vertices, tets, varargin{:});
             vm = polyscope.VolumeMesh(name);
         end
 
-        function vm = register_hex_mesh(~, name, vertices, hexes, varargin)
+        function vm = register_hex_mesh(obj, name, vertices, hexes, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_hex_mesh', name, vertices, hexes, varargin{:});
             vm = polyscope.VolumeMesh(name);
         end
 
-        function vm = register_volume_mesh(~, name, vertices, cells, varargin)
+        function vm = register_volume_mesh(obj, name, vertices, cells, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_volume_mesh', name, vertices, cells, varargin{:});
             vm = polyscope.VolumeMesh(name);
         end
 
-        function vm = register_tet_hex_mesh(~, name, vertices, tets, hexes, varargin)
+        function vm = register_tet_hex_mesh(obj, name, vertices, tets, hexes, varargin)
+            varargin = obj.withDefaultMaterial_(varargin);
             call_mex('register_tet_hex_mesh', name, vertices, tets, hexes, varargin{:});
             vm = polyscope.VolumeMesh(name);
         end
@@ -841,6 +858,20 @@ classdef Polyscope < handle
     end
 
     methods (Access = private)
+        function args = withDefaultMaterial_(~, args)
+            hasMaterial = false;
+            for k = 1:2:numel(args)
+                if (ischar(args{k}) || (isstring(args{k}) && isscalar(args{k}))) && ...
+                        strcmpi(char(string(args{k})), 'material')
+                    hasMaterial = true;
+                    break;
+                end
+            end
+            if ~hasMaterial
+                args(end+1:end+2) = {'material', 'flat'};
+            end
+        end
+
         function focus_window_safely_(obj)
             try
                 obj.focus_window();
