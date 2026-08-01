@@ -24,6 +24,7 @@ classdef (Abstract) ViewerBase < handle
         windowSizeCacheTimer_ = []
         screenAxesUpdateTimer_ = []
         guiEnabled_ logical = false
+        logoTextures_ struct = struct()
     end
 
     methods
@@ -63,6 +64,10 @@ classdef (Abstract) ViewerBase < handle
                 obj.build();
             end
             obj.initGuiState_();
+            % Reapply the selected theme before the first GUI frame. This is
+            % important when a new viewer reuses an initialized Polyscope app.
+            themes = {'light', 'dark'};
+            obj.applyPlotTheme_(themes{obj.gui_.plotThemeIdx});
             obj.guiEnabled_ = true;
             obj.App.setUserCallback(@obj.guiCallback_);
         end
@@ -139,6 +144,13 @@ classdef (Abstract) ViewerBase < handle
                 obj.gui_.viewIdx = 1;
             end
             obj.gui_.ssaaFactor = obj.getOptField_(obj.Opts.polyscope, 'ssaaFactor', 2);
+            themes = {'light', 'dark'};
+            theme = lower(char(string(obj.getOptField_(obj.Opts.polyscope, 'plotTheme', 'light'))));
+            obj.gui_.plotThemeIdx = find(strcmp(themes, theme), 1);
+            if isempty(obj.gui_.plotThemeIdx), obj.gui_.plotThemeIdx = 1; end
+            % Polyscope may initialize/reset ImGui when the native window is
+            % first shown. Reapply once from the first real GUI frame.
+            obj.gui_.uiThemeAppliedInFrame = false;
         end
 
         function name = structName_(obj, base, prefix)
@@ -313,9 +325,76 @@ classdef (Abstract) ViewerBase < handle
             rgb = max(0, min(1, rgb));
         end
 
+        function rgba = asRgba_(obj, c, defaultAlpha)
+            if nargin < 3, defaultAlpha = 1; end
+            vals = double(c(:).');
+            if isempty(vals), vals = [1, 1, 1, defaultAlpha]; end
+            rgb = obj.asRgb_(vals(1:min(3, numel(vals))));
+            if numel(vals) >= 4
+                alpha = vals(4);
+                if alpha > 1, alpha = alpha / 255; end
+            else
+                alpha = defaultAlpha;
+            end
+            rgba = [rgb, max(0, min(1, alpha))];
+        end
+
         function names = colormapNames_(~)
             names = {'viridis', 'blues', 'reds', 'coolwarm', 'pink-green', ...
                      'phase', 'spectral', 'rainbow', 'jet', 'turbo'};
+        end
+
+        function changed = drawPlotThemeGui_(obj, idSuffix)
+            if nargin < 2 || isempty(idSuffix), idSuffix = ''; end
+            GB = plotter.polyscope.GuiBuilder;
+            themes = {'light', 'dark'};
+            oldIdx = obj.gui_.plotThemeIdx;
+            obj.gui_.plotThemeIdx = GB.combo(['Plot theme' char(string(idSuffix))], oldIdx, themes);
+            changed = obj.gui_.plotThemeIdx ~= oldIdx;
+            if changed
+                obj.applyPlotTheme_(themes{obj.gui_.plotThemeIdx});
+            end
+            GB.separator();
+        end
+
+        function applyPlotTheme_(obj, theme)
+            theme = lower(char(string(theme)));
+            if strcmp(theme, 'dark')
+                bg = [0, 0, 0];
+                fg = [1, 1, 1, 1];
+            else
+                theme = 'light';
+                bg = [1, 1, 1];
+                fg = [0, 0, 0, 1];
+            end
+            obj.Opts.polyscope.plotTheme = theme;
+            obj.Opts.polyscope.backgroundColor = bg;
+            obj.Opts.polyscope.colorbarBackgroundColor = [bg, 0.70];
+            obj.Opts.polyscope.colorbarTickColor = fg;
+            obj.Opts.polyscope.colorbarLabelColor = fg;
+            obj.Opts.polyscope.colorbarTitleColor = fg;
+            if isfield(obj.gui_, 'colorbarBackgroundColor')
+                obj.gui_.colorbarBackgroundColor = [bg, 0.70];
+                obj.gui_.colorbarTickColor = fg;
+                obj.gui_.colorbarLabelColor = fg;
+                obj.gui_.colorbarTitleColor = fg;
+            end
+            try
+                obj.App.setBackgroundColor(bg);
+                plotter.polyscope.applyUiTheme(theme);
+                obj.App.polyscopeHandle().request_redraw();
+            catch
+            end
+        end
+
+        function ensureUiThemeForFrame_(obj)
+            if isfield(obj.gui_, 'uiThemeAppliedInFrame') && ...
+                    obj.gui_.uiThemeAppliedInFrame
+                return;
+            end
+            theme = obj.getOptField_(obj.Opts.polyscope, 'plotTheme', 'light');
+            plotter.polyscope.applyUiTheme(theme);
+            obj.gui_.uiThemeAppliedInFrame = true;
         end
 
         function fps = defaultAnimationFps_(~, nSteps)
@@ -334,6 +413,14 @@ classdef (Abstract) ViewerBase < handle
                 'onscreenColorbarLocation', []);
             obj.gui_.colorbarTitle = char(string(obj.getOptField_(obj.Opts.polyscope, ...
                 'colorbarTitle', defaultTitle)));
+            obj.gui_.colorbarBackgroundColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarBackgroundColor', [1, 1, 1, 0.70]), 0.70);
+            obj.gui_.colorbarTickColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarTickColor', [0, 0, 0, 1]), 1);
+            obj.gui_.colorbarLabelColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarLabelColor', [0, 0, 0, 1]), 1);
+            obj.gui_.colorbarTitleColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarTitleColor', [0, 0, 0, 1]), 1);
         end
 
         function changed = drawColorbarGui_(obj, idSuffix, includeTitle)
@@ -346,6 +433,7 @@ classdef (Abstract) ViewerBase < handle
             obj.gui_.onscreenColorbar = GB.checkbox(['Colorbar' labelSuffix], obj.gui_.onscreenColorbar);
             obj.Opts.polyscope.onscreenColorbar = logical(obj.gui_.onscreenColorbar);
             if obj.gui_.onscreenColorbar
+                GB.subtitle('Colorbar settings');
                 loc = obj.gui_.onscreenColorbarLocation;
                 if numel(loc) < 2 || any(~isfinite(loc))
                     loc = [1200, 800];
@@ -363,8 +451,34 @@ classdef (Abstract) ViewerBase < handle
                         obj.Opts.polyscope.colorbarTitle = title;
                     end
                 end
+                GB.subtitle('Colorbar colors');
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar background' labelSuffix], obj.gui_.colorbarBackgroundColor);
+                if cchg
+                    obj.gui_.colorbarBackgroundColor = obj.asRgba_(color, 0.70);
+                    obj.Opts.polyscope.colorbarBackgroundColor = obj.gui_.colorbarBackgroundColor;
+                end
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar ticks' labelSuffix], obj.gui_.colorbarTickColor);
+                if cchg
+                    obj.gui_.colorbarTickColor = obj.asRgba_(color, 1);
+                    obj.Opts.polyscope.colorbarTickColor = obj.gui_.colorbarTickColor;
+                end
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar labels' labelSuffix], obj.gui_.colorbarLabelColor);
+                if cchg
+                    obj.gui_.colorbarLabelColor = obj.asRgba_(color, 1);
+                    obj.Opts.polyscope.colorbarLabelColor = obj.gui_.colorbarLabelColor;
+                end
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar title color' labelSuffix], obj.gui_.colorbarTitleColor);
+                if cchg
+                    obj.gui_.colorbarTitleColor = obj.asRgba_(color, 1);
+                    obj.Opts.polyscope.colorbarTitleColor = obj.gui_.colorbarTitleColor;
+                end
             end
-            fields = {'onscreenColorbar','onscreenColorbarLocation','colorbarTitle'};
+            fields = {'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
+                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'};
             for i = 1:numel(fields)
                 nm = fields{i};
                 if isfield(oldState, nm) && isfield(obj.gui_, nm) && ~isequal(oldState.(nm), obj.gui_.(nm))
@@ -384,6 +498,12 @@ classdef (Abstract) ViewerBase < handle
             if ~isempty(loc) && numel(loc) == 2 && all(isfinite(loc))
                 cb = [cb, {'onscreen_colorbar_location', double(loc(:).')}];
             end
+            cb = [cb, { ...
+                'onscreen_colorbar_title', char(string(obj.getOptField_(obj.Opts.polyscope, 'colorbarTitle', ''))), ...
+                'onscreen_colorbar_background_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarBackgroundColor', [1,1,1,0.70]), 0.70), ...
+                'onscreen_colorbar_tick_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarTickColor', [0,0,0,1]), 1), ...
+                'onscreen_colorbar_label_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarLabelColor', [0,0,0,1]), 1), ...
+                'onscreen_colorbar_title_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarTitleColor', [0,0,0,1]), 1)}];
         end
 
         function changed = drawSsaaGui_(obj, idSuffix)
@@ -826,6 +946,7 @@ classdef (Abstract) ViewerBase < handle
         end
 
         function drawScreenAxesOverlay_(obj)
+            obj.drawLogoOverlay_();
             if ~obj.getOptField_(obj.Opts.polyscope, 'showScreenAxes', true)
                 return;
             end
@@ -848,10 +969,12 @@ classdef (Abstract) ViewerBase < handle
                 leftPanelW = min(420, displaySize(1) * 0.22);
                 origin = [leftPanelW + margin + sizePx, displaySize(2) - margin - sizePx];
 
-                bg = double(polyscope.ImGui.GetColorU32Vec4([1, 1, 1, 0.55]));
-                border = double(polyscope.ImGui.GetColorU32Vec4([0.15, 0.15, 0.15, 0.35]));
-                dl.AddCircleFilled(origin, sizePx * 0.72, bg, 32);
-                dl.AddCircle(origin, sizePx * 0.72, border, 32, 1.0);
+                if strcmpi(char(string(obj.getOptField_(obj.Opts.polyscope, 'plotTheme', 'light'))), 'dark')
+                    axesText = [1, 1, 1, 1];
+                else
+                    axesText = [0, 0, 0, 1];
+                end
+                textColor = double(polyscope.ImGui.GetColorU32Vec4(axesText));
 
                 dirs = obj.screenAxisDirections_();
                 axes = {'X', 'Y', 'Z'};
@@ -860,9 +983,92 @@ classdef (Abstract) ViewerBase < handle
                           0.12, 0.32, 0.92, 1.0];
                 for ia = 1:3
                     obj.drawScreenAxisArrow_(dl, origin, dirs(ia, :), sizePx, ...
-                        double(polyscope.ImGui.GetColorU32Vec4(colors(ia, :))), axes{ia});
+                        double(polyscope.ImGui.GetColorU32Vec4(colors(ia, :))), textColor, axes{ia});
+                end
+                % Tie the three axes together visually with a compact hub.
+                hubOuter = double(polyscope.ImGui.GetColorU32Vec4([0.18, 0.22, 0.28, 0.90]));
+                hubInner = double(polyscope.ImGui.GetColorU32Vec4([0.80, 0.88, 0.96, 1.00]));
+                dl.AddCircleFilled(origin, sizePx * 0.090, hubOuter, 18);
+                dl.AddCircleFilled(origin, sizePx * 0.057, hubInner, 18);
+            catch
+            end
+        end
+
+        function drawLogoOverlay_(obj)
+            if ~obj.getOptField_(obj.Opts.polyscope, 'showLogo', true), return; end
+            try
+                theme = lower(char(string(obj.getOptField_( ...
+                    obj.Opts.polyscope, 'plotTheme', 'light'))));
+                if ~strcmp(theme, 'dark'), theme = 'light'; end
+                if ~isfield(obj.logoTextures_, theme)
+                    classPath = which('plotter.polyscope.ViewerBase');
+                    imagePath = fullfile(fileparts(classPath), '+utils', ...
+                        ['logo-' theme '.png']);
+                    if ~isfile(imagePath), return; end
+                    [handle, width, height] = ...
+                        obj.App.polyscopeHandle().load_image_texture(imagePath);
+                    obj.logoTextures_.(theme) = struct( ...
+                        'handle', handle, 'width', width, 'height', height);
+                end
+                texture = obj.logoTextures_.(theme);
+                io = polyscope.ImGui.GetIO();
+                displaySize = double(io.DisplaySize);
+                if numel(displaySize) < 2 || any(displaySize(1:2) <= 0), return; end
+                width = double(obj.getOptField_(obj.Opts.polyscope, 'logoWidth', 280));
+                width = max(100, min(360, width));
+                height = width * double(texture.height) / max(1, double(texture.width));
+                margin = double(obj.getOptField_(obj.Opts.polyscope, 'logoMargin', 22));
+                copyrightLines = { ...
+                    char(string(obj.getOptField_(obj.Opts.polyscope, ...
+                        'copyrightLine1', 'Copyright © Yexiang Yan.'))), ...
+                    char(string(obj.getOptField_(obj.Opts.polyscope, ...
+                        'copyrightLine2', 'All rights reserved.')))};
+                % Reserve a stable two-line footer height. Text metrics are
+                % queried later so a missing glyph can never hide the logo.
+                footerHeight = 36;
+                logoGap = 7;
+                pMax = [displaySize(1) - margin, ...
+                    displaySize(2) - margin - footerHeight - logoGap];
+                pMin = pMax - [width, height];
+                tint = double(polyscope.ImGui.GetColorU32Vec4([1, 1, 1, 1]));
+                dl = polyscope.ImGui.GetForegroundDrawList();
+                dl.AddImage(texture.handle, pMin, pMax, [0, 0], [1, 1], tint);
+                try
+                    if strcmp(theme, 'dark')
+                        textRgba = [0.90, 0.92, 0.95, 0.92];
+                    else
+                        textRgba = [0.14, 0.17, 0.22, 0.88];
+                    end
+                    textColor = double(polyscope.ImGui.GetColorU32Vec4(textRgba));
+                    lineGap = 2;
+                    line2Size = double(polyscope.ImGui.CalcTextSize(copyrightLines{2}));
+                    line2Pos = [displaySize(1) - margin - line2Size(1), ...
+                        displaySize(2) - margin - line2Size(2)];
+                    line1Size = double(polyscope.ImGui.CalcTextSize(copyrightLines{1}));
+                    line1Pos = [displaySize(1) - margin - line1Size(1), ...
+                        line2Pos(2) - lineGap - line1Size(2)];
+                    dl.AddText(line1Pos, textColor, copyrightLines{1});
+                    dl.AddText(line2Pos, textColor, copyrightLines{2});
+                catch
+                    % Older MEX builds cannot convert non-ASCII MATLAB text;
+                    % the logo remains visible until the pending MEX updates.
                 end
             catch
+                % Decorative overlay must never interrupt viewer interaction.
+            end
+        end
+
+        function [lineColor, markerFill, markerOutline] = historyPlotColors_(obj)
+            theme = lower(char(string(obj.getOptField_( ...
+                obj.Opts.polyscope, 'plotTheme', 'light'))));
+            if strcmp(theme, 'dark')
+                lineColor = [0.30, 0.76, 1.00, 1.00];
+                markerFill = [1.00, 0.78, 0.05, 1.00];
+                markerOutline = [0.96, 0.97, 1.00, 1.00];
+            else
+                lineColor = [0.10, 0.38, 0.72, 1.00];
+                markerFill = [0.95, 0.58, 0.05, 1.00];
+                markerOutline = [0.12, 0.15, 0.20, 1.00];
             end
         end
 
@@ -887,7 +1093,7 @@ classdef (Abstract) ViewerBase < handle
             end
         end
 
-        function drawScreenAxisArrow_(~, dl, origin, dir2, sizePx, color, label)
+        function drawScreenAxisArrow_(~, dl, origin, dir2, sizePx, color, textColor, label)
             dir2 = double(dir2(:)).';
             if numel(dir2) < 2
                 return;
@@ -895,13 +1101,13 @@ classdef (Abstract) ViewerBase < handle
             n = norm(dir2(1:2));
             if n <= 0.18
                 dl.AddCircleFilled(origin, sizePx * 0.13, color, 12);
-                dl.AddText(origin + [sizePx * 0.16, -sizePx * 0.12], color, label);
+                dl.AddText(origin + [sizePx * 0.22, -sizePx * 0.14], textColor, label);
                 return;
             end
             dir2 = dir2(1:2) ./ n;
             len = 0.62 * sizePx * min(1.0, n);
             tip = origin + len * dir2;
-            base = origin + 0.14 * sizePx * dir2;
+            base = origin;
             perp = [-dir2(2), dir2(1)];
             headLen = 0.18 * sizePx;
             headHalf = 0.08 * sizePx;
@@ -911,7 +1117,7 @@ classdef (Abstract) ViewerBase < handle
 
             dl.AddLine(base, tip, color, 2.2);
             dl.AddTriangleFilled(p1, p2, p3, color);
-            dl.AddText(tip + 5 * dir2 + [-4, -7], color, label);
+            dl.AddText(tip + 11 * dir2 + [-4, -7], textColor, label);
         end
 
         function drawModelInfoWindow_(obj)
@@ -1765,6 +1971,7 @@ classdef (Abstract) ViewerBase < handle
             obj.windowSizeCache_ = zeros(0, 2);
             obj.windowSizeCacheTimer_ = [];
             obj.screenAxesUpdateTimer_ = [];
+            obj.logoTextures_ = struct();
         end
 
     end

@@ -178,15 +178,19 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             try
                 obj.advanceAnimation_();
                 GB = plotter.polyscope.GuiBuilder;
+                obj.ensureUiThemeForFrame_();
                 ws = obj.safeWindowSize_();
                 panelW = 390;
-                GB.begin('Frame Response', [max(0, ws(1) - panelW), 0], [panelW, max(560, ws(2))]);
+                GB.beginDockedRight('Frame Response', [ws(1), 0], [panelW, max(560, ws(2))]);
                 cleanup = onCleanup(@() GB.finish());
 
                 needsRebuild = false;
                 needsUpdate = false;
                 needsStyle = false;
                 GB.header('Frame response');
+                if obj.drawPlotThemeGui_('##frame_theme')
+                    needsUpdate = true;
+                end
 
                 if GB.collapsingHeader('Response', int32(0))
                     [chg, rebuild] = obj.drawResponseGui_();
@@ -300,8 +304,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 char(string(obj.Opts.respType)), char(string(obj.Opts.component))));
             obj.gui_.historyUseTag = GB.checkbox('Use element tag', obj.gui_.historyUseTag);
             if obj.gui_.historyUseTag
-                [changed, val] = polyscope.ImGui.InputInt('Element tag##frame_history', ...
-                    int32(round(obj.gui_.historyEleTag)), int32(1), int32(100));
+                [changed, val] = GB.editableIntChoice('Element tag##frame_history', ...
+                    obj.gui_.historyEleTag, tags, 'Existing element tags');
                 if changed
                     obj.gui_.historyEleTag = double(val);
                     hit = find(tags == obj.gui_.historyEleTag, 1);
@@ -357,9 +361,14 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 ip.SetupAxes('time / step', 'Response');
                 ip.SetupAxesLimits(xmin-xp, xmax+xp, ymin-yp, ymax+yp, ...
                     int32(polyscope.ImPlot.get_constant('ImPlotCond_Always')));
+                [lineColor, markerFill, markerOutline] = obj.historyPlotColors_();
+                ip.SetNextLineStyle(lineColor, 2.0);
                 ip.PlotLineXY('response##frame_history_line', x(:), y(:));
                 k = obj.currentStep_ + 1;
                 if k >= 1 && k <= numel(y) && isfinite(y(k))
+                    ip.SetNextMarkerStyle( ...
+                        int32(polyscope.ImPlot.get_constant('ImPlotMarker_Circle')), ...
+                        8, markerFill, 2.0, markerOutline);
                     ip.PlotScatterXY('current##frame_history_current', x(k), y(k));
                 end
                 ip.EndPlot();
@@ -408,6 +417,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         function [dataChanged, styleChanged] = drawStyleGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
+            GB.subtitle('Colormap && Colorbar');
             cmaps = obj.colormapNames_();
             obj.gui_.cmapIdx = GB.combo('Colormap##frame_style', obj.gui_.cmapIdx, cmaps);
             obj.Opts.polyscope.scalarColorMap = cmaps{obj.gui_.cmapIdx};
@@ -420,6 +430,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.drawColorbarGui_('##frame_style', true);
                 obj.Opts.cbar.show = logical(obj.gui_.onscreenColorbar);
             end
+            GB.separator();
+            GB.subtitle('Appearance');
             [~, obj.gui_.solidColor] = GB.colorEdit3('Solid color##frame_style', obj.gui_.solidColor);
             [~, obj.gui_.wireColor] = GB.colorEdit3('Wire color##frame_style', obj.gui_.wireColor);
             [~, obj.gui_.modelColor] = GB.colorEdit3('Model color##frame_style', obj.gui_.modelColor);
@@ -428,6 +440,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.diagramRadius = GB.sliderFloat('Diagram radius##frame_style', obj.gui_.diagramRadius, 0.0001, 0.006);
             obj.gui_.modelRadius = GB.sliderFloat('Model radius##frame_style', obj.gui_.modelRadius, 0.0001, 0.006);
             obj.gui_.zeroRadius = GB.sliderFloat('Zero radius##frame_style', obj.gui_.zeroRadius, 0.0001, 0.006);
+            GB.separator();
+            GB.subtitle('View');
             views = obj.viewNames_();
             obj.gui_.viewIdx = GB.combo('View##frame_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##frame_style')
@@ -436,7 +450,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             end
             obj.syncOptsFromGui_();
             dataChanged = obj.guiChanged_(old, {'cmapIdx','climIdx','useColormap', ...
-                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle'});
+                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
+                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'});
             styleChanged = obj.guiChanged_(old, {'solidColor','wireColor','modelColor','zeroColor', ...
                 'faceAlpha','diagramRadius','modelRadius','zeroRadius','viewIdx'});
             if dataChanged, obj.invalidateCaches_(); end
@@ -1610,7 +1625,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         function updateProgramName_(obj)
             try
                 obj.App.polyscopeHandle().set_program_name(sprintf( ...
-                    'OpenSeesMatlab | Frame response | %s %s | step %d - by Yexiang Yan', ...
+                    'OpenSeesMatlab | Frame response | %s %s | step %d', ...
                     char(string(obj.Opts.respType)), char(string(obj.Opts.component)), obj.currentStep_));
             catch
             end

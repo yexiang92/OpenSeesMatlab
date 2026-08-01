@@ -36,7 +36,11 @@ classdef Polyscope < handle
             % frame_begin()/frame_end(). Otherwise, defer to the native C++ show().
             if ~isempty(obj.userCallback_)
                 obj.show_window();
+                % show_window() makes the GLFW window visible but does not
+                % necessarily raise it above MATLAB on Windows.
+                obj.focus_window();
                 windowCleanup = onCleanup(@() obj.hide_window_safely_()); %#ok<NASGU>
+                focusedAfterFirstFrame = false;
                 if nargin < 2
                     while ~obj.window_requests_close()
                         tFrame = tic;
@@ -46,6 +50,10 @@ classdef Polyscope < handle
                             obj.userCallback_();
                             obj.frame_end();
                             frameOpen = false;
+                            if ~focusedAfterFirstFrame
+                                obj.focus_window_safely_();
+                                focusedAfterFirstFrame = true;
+                            end
                         catch err
                             if frameOpen
                                 try
@@ -67,6 +75,10 @@ classdef Polyscope < handle
                             obj.userCallback_();
                             obj.frame_end();
                             frameOpen = false;
+                            if ~focusedAfterFirstFrame
+                                obj.focus_window_safely_();
+                                focusedAfterFirstFrame = true;
+                            end
                         catch err
                             if frameOpen
                                 try
@@ -596,6 +608,14 @@ classdef Polyscope < handle
             handle = call_mex('get_final_scene_color_texture_native_handle');
         end
 
+        function [handle, width, height] = load_image_texture(~, filename)
+            [handle, width, height] = call_mex('load_image_texture', char(string(filename)));
+        end
+
+        function release_image_texture(~, handle)
+            call_mex('release_image_texture', handle);
+        end
+
         function load_static_material(~, matName, filename)
             call_mex('load_static_material', matName, filename);
         end
@@ -821,6 +841,13 @@ classdef Polyscope < handle
     end
 
     methods (Access = private)
+        function focus_window_safely_(obj)
+            try
+                obj.focus_window();
+            catch
+            end
+        end
+
         function hide_window_safely_(obj)
             try
                 obj.hide_window();

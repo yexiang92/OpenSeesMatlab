@@ -1,0 +1,4 @@
+source_revision=18d8d5c
+source_dirty=1
+matlab_release=2026a
+mex_extension=mexw64

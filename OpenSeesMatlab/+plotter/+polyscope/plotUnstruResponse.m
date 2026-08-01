@@ -140,15 +140,19 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             try
                 obj.advanceAnimation_();
                 GB = plotter.polyscope.GuiBuilder;
+                obj.ensureUiThemeForFrame_();
                 ws = obj.safeWindowSize_();
                 panelW = 390;
-                GB.begin('Unstructured Response', [max(0, ws(1) - panelW), 0], [panelW, max(560, ws(2))]);
+                GB.beginDockedRight('Unstructured Response', [ws(1), 0], [panelW, max(560, ws(2))]);
                 cleanup = onCleanup(@() GB.finish()); %#ok<NASGU>
 
                 needsRebuild = false;
                 needsUpdate = false;
                 needsVisibility = false;
                 GB.header('Unstructured response');
+                if obj.drawPlotThemeGui_('##unstru_theme')
+                    needsUpdate = true;
+                end
                 polyscope.ImGui.ProgressBar((obj.currentStep_ + 1) / max(1, obj.nSteps_), [0, 0], ...
                     sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
 
@@ -330,17 +334,10 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 obj.gui_.step = obj.currentStep_;
             end
             obj.gui_.showField = GB.checkbox('Scalar field##unstru', obj.gui_.showField);
-            GB.sameLine();
-            obj.gui_.useColormap = GB.checkbox('Use colormap##unstru', obj.gui_.useColormap);
-            obj.Opts.color.useColormap = obj.gui_.useColormap;
-            if obj.gui_.showField && obj.gui_.useColormap
-                obj.drawColorbarGui_('##unstru_response', false);
-            end
 
             topoChanged = obj.guiChanged_(old, {'eleTypeIdx'});
             changed = obj.guiChanged_(old, {'respIdx','compIdx','fiberIdx','locIdx', ...
-                'gpReduceIdx','gpIndex','stepModeIdx','step','showField','useColormap', ...
-                'onscreenColorbar','onscreenColorbarLocation'});
+                'gpReduceIdx','gpIndex','stepModeIdx','step','showField'});
             if changed
                 obj.invalidateScalarCaches_();
                 obj.invalidateHistoryCache_();
@@ -350,6 +347,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         function [changed, rebuild, visibilityOnly] = drawGeometryGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
+            GB.subtitle('Model visibility');
             obj.gui_.showMesh = GB.checkbox('Surfaces / solids##unstru_geometry', obj.gui_.showMesh);
             GB.sameLine();
             obj.gui_.showEdges = GB.checkbox('Mesh edges##unstru_geometry', obj.gui_.showEdges);
@@ -359,11 +357,15 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.showLines = GB.checkbox('Line elements##unstru_geometry', obj.gui_.showLines);
             GB.sameLine();
             obj.gui_.useInterpolation = GB.checkbox('Interpolated lines##unstru_geometry', obj.gui_.useInterpolation);
+            GB.separator();
+            GB.subtitle('Deformation');
             obj.gui_.showDeform = GB.checkbox('Deformed shape##unstru_geometry', obj.gui_.showDeform);
             GB.sameLine();
             obj.gui_.autoScale = GB.checkbox('Auto scale##unstru_geometry', obj.gui_.autoScale);
             obj.gui_.deformScale = GB.sliderFloat('Deformation scale##unstru_geometry', obj.gui_.deformScale, 0, 100);
             obj.gui_.showUndeformed = GB.checkbox('Undeformed ghost##unstru_geometry', obj.gui_.showUndeformed);
+            GB.separator();
+            GB.subtitle('Render quality');
             obj.drawSsaaGui_('##unstru_geometry');
             obj.syncOptsFromGui_();
             changed = obj.guiChanged_(old, {'showMesh','showEdges','showNodes','showFixed', ...
@@ -376,6 +378,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         function [dataChanged, styleChanged] = drawStyleGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
+            GB.subtitle('Colormap && Colorbar');
+            obj.gui_.useColormap = GB.checkbox('Use colormap##unstru_style', obj.gui_.useColormap);
+            obj.Opts.color.useColormap = obj.gui_.useColormap;
             cmapNames = obj.colormapNames_();
             obj.gui_.cmapIdx = GB.combo('Colormap##unstru_style', obj.gui_.cmapIdx, cmapNames);
             obj.Opts.polyscope.scalarColorMap = cmapNames{obj.gui_.cmapIdx};
@@ -386,6 +391,11 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             colorModes = {'auto','node','element'};
             obj.gui_.colorModeIdx = GB.combo('Color mode##unstru_style', obj.gui_.colorModeIdx, colorModes);
             obj.Opts.surf.colorMode = colorModes{obj.gui_.colorModeIdx};
+            if obj.gui_.showField && obj.gui_.useColormap
+                obj.drawColorbarGui_('##unstru_style', true);
+            end
+            GB.separator();
+            GB.subtitle('Appearance');
             [cchg, obj.gui_.solidColor] = GB.colorEdit3('Solid color##unstru_style', obj.gui_.solidColor);
             if cchg, obj.Opts.color.solidColor = obj.asRgb_(obj.gui_.solidColor); end
             [cchg, obj.gui_.edgeColor] = GB.colorEdit3('Edge color##unstru_style', obj.gui_.edgeColor);
@@ -396,6 +406,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.ghostAlpha = GB.sliderFloat('Ghost alpha##unstru_style', obj.gui_.ghostAlpha, 0, 1);
             obj.gui_.edgeRadius = GB.sliderFloat('Line radius##unstru_style', obj.gui_.edgeRadius, 0.0001, 0.006);
             obj.gui_.nodeRadius = GB.sliderFloat('Node radius##unstru_style', obj.gui_.nodeRadius, 0.0003, 0.012);
+            GB.separator();
+            GB.subtitle('View');
             views = obj.viewNames_();
             obj.gui_.viewIdx = GB.combo('View##unstru_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##unstru_style')
@@ -407,7 +419,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 obj.setStep(obj.currentStep_, true);
             end
             obj.syncOptsFromGui_();
-            dataChanged = obj.guiChanged_(old, {'cmapIdx','climIdx','colorModeIdx'});
+            dataChanged = obj.guiChanged_(old, {'useColormap','cmapIdx','climIdx','colorModeIdx', ...
+                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
+                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'});
             styleChanged = obj.guiChanged_(old, {'solidColor','edgeColor','ghostColor', ...
                 'deformedAlpha','ghostAlpha','edgeRadius','nodeRadius','viewIdx'});
             if dataChanged
@@ -601,12 +615,12 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         end
 
         function registerFixed_(obj, ps, segIdx, Pdef, ~, ~)
-            [Pfix, ~] = obj.fixedNodes_(segIdx, Pdef);
-            if isempty(Pfix), return; end
-            h = ps.register_point_cloud(obj.structName_('Fixed', 'def'), Pfix);
-            h.set_radius(obj.Opts.polyscope.nodeRadius * 1.6, true);
+            [Pfix, edges] = plotter.polyscope.SupportGlyphs.build(obj.ModelInfo(segIdx), ...
+                Pdef, max(obj.L_, eps) * 0.035);
+            if isempty(Pfix) || isempty(edges), return; end
+            h = ps.register_curve_network(obj.structName_('Fixed', 'def'), Pfix, edges);
+            h.set_radius(obj.Opts.polyscope.edgeRadius * 1.35, true);
             h.set_color(obj.asRgb_(plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
-            h.set_point_render_mode(obj.Opts.polyscope.pointRenderMode);
             h.set_enabled(obj.Opts.fixed.show);
             obj.handles_.def_Fixed = h;
         end
@@ -701,10 +715,13 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 end
             end
             if isfield(obj.handles_, 'def_Fixed')
-                [Pfix, ~] = obj.fixedNodes_(segIdx, Pdef);
+                [Pfix, ~] = plotter.polyscope.SupportGlyphs.build(obj.ModelInfo(segIdx), ...
+                    Pdef, max(obj.L_, eps) * 0.035);
                 if ~isempty(Pfix)
-                    obj.handles_.def_Fixed.update_point_positions(Pfix);
+                    obj.handles_.def_Fixed.update_node_positions(Pfix);
                 end
+                obj.handles_.def_Fixed.set_color(obj.asRgb_( ...
+                    plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
             end
         end
 
@@ -766,7 +783,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 obj.handles_.def_Nodes.set_color(obj.asRgb_(obj.Opts.color.solidColor));
             end
             if isfield(obj.handles_, 'def_Fixed')
-                obj.handles_.def_Fixed.set_radius(obj.Opts.polyscope.nodeRadius * 1.6, true);
+                obj.handles_.def_Fixed.set_radius(obj.Opts.polyscope.edgeRadius * 1.35, true);
                 obj.handles_.def_Fixed.set_color(obj.asRgb_(plotter.polyscope.utils.colorToRgb(obj.Opts.fixed.color)));
             end
             if isfield(obj.handles_, 'ghost_Response')
@@ -828,8 +845,13 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
 
             obj.gui_.historyUseTag = GB.checkbox('Use tag##history', obj.getOptField_(obj.gui_, 'historyUseTag', true));
             if obj.gui_.historyUseTag
-                [changed, tagVal] = polyscope.ImGui.InputInt('Target tag##history', ...
-                    int32(round(obj.getOptField_(obj.gui_, 'historyTag', tags(1)))), int32(1), int32(100));
+                if isNode
+                    choiceLabel = 'Existing node tags';
+                else
+                    choiceLabel = 'Existing element tags';
+                end
+                [changed, tagVal] = GB.editableIntChoice('Target tag##history', ...
+                    obj.getOptField_(obj.gui_, 'historyTag', tags(1)), tags, choiceLabel);
                 if changed
                     obj.gui_.historyTag = double(tagVal);
                     idx = find(tags == obj.gui_.historyTag, 1);
@@ -911,6 +933,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 ip.SetupAxes('time / step', 'response');
                 ip.SetupAxesLimits(xmin, xmax, ymin, ymax, ...
                     int32(polyscope.ImPlot.get_constant('ImPlotCond_Always')));
+                [lineColor, markerFill, markerOutline] = obj.historyPlotColors_();
+                ip.SetNextLineStyle(lineColor, 2.0);
                 ip.PlotLineXY('response##history_line', x(:), y(:));
                 if obj.currentStep_ >= 0 && obj.currentStep_ < numel(x)
                     k = obj.currentStep_ + 1;
@@ -918,7 +942,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                         try
                             ip.SetNextMarkerStyle( ...
                                 int32(polyscope.ImPlot.get_constant('ImPlotMarker_Circle')), ...
-                                8, [1.0, 0.78, 0.05, 1.0], 2.0, [0.05, 0.05, 0.05, 1.0]);
+                                8, markerFill, 2.0, markerOutline);
                         catch
                         end
                         ip.PlotScatterXY('current##history_current', x(k), y(k));
