@@ -9,11 +9,22 @@ classdef Options
 
         function opts = defaultModelOptions()
             opts = plotter.PlotModel.defaultOptions();
+            % Shared boundary/support green for model and deformation views.
+            opts.fixed.color = '#21FC0D';
+            if isfield(opts, 'style') && isfield(opts.style, 'familyColors')
+                opts.style.familyColors.Fixed = '#21FC0D';
+            end
+            % High-contrast local-axis palette which stays distinct from
+            % the common blue/green beam and link family colors.
+            opts.localAxes.axisXColor = '#E85D75'; % rose
+            opts.localAxes.axisYColor = '#F4A261'; % amber
+            opts.localAxes.axisZColor = '#9B5DE5'; % violet
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.general.view = '3D';
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.003;   % relative to scene length
             opts.polyscope.edgeRadius   = 0.0012;  % relative to scene length
+            opts.polyscope.supportLineRadiusFactor = 0.80;
             opts.polyscope.pointRenderMode = 'sphere';
             opts.polyscope.surfaceMaterial = 'flat';
             opts.polyscope.lineMaterial    = 'flat';
@@ -46,6 +57,7 @@ classdef Options
 
         function opts = defaultEigenOptions()
             opts = plotter.PlotEigen.defaultOptions();
+            opts.fixed.color = '#21FC0D';
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.003;
@@ -84,6 +96,7 @@ classdef Options
 
         function opts = defaultNodalResponseOptions()
             opts = plotter.PlotNodalResp.defaultOptions();
+            opts.fixed.color = '#21FC0D';
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.0025;
@@ -119,6 +132,7 @@ classdef Options
 
         function opts = defaultUnstructuredResponseOptions()
             opts = plotter.PlotUnstruResponse.defaultOptions();
+            opts.fixed.color = '#21FC0D';
             opts.polyscope = plotter.polyscope.Options.polyscopeCommon();
             opts.polyscope.name = '';
             opts.polyscope.nodeRadius   = 0.0025;
@@ -207,10 +221,19 @@ classdef Options
             p.backend      = 'openGL3_glfw';  % or 'openGL_mock' for headless/tests
             p.maximize     = true;            % maximize the main window on first show
             p.windowSize   = [1280, 800];     % used when maximize == false
+            p.plotTheme = 'light';            % scene theme; does not style the ImGui controls
+            p.showLogo = true;
+            p.logoWidth = 280;
+            p.logoMargin = 22;
+            p.copyrightText = 'Copyright © Yexiang Yan. All rights reserved.';
+            p.copyrightLine1 = 'Copyright © Yexiang Yan.';
+            p.copyrightLine2 = 'All rights reserved.';
             p.backgroundColor = [1, 1, 1];
             p.transparency = 1.0;   % Polyscope opacity: 1 = opaque, 0 = transparent
             p.ssaaFactor = 2;       % supersampling anti-aliasing, valid range 1..4
             p.maxFps = 60;
+            p.verbosity = 0;                 % suppress routine backend initialization messages
+            p.giveFocusOnShow = true;        % raise the viewer above MATLAB when shown
             p.enableVsync = true;
             p.alwaysRedraw = false;
             p.frameTickLimitFpsMode = 'auto';
@@ -220,6 +243,13 @@ classdef Options
             p.backFacePolicy = 'identical'; % 'identical', 'different', 'custom', or 'cull'
             p.showModelInfo = false; % show the Model Info window (nodes, elements)
             p.scalarColorMap = 'coolwarm';   % default scalar color map for all viewers
+            p.onscreenColorbar = false;
+            p.onscreenColorbarLocation = [];
+            p.colorbarTitle = '';
+            p.colorbarBackgroundColor = [1, 1, 1, 0.70];
+            p.colorbarTickColor = [0, 0, 0, 1];
+            p.colorbarLabelColor = [0, 0, 0, 1];
+            p.colorbarTitleColor = [0, 0, 0, 1];
             p.displayNames = struct(...       % user-friendly names for non-element structures in the left panel
                 'Nodes', 'Nodes', ...
                 'Fixed', 'Fixed supports', ...

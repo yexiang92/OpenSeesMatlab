@@ -91,18 +91,21 @@ classdef plotModel < plotter.polyscope.ViewerBase
         function guiCallback_(obj)
             GB = plotter.polyscope.GuiBuilder;
             obj.pollQueryClick_();
+            obj.ensureUiThemeForFrame_();
             ws = obj.safeWindowSize_();
             panelW = 340;
             panelH = max(420, ws(2));
-            GB.begin('Model controls', [max(0, ws(1) - panelW), 0], [panelW, panelH]);
+            GB.beginDockedRight('Model controls', [ws(1), 0], [panelW, panelH]);
 
             GB.header('Model');
 
             needsRebuild = false;
             sliceDirty = false;
+            obj.drawPlotThemeGui_('##model');
 
             % View
             if GB.collapsingHeader('View', int32(0))
+                GB.subtitle('Camera');
                 views = obj.viewNames_();
                 idx = GB.combo('Preset', obj.gui_.viewIdx, views);
                 if idx ~= obj.gui_.viewIdx
@@ -112,6 +115,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 if GB.button('Reset camera')
                     obj.setDefaultCamera_();
                 end
+                GB.subtitle('Overlays');
                 tf = GB.checkbox('View axes', obj.gui_.showScreenAxes);
                 if tf ~= obj.gui_.showScreenAxes
                     obj.gui_.showScreenAxes = tf;
@@ -123,27 +127,11 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     obj.gui_.showModelInfo = tf;
                     obj.Opts.polyscope.showModelInfo = tf;
                 end
-                GB.separator();
-                GB.subtitle('Element view');
-                tf = GB.checkbox('Wireframe only', obj.gui_.wireframeOnly);
-                if tf ~= obj.gui_.wireframeOnly
-                    obj.gui_.wireframeOnly = tf;
-                    obj.Opts.elements.wireframeOnly = tf;
-                    obj.applyElementVisibility_();
-                    obj.applyStyleColors_();
-                end
-
-                tf = GB.checkbox('Face edges', obj.gui_.showWireframeOnFaces);
-                if tf ~= obj.gui_.showWireframeOnFaces
-                    obj.gui_.showWireframeOnFaces = tf;
-                    obj.Opts.elements.showWireframeOnFaces = tf;
-                    obj.applyElementVisibility_();
-                end
-                GB.separator();
             end
 
             % Style & Colors
-            if GB.collapsingHeader('Style && Colors', int32(0))
+            if GB.collapsingHeader('Colors', int32(0))
+                GB.subtitle('Element coloring');
                 styles = {'byFamily', 'solid', 'wireframe'};
                 idx = GB.combo('Mode', obj.gui_.styleIdx, styles);
                 if idx ~= obj.gui_.styleIdx
@@ -153,7 +141,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     obj.applyStyleColors_();
                 end
 
-                if GB.collapsingHeader('Colors', int32(0))
+                GB.subtitle('Palette');
                     [cchg, obj.gui_.colors.line] = GB.colorEdit3('Line', obj.gui_.colors.line);
                     if cchg
                         obj.Opts.style.lineColor = obj.gui_.colors.line;
@@ -212,12 +200,26 @@ classdef plotModel < plotter.polyscope.ViewerBase
                             if cchg, obj.applyStyleColors_(); end
                         end
                     end
-                end
                 GB.separator();
             end
 
             % Display toggles
             if GB.collapsingHeader('Display', int32(0))
+                GB.subtitle('Element rendering');
+                tf = GB.checkbox('Wireframe only', obj.gui_.wireframeOnly);
+                if tf ~= obj.gui_.wireframeOnly
+                    obj.gui_.wireframeOnly = tf;
+                    obj.Opts.elements.wireframeOnly = tf;
+                    obj.applyElementVisibility_();
+                    obj.applyStyleColors_();
+                end
+                tf = GB.checkbox('Face edges', obj.gui_.showWireframeOnFaces);
+                if tf ~= obj.gui_.showWireframeOnFaces
+                    obj.gui_.showWireframeOnFaces = tf;
+                    obj.Opts.elements.showWireframeOnFaces = tf;
+                    obj.applyElementVisibility_();
+                end
+                GB.separator();
                 GB.subtitle('Nodes');
                 tf = GB.checkbox('Nodes', obj.gui_.showNodes);
                 if tf ~= obj.gui_.showNodes
@@ -298,6 +300,16 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     obj.setAxesEnabled_('LinkAxes', tf);
                 end
 
+                if obj.gui_.showBeamAxes || obj.gui_.showLinkAxes
+                    GB.labelDisabled('Axes:');
+                    GB.colorKey('X axis', plotter.polyscope.utils.colorToRgb( ...
+                        obj.Opts.localAxes.axisXColor), 'local_axis_x', true);
+                    GB.colorKey('Y axis', plotter.polyscope.utils.colorToRgb( ...
+                        obj.Opts.localAxes.axisYColor), 'local_axis_y', true);
+                    GB.colorKey('Z axis', plotter.polyscope.utils.colorToRgb( ...
+                        obj.Opts.localAxes.axisZColor), 'local_axis_z', true);
+                end
+
                 tf = GB.checkbox('Nodal loads', obj.gui_.showNodalLoads);
                 if tf ~= obj.gui_.showNodalLoads
                     obj.gui_.showNodalLoads = tf;
@@ -329,6 +341,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
 
             % Query
             if GB.collapsingHeader('Query', int32(0))
+                GB.subtitle('Scene selection');
                 tf = GB.checkbox('Enable query', obj.gui_.queryEnabled);
                 if tf ~= obj.gui_.queryEnabled
                     obj.gui_.queryEnabled = tf;
@@ -361,6 +374,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
 
             % Appearance
             if GB.collapsingHeader('Appearance', int32(0))
+                GB.subtitle('Sizes');
                 r = GB.sliderFloat('Node radius', obj.gui_.nodeRadius, 0.0001, 0.012);
                 if abs(r - obj.gui_.nodeRadius) > eps
                     obj.gui_.nodeRadius = r;
@@ -382,6 +396,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     obj.applyVectorRadius_();
                 end
 
+                GB.separator();
+                GB.subtitle('Surface');
                 a = GB.sliderFloat('Surface alpha', obj.gui_.surfaceAlpha, 0.0, 1.0);
                 if abs(a - obj.gui_.surfaceAlpha) > eps
                     obj.gui_.surfaceAlpha = a;
@@ -406,6 +422,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     obj.applySurfaceSmoothShade_();
                 end
 
+                GB.separator();
+                GB.subtitle('Scene');
                 groundModes = {'shadow_only', 'tile', 'none'};
                 gpIdx = find(strcmpi(groundModes, obj.gui_.groundPlaneMode), 1);
                 if isempty(gpIdx), gpIdx = 1; end
@@ -423,9 +441,9 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 if ~strcmp(titleStr, obj.gui_.title)
                     obj.gui_.title = titleStr;
                     obj.Opts.general.title = titleStr;
-                    displayTitle = 'OpenSeesMatlab - by Yexiang Yan';
+                    displayTitle = 'OpenSeesMatlab';
                     if ~isempty(strtrim(titleStr)) && ~strcmpi(strtrim(titleStr), 'auto')
-                        displayTitle = ['OpenSeesMatlab | ' titleStr ' - by Yexiang Yan'];
+                        displayTitle = ['OpenSeesMatlab | ' titleStr];
                     end
                     obj.App.polyscopeHandle().set_program_name(displayTitle);
                 end
@@ -434,6 +452,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
 
             % Render quality
             if GB.collapsingHeader('Render quality', int32(0))
+                GB.subtitle('Anti-aliasing');
                 obj.drawSsaaGui_();
                 GB.separator();
             end
@@ -583,21 +602,19 @@ classdef plotModel < plotter.polyscope.ViewerBase
         end
 
         function registerFixedNodes_(obj)
-            [Pfixed, fixedTags] = plotter.polyscope.ModelAdapter.fixedNodes(obj.ModelInfo);
-            if isempty(Pfixed), return; end
+            [Pfixed, edges, fixedTags, fixedRows] = plotter.polyscope.SupportGlyphs.build( ...
+                obj.ModelInfo, obj.P0_, max(obj.L_, eps) * 0.035);
+            if isempty(Pfixed) || isempty(edges), return; end
             name = obj.structName_('Fixed');
             rgb = obj.familyColor_('Fixed', obj.Opts.fixed.color);
-            pc = obj.App.polyscopeHandle().register_point_cloud(name, Pfixed);
-            pc.set_radius(obj.Opts.polyscope.nodeRadius * 1.5, true);
-            pc.set_color(rgb);
-            pc.set_material(obj.Opts.polyscope.lineMaterial);
-            pc.set_point_render_mode(obj.Opts.polyscope.pointRenderMode);
-            pc.set_enabled(obj.Opts.fixed.show);
-            obj.handles_.Fixed = pc;
+            pc = obj.App.polyscopeHandle().register_curve_network(name, Pfixed, edges);
+            pc.set_radius(obj.supportLineRadius_(), true);
+            pc.set_color(rgb); pc.set_material(obj.Opts.polyscope.lineMaterial);
+            pc.set_enabled(obj.Opts.fixed.show); obj.handles_.Fixed = pc;
             rawFixed = obj.rawCoordsForTags_(fixedTags);
             obj.query_.(obj.structKey_('Fixed')) = struct( ...
                 'kind', 'node', 'family', 'Fixed', 'tags', fixedTags(:), ...
-                'coords', Pfixed, 'rawCoords', rawFixed);
+                'coords', obj.P0_(fixedRows, :), 'rawCoords', rawFixed);
         end
 
         function registerElementClasses_(obj, P)
@@ -2195,7 +2212,9 @@ classdef plotModel < plotter.polyscope.ViewerBase
         function applyNodeRadius_(obj)
             r = obj.gui_.nodeRadius;
             if isfield(obj.handles_, 'Nodes'), obj.handles_.Nodes.set_radius(r, true); end
-            if isfield(obj.handles_, 'Fixed'), obj.handles_.Fixed.set_radius(r * 1.5, true); end
+            if isfield(obj.handles_, 'Fixed')
+                obj.handles_.Fixed.set_radius(obj.supportLineRadius_(), true);
+            end
         end
 
         function applyEdgeRadius_(obj)
@@ -2210,9 +2229,18 @@ classdef plotModel < plotter.polyscope.ViewerBase
             if isfield(obj.handles_, 'MPConstraint')
                 obj.handles_.MPConstraint.set_radius(rEdge * 0.8, true);
             end
+            if isfield(obj.handles_, 'Fixed')
+                obj.handles_.Fixed.set_radius(obj.supportLineRadius_(), true);
+            end
             if isfield(obj.handles_, 'Outline')
                 obj.handles_.Outline.set_radius(rEdge * 0.7, true);
             end
+        end
+
+        function radius = supportLineRadius_(obj)
+            factor = obj.getOptField_(obj.Opts.polyscope, ...
+                'supportLineRadiusFactor', 0.80);
+            radius = obj.Opts.polyscope.edgeRadius * max(0, factor);
         end
 
         function applySurfaceAlpha_(obj)
