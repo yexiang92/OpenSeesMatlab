@@ -418,6 +418,10 @@ classdef OpenSeesMatlabPost < handle
             %     Flag to save contact response data.
             % contactTags: double array, optional
             %     Array of contact tags specifying which contacts to save responses for.
+            % saveMVLEMResp: logical, optional, default true
+            %     Flag to save MVLEM-family response data.
+            % mvlemTags: double array, optional
+            %     Array of MVLEM-family element tags to save responses for.
             %
             % Returns
             % -------
@@ -473,6 +477,7 @@ classdef OpenSeesMatlabPost < handle
                 options.savePlaneResp           logical = true
                 options.saveSolidResp           logical = true
                 options.saveContactResp         logical = true
+                options.saveMVLEMResp           logical = true
 
                 options.nodeTags                double = []
                 options.frameTags               double = []
@@ -482,6 +487,7 @@ classdef OpenSeesMatlabPost < handle
                 options.planeTags               double = []
                 options.solidTags               double = []
                 options.contactTags             double = []
+                options.mvlemTags               double = []
 
                 options.elasticFrameSecPoints   double {mustBeInteger, mustBePositive} = 9
                 options.interpolateBeamDisp             = "off"
@@ -607,7 +613,7 @@ classdef OpenSeesMatlabPost < handle
             % eleTags : double array, optional
             %     An array of element tags to filter the response data. If empty or not provided, responses for all elements will be returned.
             % eleType : char | string, optional
-            %     The type of element to filter the response data (e.g., "Frame", "Truss", "Shell", "Plane", "Solid"). If empty or not provided, responses for all element types will be returned.
+            %     The type of element to filter the response data (e.g., "Frame", "Truss", "Shell", "Plane", "Solid", "MVLEM"). If empty or not provided, responses for all element types will be returned.
             % respType : char | string, optional
             %     The type of element response to retrieve (e.g., "force", "stress"). If empty or not provided, all types of element responses will be returned.
             %
@@ -620,7 +626,9 @@ classdef OpenSeesMatlabPost < handle
                 obj (1,1) post.OpenSeesMatlabPost
                 odbTag = ""
 
-                options.eleType   {mustBeTextScalar, mustBeMember(options.eleType, ["", "Frame", "Truss", "Shell", "Plane", "Solid", "Link"])} = ""
+                options.eleType   {mustBeTextScalar, mustBeMember(options.eleType, ...
+                    ["", "Frame", "Beam", "Truss", "Shell", "Plane", "Solid", "Brick", "Link", "Contact", ...
+                     "MVLEM", "SFI_MVLEM", "MVLEM_3D", "SFI_MVLEM_3D", "E_SFI_MVLEM_3D"])} = ""
                 options.eleTags   double = []
                 options.respType  {mustBeTextScalar} = ""
             end

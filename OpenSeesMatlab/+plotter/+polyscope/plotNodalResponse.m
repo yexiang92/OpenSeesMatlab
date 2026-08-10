@@ -139,6 +139,12 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.animationMode = obj.gui_.playing;
             obj.gui_.fps = obj.getOptField_(obj.Opts.animation, 'fps', ...
                 obj.defaultAnimationFps_(obj.nSteps_));
+            obj.gui_.fps = obj.clampAnimationFps_(obj.gui_.fps, obj.nSteps_);
+            obj.gui_.playDuration = obj.getOptField_(obj.Opts.animation, 'duration', 10);
+            obj.gui_.autoFrameStride = obj.getOptField_( ...
+                obj.Opts.animation, 'autoFrameStride', true);
+            obj.gui_.frameStride = obj.getOptField_(obj.Opts.animation, 'frameStride', ...
+                obj.recommendedFrameStride_(obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration));
             obj.gui_.loop = obj.getOptField_(obj.Opts.animation, 'loop', true);
             obj.gui_.pingpong = obj.getOptField_(obj.Opts.animation, 'pingpong', false);
             obj.gui_.animUpdateColors = obj.getOptField_(obj.Opts.animation, 'updateColors', true);
@@ -204,7 +210,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
         function configureAnimationRenderLoop_(obj)
             isRunning = isfield(obj.gui_, 'animationMode') && obj.gui_.animationMode && ...
                 isfield(obj.gui_, 'playing') && obj.gui_.playing;
-            fps = max(1, double(obj.getOptField_(obj.gui_, 'fps', 12)));
+            fps = obj.clampAnimationFps_( ...
+                obj.getOptField_(obj.gui_, 'fps', 12), obj.nSteps_);
             configureAnimationRenderLoop_@plotter.polyscope.ViewerBase(obj, isRunning, fps);
         end
     end
@@ -399,6 +406,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                     obj.stepAnimationOnce_();
                     changed = false;
                 end
+                polyscope.ImGui.ProgressBar((obj.gui_.step + 1) / max(1, obj.nSteps_), [0, 0], ...
+                    sprintf('%d / %d', obj.gui_.step, max(0, obj.nSteps_ - 1)));
                 obj.gui_.loop = GB.checkbox('Loop', obj.gui_.loop);
                 GB.sameLine();
                 obj.gui_.pingpong = GB.checkbox('Ping-pong', obj.gui_.pingpong);
@@ -409,18 +418,36 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 obj.Opts.deform.autoScale = true;
                 obj.gui_.deformScale = GB.sliderFloat('Scale factor##animation', obj.gui_.deformScale, 0, 100);
                 oldFps = obj.gui_.fps;
-                obj.gui_.fps = GB.sliderFloat('FPS##animation', obj.gui_.fps, 1, 240);
+                maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
+                obj.gui_.fps = GB.sliderFloat( ...
+                    'FPS##animation', obj.gui_.fps, 1, maxFps);
                 if abs(oldFps - obj.gui_.fps) > eps
                     obj.configureAnimationRenderLoop_();
                 end
-
-                polyscope.ImGui.ProgressBar((obj.gui_.step + 1) / max(1, obj.nSteps_), [0, 0], ...
-                    sprintf('%d / %d', obj.gui_.step, max(0, obj.nSteps_ - 1)));
+                obj.gui_.autoFrameStride = GB.checkbox( ...
+                    'Auto frame stride##nodal_animation', obj.gui_.autoFrameStride);
+                obj.gui_.playDuration = GB.sliderFloat( ...
+                    'Target duration (s)##nodal_animation', obj.gui_.playDuration, 2, 60);
+                if obj.gui_.autoFrameStride
+                    obj.gui_.frameStride = obj.recommendedFrameStride_( ...
+                        obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration);
+                    polyscope.ImGui.TextDisabled(sprintf('Frame stride: %d (automatic)', ...
+                        obj.gui_.frameStride));
+                else
+                    obj.gui_.frameStride = GB.sliderInt('Frame stride##nodal_animation', ...
+                        obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
+                end
+                passTime = obj.estimatedAnimationDuration_( ...
+                    obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
+                polyscope.ImGui.TextDisabled(sprintf('Estimated pass: %.1f s', passTime));
             end
             obj.Opts.animation.play = logical(obj.gui_.playing);
             obj.Opts.animation.loop = logical(obj.gui_.loop);
             obj.Opts.animation.pingpong = logical(obj.gui_.pingpong);
             obj.Opts.animation.fps = obj.gui_.fps;
+            obj.Opts.animation.autoFrameStride = obj.gui_.autoFrameStride;
+            obj.Opts.animation.frameStride = obj.gui_.frameStride;
+            obj.Opts.animation.duration = obj.gui_.playDuration;
             obj.Opts.animation.updateColors = logical(obj.gui_.animUpdateColors);
             obj.Opts.animation.updateVectors = logical(obj.gui_.animUpdateVectors);
             obj.Opts.deform.scale = obj.gui_.deformScale;
@@ -1379,13 +1406,15 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
         end
 
         function stepAnimationOnce_(obj)
-            next = obj.gui_.step + obj.gui_.animDir;
+            stride = max(1, round(double(obj.gui_.frameStride)));
+            next = obj.gui_.step + obj.gui_.animDir * stride;
             if next > obj.nSteps_ - 1 || next < 0
                 if obj.gui_.pingpong
                     obj.gui_.animDir = -obj.gui_.animDir;
-                    next = obj.gui_.step + obj.gui_.animDir;
+                    if obj.gui_.animDir < 0, next = obj.nSteps_ - 1;
+                    else, next = 0; end
                 elseif obj.gui_.loop
-                    next = 0;
+                    next = mod(next, obj.nSteps_);
                 else
                     obj.gui_.playing = false;
                     next = max(0, min(obj.nSteps_ - 1, next));

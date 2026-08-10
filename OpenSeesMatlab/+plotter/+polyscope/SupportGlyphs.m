@@ -2,9 +2,10 @@ classdef SupportGlyphs
     %SUPPORTGLYPHS Build SAP-like support symbols from nodal restraint DOFs.
 
     methods (Static)
-        function [V, E, tags, rows] = build(modelInfo, nodePositions, scale)
+        function [V, E, tags, rows] = build(modelInfo, nodePositions, scale, allowedRows)
             V = zeros(0, 3); E = zeros(0, 2); tags = zeros(0, 1); rows = zeros(0, 1);
             if nargin < 3 || isempty(scale), scale = 1; end
+            if nargin < 4, allowedRows = []; end
             if ~isfield(modelInfo, 'Fixed') || ~isstruct(modelInfo.Fixed), return; end
             F = modelInfo.Fixed;
             nNode = size(nodePositions, 1);
@@ -17,6 +18,9 @@ classdef SupportGlyphs
                 return;
             end
             valid = rows >= 1 & rows <= nNode;
+            if ~isempty(allowedRows)
+                valid = valid & ismember(rows,round(double(allowedRows(:))));
+            end
             rows = rows(valid);
             if isempty(rows), return; end
             if isfield(F, 'NodeTags') && ~isempty(F.NodeTags)

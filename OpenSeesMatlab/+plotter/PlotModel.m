@@ -53,6 +53,8 @@ classdef PlotModel < handle
                     'Shell',        '#8338EC', ...
                     'Solid',        '#ada587', ...
                     'Contact',      '#8D6E63', ...
+                    'MVLEM',        '#E76F51', ...
+                    'MVLEM3D',      '#E76F51', ...
                     'MPConstraint', '#3A86FF', ...
                     'Fixed',        '#D62828', ...
                     'Node',         '#111111'));
@@ -77,6 +79,7 @@ classdef PlotModel < handle
                 'showShell',            true, ...
                 'showSolid',            true, ...
                 'showContact',          true, ...
+                'showMVLEM',            true, ...
                 'showWireframeOnFaces', false, ...
                 'wireframeOnly',        false, ...
                 'lineWidth',            1.5, ...
@@ -165,7 +168,7 @@ classdef PlotModel < handle
                 '  style.solidColor     color   Solid/brick surface colour (byFamily mode).'
                 '  style.wireframeColor color   Global edge colour (wireframe mode).'
                 '  style.familyColors   struct  Per-family colours used in byFamily mode:'
-                '    .Truss / .Beam / .Link / .Line  1-D element families.'
+                '    .Truss / .Beam / .Link / .Line / .MVLEM  1-D element families.'
                 '    .Plane / .Shell / .Solid         2-D / 3-D surface families.'
                 '    .Contact / .MPConstraint         Special element types.'
                 '    .Fixed / .Node                   Support / node markers.'
@@ -190,6 +193,7 @@ classdef PlotModel < handle
                 '  elements.showShell             logical  Draw shell elements (default true).'
                 '  elements.showSolid             logical  Draw solid (3-D) elements (default true).'
                 '  elements.showContact           logical  Draw contact elements (default true).'
+                '  elements.showMVLEM             logical  Draw MVLEM-family wall elements (default true).'
                 '  elements.showWireframeOnFaces  logical  Draw mesh edges on surfaces (default false).'
                 '  elements.wireframeOnly         logical  Edges only, no filled surfaces (default false).'
                 '  elements.lineWidth             double   Line width for 1-D elements (default 1.5).'
@@ -472,16 +476,18 @@ classdef PlotModel < handle
             P   = obj.NodeCoords;
             fam = obj.getFamilies();
 
-            lineFams  = {'Beam','Link','Truss','Contact'};
+            lineFams  = {'Beam','Link','Truss','Contact','MVLEM'};
             lineFlags = [obj.Opts.elements.showBeam, obj.Opts.elements.showLink, ...
-                         obj.Opts.elements.showTruss, obj.Opts.elements.showContact];
+                         obj.Opts.elements.showTruss, obj.Opts.elements.showContact, ...
+                         obj.Opts.elements.showMVLEM];
 
             for k = 1:numel(lineFams)
                 if lineFlags(k), obj.plotLineFamily(fam, lineFams{k}, P); end
             end
 
-            surfFams  = {'Plane','Shell','Solid'};
-            surfFlags = [obj.Opts.elements.showPlane, obj.Opts.elements.showShell, obj.Opts.elements.showSolid];
+            surfFams  = {'Plane','Shell','Solid','MVLEM3D'};
+            surfFlags = [obj.Opts.elements.showPlane, obj.Opts.elements.showShell, ...
+                         obj.Opts.elements.showSolid, obj.Opts.elements.showMVLEM];
 
             for k = 1:numel(surfFams)
                 if surfFlags(k), obj.plotSurfaceFamily(fam, surfFams{k}, P); end
@@ -899,7 +905,7 @@ classdef PlotModel < handle
             end
 
             fam = obj.getFamilies();
-            famNames = {'Beam','Link','Truss', 'Plane','Shell','Solid','Contact'};
+            famNames = {'Beam','Link','Truss','MVLEM','MVLEM3D','Plane','Shell','Solid','Contact'};
             for i = 1:numel(famNames)
                 name = famNames{i};
                 if ~isfield(fam, name)

@@ -49,11 +49,11 @@ classdef ModelAdapter
         end
 
         function names = lineFamilyNames(~)
-            names = {'Beam', 'Truss', 'Link', 'Contact'};
+            names = {'Beam', 'Truss', 'Link', 'Contact', 'MVLEM'};
         end
 
         function names = surfaceFamilyNames(~)
-            names = {'Plane', 'Shell'};
+            names = {'Plane', 'Shell', 'MVLEM3D'};
         end
 
         function names = volumeFamilyNames(~)
@@ -74,7 +74,7 @@ classdef ModelAdapter
                 edges, size(plotter.polyscope.ModelAdapter.nodeCoords(modelInfo), 1));
         end
 
-        function [V, F, midPoints, edgePoints, out] = surfaceMesh(modelInfo, familyName)
+        function [V, F, midPoints, edgePoints, out] = surfaceMesh(modelInfo, familyName, points)
             V = zeros(0, 3);
             F = zeros(0, 3);
             midPoints = zeros(0, 3);
@@ -87,9 +87,32 @@ classdef ModelAdapter
                ~isfield(S, 'CellTypes') || isempty(S.CellTypes)
                 return;
             end
-            P = plotter.polyscope.ModelAdapter.nodeCoords(modelInfo);
+            if nargin < 3 || isempty(points)
+                P = plotter.polyscope.ModelAdapter.nodeCoords(modelInfo);
+            else
+                P = plotter.polyscope.ModelAdapter.pad3(double(points));
+            end
+            cells = double(S.Cells);
+            if strcmpi(familyName, 'MVLEM3D')
+                % OpenSees MVLEM_3D historically exposed I,J,L,K while VTK
+                % quads require a non-crossing perimeter. Normalize both old
+                % and new ODB files before every surface rendering path.
+                for i = 1:size(cells,1)
+                    row = cells(i,:);
+                    if numel(row) < 5 || round(row(1)) ~= 4, continue; end
+                    ids = round(row(2:5));
+                    if any(ids < 1 | ids > size(P,1)), continue; end
+                    q0 = P(ids,:);
+                    l0 = sum(vecnorm(q0([2 3 4 1],:)-q0,2,2));
+                    alt = ids([1 2 4 3]); q1 = P(alt,:);
+                    l1 = sum(vecnorm(q1([2 3 4 1],:)-q1,2,2));
+                    if l1 + eps(max(l0,l1)) < l0
+                        cells(i,2:5) = alt;
+                    end
+                end
+            end
             out = plotter.utils.VTKElementTriangulator.triangulate( ...
-                P, double(S.CellTypes), double(S.Cells));
+                P, double(S.CellTypes), cells);
             if isempty(out) || ~isfield(out, 'Points') || isempty(out.Points)
                 out = [];
                 return;

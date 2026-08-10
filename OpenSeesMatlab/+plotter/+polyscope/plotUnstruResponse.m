@@ -270,6 +270,12 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.animationMode = obj.gui_.playing;
             obj.gui_.fps = obj.getOptField_(obj.Opts.animation, 'fps', ...
                 obj.defaultAnimationFps_(obj.nSteps_));
+            obj.gui_.fps = obj.clampAnimationFps_(obj.gui_.fps, obj.nSteps_);
+            obj.gui_.playDuration = obj.getOptField_(obj.Opts.animation, 'duration', 10);
+            obj.gui_.autoFrameStride = obj.getOptField_( ...
+                obj.Opts.animation, 'autoFrameStride', true);
+            obj.gui_.frameStride = obj.getOptField_(obj.Opts.animation, 'frameStride', ...
+                obj.recommendedFrameStride_(obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration));
             obj.gui_.loop = obj.getOptField_(obj.Opts.animation, 'loop', true);
             obj.gui_.pingpong = obj.getOptField_(obj.Opts.animation, 'pingpong', false);
             obj.gui_.animUpdateColors = obj.getOptField_(obj.Opts.animation, 'updateColors', true);
@@ -292,7 +298,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
 
         function configureAnimationRenderLoop_(obj)
             isRunning = isfield(obj.gui_, 'animationMode') && obj.gui_.animationMode && obj.gui_.playing;
-            fps = max(1, double(obj.getOptField_(obj.gui_, 'fps', 12)));
+            fps = obj.clampAnimationFps_( ...
+                obj.getOptField_(obj.gui_, 'fps', 12), obj.nSteps_);
             configureAnimationRenderLoop_@plotter.polyscope.ViewerBase(obj, isRunning, fps);
         end
     end
@@ -467,16 +474,35 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                     obj.gui_.climIdx = obj.indexOf_({'step','range','global','absmax','absmin'}, 'global');
                     obj.Opts.color.climMode = 'global';
                 end
-                if GB.button('Play / pause')
-                    obj.gui_.playing = ~obj.gui_.playing;
+                if obj.gui_.playing
+                    if GB.button('Pause##unstru_animation'), obj.gui_.playing = false; end
+                else
+                    if GB.button('Play##unstru_animation'), obj.gui_.playing = true; end
                 end
                 GB.sameLine();
-                if GB.button('Restart')
-                    obj.currentStep_ = 0;
-                    obj.gui_.step = 0;
+                if GB.button('Restart##unstru_animation'), obj.animDir_ = 1; obj.setStep(0, false); end
+                GB.sameLine();
+                if GB.button('Step##unstru_animation'), obj.advanceAnimationStep_(); end
+                polyscope.ImGui.ProgressBar((obj.currentStep_ + 1) / max(1, obj.nSteps_), [0, 0], ...
+                    sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
+                maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
+                obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, maxFps);
+                obj.gui_.autoFrameStride = GB.checkbox( ...
+                    'Auto frame stride##unstru_animation', obj.gui_.autoFrameStride);
+                obj.gui_.playDuration = GB.sliderFloat( ...
+                    'Target duration (s)##unstru_animation', obj.gui_.playDuration, 2, 60);
+                if obj.gui_.autoFrameStride
+                    obj.gui_.frameStride = obj.recommendedFrameStride_( ...
+                        obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration);
+                    polyscope.ImGui.TextDisabled(sprintf('Frame stride: %d (automatic)', ...
+                        obj.gui_.frameStride));
+                else
+                    obj.gui_.frameStride = GB.sliderInt('Frame stride##unstru_animation', ...
+                        obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
                 end
-                obj.gui_.playing = GB.checkbox('Playing', obj.gui_.playing);
-                obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, 240);
+                passTime = obj.estimatedAnimationDuration_( ...
+                    obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
+                polyscope.ImGui.TextDisabled(sprintf('Estimated pass: %.1f s', passTime));
                 obj.gui_.loop = GB.checkbox('Loop', obj.gui_.loop);
                 GB.sameLine();
                 obj.gui_.pingpong = GB.checkbox('Ping-pong', obj.gui_.pingpong);
@@ -488,6 +514,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.Opts.animation.fps = obj.gui_.fps;
             obj.Opts.animation.loop = obj.gui_.loop;
             obj.Opts.animation.pingpong = obj.gui_.pingpong;
+            obj.Opts.animation.autoFrameStride = obj.gui_.autoFrameStride;
+            obj.Opts.animation.frameStride = obj.gui_.frameStride;
+            obj.Opts.animation.duration = obj.gui_.playDuration;
             obj.Opts.animation.updateColors = obj.gui_.animUpdateColors;
             obj.configureAnimationRenderLoop_();
             % FPS/loop/pingpong/playing only affect the animation loop; they do
@@ -1223,13 +1252,18 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             if ~isfield(obj.gui_, 'animationMode') || ~obj.gui_.animationMode || ~obj.gui_.playing
                 return;
             end
-            step = obj.currentStep_ + obj.animDir_;
+            obj.advanceAnimationStep_();
+        end
+
+        function advanceAnimationStep_(obj)
+            stride = max(1, round(double(obj.gui_.frameStride)));
+            step = obj.currentStep_ + obj.animDir_ * stride;
             if step >= obj.nSteps_
                 if obj.gui_.pingpong
                     obj.animDir_ = -1;
-                    step = max(0, obj.nSteps_ - 2);
+                    step = obj.nSteps_ - 1;
                 elseif obj.gui_.loop
-                    step = 0;
+                    step = mod(step, obj.nSteps_);
                 else
                     step = obj.nSteps_ - 1;
                     obj.gui_.playing = false;
@@ -1237,9 +1271,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             elseif step < 0
                 if obj.gui_.pingpong
                     obj.animDir_ = 1;
-                    step = min(obj.nSteps_ - 1, 1);
+                    step = 0;
                 elseif obj.gui_.loop
-                    step = obj.nSteps_ - 1;
+                    step = mod(step, obj.nSteps_);
                 else
                     step = 0;
                     obj.gui_.playing = false;
