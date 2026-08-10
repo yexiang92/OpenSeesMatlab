@@ -184,6 +184,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.showNodes = obj.Opts.nodes.show;
             obj.gui_.showFixed = obj.Opts.fixed.show;
             obj.gui_.showMP = obj.getOptField_(obj.Opts.polyscope, 'showMPConstraints', true);
+            obj.gui_.showMVLEMInternalLines = logical( ...
+                obj.Opts.mvlem.internalLines.show);
             obj.gui_.fixedSymbolScale = obj.getOptField_( ...
                 obj.Opts.fixed, 'symbolScale', 1.0);
             obj.gui_.showVectors = obj.Opts.vector.show;
@@ -662,6 +664,11 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.showFixed = GB.checkbox('Fixed nodes', obj.gui_.showFixed);
             GB.sameLine();
             obj.gui_.showMP = GB.checkbox('MP constraints##nodal_geometry', obj.gui_.showMP);
+            if obj.hasMVLEM3D_(obj.currentSeg_)
+                obj.gui_.showMVLEMInternalLines = GB.checkbox( ...
+                    'MVLEM internal lines##nodal_geometry', ...
+                    obj.gui_.showMVLEMInternalLines);
+            end
             GB.sameLine();
             obj.gui_.fixedSymbolScale = GB.sliderFloat('Size##nodal_fixed_symbol', ...
                 obj.gui_.fixedSymbolScale, 0.1, 2.0);
@@ -676,7 +683,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
 
             obj.syncOptsFromGui_();
             visibilityChanged = obj.guiChanged_(oldState, {'showLines','showSurfaces', ...
-                'showSurfaceEdges','surfaceRenderModeIdx','showNodes','showFixed','showMP','vectorAuto','vectorScale'});
+                'showSurfaceEdges','surfaceRenderModeIdx','showNodes','showFixed','showMP', ...
+                'showMVLEMInternalLines','vectorAuto','vectorScale'});
             needsRebuild = obj.guiChanged_(oldState, ...
                 {'useInterpolation','fixedSymbolScale'});
             if visibilityChanged
@@ -760,6 +768,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.registerLineFamilies_(ps, segIdx);
             obj.registerSurfaceFamilies_(ps, segIdx);
             obj.registerVolumeFamilies_(ps, segIdx);
+            obj.registerMVLEMInternalLines_(ps, segIdx, obj.P0_);
             if obj.Opts.nodes.show
                 obj.registerNodes_(ps, segIdx);
             end
@@ -923,6 +932,57 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             end
         end
 
+        function registerMVLEMInternalLines_(obj, ps, segIdx, P)
+            if ~obj.hasMVLEM3D_(segIdx), return; end
+            [Pi, Ei] = obj.mvlemInternalLineGeometry_(P, segIdx);
+            if isempty(Ei), return; end
+            h = ps.register_curve_network(obj.structName_( ...
+                'MVLEM3DInternalLines', 'def'), Pi, Ei);
+            h.set_color(obj.asRgb_(obj.Opts.mvlem.internalLines.color));
+            try
+                h.set_radius(obj.Opts.mvlem.internalLines.radius * obj.L_, false);
+                h.set_material(obj.Opts.polyscope.lineMaterial);
+            catch
+            end
+            % Polyscope can retain a previous structure's enabled state.
+            % Always apply the right-panel state after registration.
+            h.set_enabled(logical(obj.Opts.mvlem.internalLines.show));
+            obj.handles_.def_MVLEM3DInternalLines = h;
+        end
+
+        function updateMVLEMInternalLines_(obj, P, segIdx)
+            if ~isfield(obj.handles_, 'def_MVLEM3DInternalLines'), return; end
+            [Pi, Ei] = obj.mvlemInternalLineGeometry_(P, segIdx); %#ok<ASGLU>
+            if isempty(Pi), return; end
+            obj.handles_.def_MVLEM3DInternalLines.update_node_positions(Pi);
+            obj.handles_.def_MVLEM3DInternalLines.set_enabled( ...
+                logical(obj.Opts.mvlem.internalLines.show));
+        end
+
+        function [Pi, Ei] = mvlemInternalLineGeometry_(obj, P, segIdx)
+            Pi = zeros(0, 3); Ei = zeros(0, 2);
+            fam = obj.families_(segIdx);
+            if ~isfield(fam, 'MVLEM3D') || ~isfield(fam.MVLEM3D, 'Cells')
+                return;
+            end
+            cells = double(fam.MVLEM3D.Cells);
+            counts = obj.Opts.mvlem.internalLines.fiberCount;
+            if isfield(fam.MVLEM3D, 'FiberCounts') && ...
+                    ~isempty(fam.MVLEM3D.FiberCounts)
+                counts = double(fam.MVLEM3D.FiberCounts(:));
+            end
+            [Pi, Ei] = plotter.polyscope.MVLEMGeometry.internalLines( ...
+                P, cells, obj.Opts.mvlem.internalLines.fiberWidths, counts);
+        end
+
+        function tf = hasMVLEM3D_(obj, segIdx)
+            tf = false;
+            if nargin < 2 || isempty(segIdx) || segIdx < 1, return; end
+            fam = obj.families_(segIdx);
+            tf = isfield(fam, 'MVLEM3D') && isstruct(fam.MVLEM3D) && ...
+                isfield(fam.MVLEM3D, 'Cells') && ~isempty(fam.MVLEM3D.Cells);
+        end
+
         function h = registerVolumeMesh_(~, ps, name, V, tets, hexes)
             if ~isempty(tets) && ~isempty(hexes)
                 h = ps.register_tet_hex_mesh(name, V, tets, hexes);
@@ -1051,6 +1111,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.updateLineStructures_(Pdef, Snode, qargs, scalarName);
             obj.updateSurfaceStructures_(Pdef, Snode, qargs, scalarName);
             obj.updateVolumeStructures_(Pdef, Snode, qargs, scalarName);
+            obj.updateMVLEMInternalLines_(Pdef, segIdx);
             obj.updateNodeStructures_(Pdef, Snode, qargs, segIdx, scalarName);
             obj.updateVectorStructure_(Pdef, segIdx, localStep);
             obj.applyVisibility_();
@@ -1270,6 +1331,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.setEnabled_('def_Fixed', obj.Opts.fixed.show);
             obj.setEnabled_('def_MPConstraint', obj.Opts.polyscope.showMPConstraints);
             obj.setEnabled_('def_Vectors', obj.Opts.vector.show);
+            obj.setEnabled_('def_MVLEM3DInternalLines', ...
+                obj.Opts.mvlem.internalLines.show);
             ghostNames = fieldnames(obj.handles_);
             for k = 1:numel(ghostNames)
                 if startsWith(ghostNames{k}, 'ghost_')
@@ -1292,6 +1355,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                         h.set_color(obj.supportColor_());
                     elseif contains(allNames{k}, 'MPConstraint')
                         h.set_color(obj.asRgb_(obj.Opts.polyscope.mpConstraintColor));
+                    elseif contains(allNames{k}, 'MVLEM3DInternalLines')
+                        h.set_color(obj.asRgb_(obj.Opts.mvlem.internalLines.color));
                     else
                         h.set_color(obj.asRgb_(obj.gui_.solidColor));
                         if isa(h, 'polyscope.SurfaceMesh') || isa(h, 'polyscope.VolumeMesh')
@@ -1308,7 +1373,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 end
                 try
                     if isa(h, 'polyscope.CurveNetwork')
-                        if contains(allNames{k}, 'Edges') || contains(allNames{k}, 'ghost_')
+                        if contains(allNames{k}, 'MVLEM3DInternalLines')
+                            h.set_radius(obj.Opts.mvlem.internalLines.radius * obj.L_, false);
+                        elseif contains(allNames{k}, 'Edges') || contains(allNames{k}, 'ghost_')
                             h.set_radius(obj.Opts.polyscope.edgeRadius * 0.55, true);
                         else
                             h.set_radius(obj.Opts.polyscope.edgeRadius, true);
@@ -1384,6 +1451,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.Opts.fixed.show = logical(obj.gui_.showFixed);
             obj.Opts.fixed.symbolScale = double(obj.gui_.fixedSymbolScale);
             obj.Opts.polyscope.showMPConstraints = logical(obj.gui_.showMP);
+            obj.Opts.mvlem.internalLines.show = logical( ...
+                obj.gui_.showMVLEMInternalLines);
             obj.Opts.vector.show = logical(obj.gui_.showVectors);
             obj.Opts.vector.autoScale = logical(obj.gui_.vectorAuto);
             obj.Opts.vector.scale = obj.gui_.vectorScale;
