@@ -715,13 +715,16 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             end
             N=obj.NodalResp(seg);
             if ~isfield(N,'disp') || ~isstruct(N.disp) || ~isfield(N,'nodeTags'),return;end
-            nodalStep=localStep;
-            if isfield(R,'time') && isnumeric(R.time) && numel(R.time)>=localStep && ...
-                    isfield(N,'time') && isnumeric(N.time) && ~isempty(N.time)
-                targetTime=double(R.time(localStep));
-                [~,nodalStep]=min(abs(double(N.time(:))-targetTime));
-            end
             names={'ux','uy','uz'}; D=zeros(numel(N.nodeTags),3);
+            nNodalSteps=0;
+            for d=1:3
+                if isfield(N.disp,names{d}) && isnumeric(N.disp.(names{d}))
+                    nNodalSteps=size(N.disp.(names{d}),1);
+                    if nNodalSteps>0,break;end
+                end
+            end
+            if nNodalSteps<1,return;end
+            nodalStep=obj.alignedNodalStep_(R,N,localStep,nNodalSteps);
             for d=1:3
                 if isfield(N.disp,names{d})
                     A=double(N.disp.(names{d}));
@@ -742,6 +745,41 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                 end
             end
             P=P0+factor*mapped;
+        end
+
+        function nodalStep=alignedNodalStep_(~,R,N,localStep,nNodalSteps)
+            % Recorder rows are normally index-aligned.  Prefer that exact
+            % correspondence because loadConst -time can make Domain times
+            % repeat across load sequences; a global nearest-time search
+            % would then select an earlier sequence with the same time.
+            nodalStep=max(1,min(nNodalSteps,round(double(localStep))));
+            if ~isfield(R,'time') || ~isnumeric(R.time) || ...
+                    numel(R.time)<localStep || ~isfield(N,'time') || ...
+                    ~isnumeric(N.time) || isempty(N.time)
+                return;
+            end
+            responseTime=double(R.time(:));
+            nodalTime=double(N.time(:));
+            target=responseTime(localStep);
+            scale=max(1,abs(target));
+            timeTol=64*eps(scale);
+            if nodalStep<=numel(nodalTime) && ...
+                    abs(nodalTime(nodalStep)-target)<=timeTol
+                return;
+            end
+
+            % Different recorder sampling rates require time matching.  If
+            % the time value occurs more than once, choose the occurrence
+            % nearest the index predicted from the two history lengths.
+            delta=abs(nodalTime-target);
+            best=min(delta,[],'omitnan');
+            if isempty(best)||~isfinite(best),return;end
+            candidates=find(delta<=best+max(timeTol,8*eps(max(1,best))));
+            if isempty(candidates),return;end
+            expected=1+(localStep-1)*max(0,numel(nodalTime)-1)/ ...
+                max(1,numel(responseTime)-1);
+            [~,k]=min(abs(double(candidates)-expected));
+            nodalStep=max(1,min(nNodalSteps,candidates(k)));
         end
 
         function registerContext_(obj,ps,M,P0,P)
