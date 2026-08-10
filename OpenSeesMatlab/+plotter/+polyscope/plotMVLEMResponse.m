@@ -15,6 +15,8 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
         animDir_ double = 1
         initialOpts_ struct
         segCounts_ double = []
+        currentSeg_ double = 0
+        hasMixedTopology_ logical = false
         lastGuiError_ char = ''
     end
 
@@ -49,6 +51,8 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.currentStep_ = obj.resolveStep_(obj.Opts.stepIdx);
             obj.initialOpts_ = obj.Opts;
             obj.P0_ = plotter.polyscope.ModelAdapter.nodeCoords(obj.modelAtStep_());
+            fam0 = plotter.polyscope.ModelAdapter.families(obj.modelAtStep_());
+            obj.hasMixedTopology_ = isfield(fam0,'MVLEM') && isfield(fam0,'MVLEM3D');
             used=obj.mvlemNodeIndices_(obj.modelAtStep_(),size(obj.P0_,1));
             obj.L_=max(1,obj.physicalModelLength_(obj.P0_(used,:)));
             if obj.isHeadless_(), obj.Opts.polyscope.backend = 'openGL_mock'; end
@@ -77,10 +81,20 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
         end
 
         function setStep(obj, stepArg, force)
-            if nargin < 3, force = false; end %#ok<INUSD>
+            if nargin < 3, force = false; end
             obj.currentStep_ = obj.resolveStep_(stepArg);
-            obj.clear_();
-            obj.registerResponse_();
+            [~,~,seg] = obj.respAtStep_();
+            rebuild = force || seg ~= obj.currentSeg_ || isempty(fieldnames(obj.handles_));
+            if rebuild
+                obj.clear_();
+                obj.registerResponse_(true);
+                obj.currentSeg_ = seg;
+            else
+                % Response structure names and topology are stable within a
+                % segment. Replacing those structures in place avoids clearing
+                % and rebuilding supports, constraints, slices, and overlays.
+                obj.registerResponse_(false);
+            end
             if isfield(obj.gui_, 'step'), obj.gui_.step = obj.currentStep_; end
         end
 
@@ -150,6 +164,11 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.gui_.compIdx = obj.index_(obj.componentNames_, obj.Opts.component);
             obj.gui_.step = obj.currentStep_;
             obj.gui_.playing = logical(obj.Opts.animation.play);
+            if obj.gui_.playing
+                obj.Opts.deform.scaleMode='global';
+                obj.Opts.lineDiagram.scaleMode='global';
+                obj.Opts.surfaceDiagram.scaleMode='global';
+            end
             obj.gui_.fps = obj.clampAnimationFps_( ...
                 obj.Opts.animation.fps, obj.nSteps_);
             obj.gui_.playDuration = obj.getOptField_(obj.Opts.animation,'duration',10);
@@ -205,8 +224,7 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
     methods (Access = private)
         function drawResponseGui_(obj)
             GB=plotter.polyscope.GuiBuilder;
-            fam=plotter.polyscope.ModelAdapter.families(obj.modelAtStep_());
-            if isfield(fam,'MVLEM') && isfield(fam,'MVLEM3D')
+            if obj.hasMixedTopology_
                 topologies={'all','line','surface'};
                 oldTopology=obj.gui_.topologyIdx;
                 obj.gui_.topologyIdx=GB.combo('Topology##mvlem',oldTopology,topologies);
@@ -476,18 +494,60 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.gui_.ghostAlpha=GB.sliderFloat('Ghost alpha##mvlem',obj.gui_.ghostAlpha,0,1);
             obj.Opts.color.deformedAlpha=obj.gui_.surfaceAlpha;
             obj.Opts.color.undeformedAlpha=obj.gui_.ghostAlpha;
-            if obj.guiChanged_(old,{'cmapIdx','climIdx','onscreenColorbar', ...
-                    'onscreenColorbarLocation','colorbarTitle','edgeColor','surfaceAlpha','ghostAlpha'})
-                obj.setStep(obj.currentStep_,true);
+            scalarChanged=obj.guiChanged_(old,{'cmapIdx','climIdx','onscreenColorbar', ...
+                    'onscreenColorbarLocation','colorbarTitle'});
+            appearanceChanged=obj.guiChanged_(old,{'edgeColor','surfaceAlpha','ghostAlpha'});
+            if scalarChanged
+                obj.setStep(obj.currentStep_,false);
             end
+            if appearanceChanged
+                obj.applyAppearance_();
+            end
+        end
+
+        function applyAppearance_(obj)
+            surfaceNames={'MVLEMFibers','MVLEM3DFibers','MVLEM3D', ...
+                'MVLEMDiagram','MVLEM3DDiagram'};
+            for i=1:numel(surfaceNames)
+                if isfield(obj.handles_,surfaceNames{i})
+                    try,obj.handles_.(surfaceNames{i}).set_transparency( ...
+                        obj.Opts.color.deformedAlpha);catch,end
+                end
+            end
+            edgeNames={'MVLEMFiberEdges','MVLEM3DFiberEdges','MVLEM3DEdges', ...
+                'MVLEM3DDiagramZero'};
+            for i=1:numel(edgeNames)
+                if isfield(obj.handles_,edgeNames{i})
+                    try,obj.handles_.(edgeNames{i}).set_color( ...
+                        obj.asRgb_(obj.Opts.surf.edgeColor));catch,end
+                end
+            end
+            ghostNames={'ghost_MVLEM','ghost_MVLEM3D'};
+            for i=1:numel(ghostNames)
+                if isfield(obj.handles_,ghostNames{i})
+                    try,obj.handles_.(ghostNames{i}).set_transparency( ...
+                        obj.Opts.color.undeformedAlpha);catch,end
+                end
+            end
+            try,obj.App.polyscopeHandle().request_redraw();catch,end
         end
 
         function drawAnimationGui_(obj)
             GB=plotter.polyscope.GuiBuilder;
+            oldPlaying=obj.gui_.playing;
+            oldFps=obj.gui_.fps;
             if obj.gui_.playing
                 if GB.button('Pause##mvlem'),obj.gui_.playing=false;end
             else
-                if GB.button('Play##mvlem'),obj.gui_.playing=true;obj.lastTick_=tic;end
+                if GB.button('Play##mvlem')
+                    obj.gui_.playing=true;
+                    obj.Opts.deform.scaleMode='global';
+                    obj.Opts.lineDiagram.scaleMode='global';
+                    obj.Opts.surfaceDiagram.scaleMode='global';
+                    obj.gui_.diagramScaleModeIdx=obj.index_({'current','global'},'global');
+                    obj.gui_.surfaceDiagramScaleModeIdx=obj.index_({'current','global'},'global');
+                    obj.lastTick_=tic;
+                end
             end
             GB.sameLine();
             if GB.button('Restart##mvlem'),obj.animDir_=1;obj.setStep(0);end
@@ -522,14 +582,20 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.Opts.animation.autoFrameStride=obj.gui_.autoFrameStride;
             obj.Opts.animation.frameStride=obj.gui_.frameStride;
             obj.Opts.animation.duration=obj.gui_.playDuration;
-            obj.configureAnimationRenderLoop_(obj.gui_.playing,obj.gui_.fps);
+            if oldPlaying~=obj.gui_.playing || oldFps~=obj.gui_.fps
+                obj.configureAnimationRenderLoop_(obj.gui_.playing,obj.gui_.fps);
+            end
+            if oldPlaying && ~obj.gui_.playing
+                obj.setStep(obj.currentStep_,true);
+            end
         end
 
-        function registerResponse_(obj)
+        function registerResponse_(obj, includeContext)
+            if nargin < 2, includeContext = true; end
             ps = obj.App.polyscopeHandle();
             M = obj.modelAtStep_();
             P0 = plotter.polyscope.ModelAdapter.nodeCoords(M);
-            P = obj.deformedCoords_(P0);
+            P = obj.deformedCoords_(P0,M);
             [tags, locationVals] = obj.locationValuesAtStep_();
             fam = plotter.polyscope.ModelAdapter.families(M);
             displayMode=obj.effectiveDisplayMode_();
@@ -701,10 +767,13 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                     end
                 end
             end
-            obj.registerContext_(ps,M,P0,P);
+            if includeContext
+                obj.registerContext_(ps,M,P0,P);
+            end
         end
 
-        function P = deformedCoords_(obj,P0)
+        function P = deformedCoords_(obj,P0,M)
+            if nargin < 3 || isempty(M), M=obj.modelAtStep_(); end
             P=P0;
             if ~obj.Opts.deform.show || isempty(obj.NodalResp),return;end
             [R,localStep,seg]=obj.respAtStep_();
@@ -731,20 +800,79 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                     D(:,d)=A(min(nodalStep,size(A,1)),:).';
                 end
             end
-            modelTags=plotter.polyscope.ModelAdapter.nodeTags(obj.modelAtStep_());
+            modelTags=plotter.polyscope.ModelAdapter.nodeTags(M);
             [tf,ix]=ismember(modelTags,double(N.nodeTags(:)));
             mapped=zeros(size(P0)); mapped(tf,:)=D(ix(tf),:);
-            used=obj.mvlemNodeIndices_(obj.modelAtStep_(),size(P0,1));
+            used=obj.mvlemNodeIndices_(M,size(P0,1));
             physical=false(size(P0,1),1);physical(used)=true;
             mapped(~physical,:)=0;
             factor=double(obj.Opts.deform.scale);
             if obj.Opts.deform.autoScale
-                md=max(vecnorm(mapped(used,:),2,2),[],'omitnan');
+                if strcmpi(char(string(obj.getOptField_(obj.Opts.deform, ...
+                        'scaleMode','current'))),'global')
+                    md=obj.globalDeformUmax_();
+                else
+                    md=max(vecnorm(mapped(used,:),2,2),[],'omitnan');
+                end
                 if isfinite(md) && md>eps
                     factor=factor*double(obj.Opts.deform.targetFraction)*obj.L_/md;
                 end
             end
             P=P0+factor*mapped;
+        end
+
+        function umax=globalDeformUmax_(obj)
+            parts=cell(1,numel(obj.NodalResp));
+            for s=1:numel(obj.NodalResp)
+                N=obj.NodalResp(s);
+                sz=[0,0];
+                if isfield(N,'disp') && isstruct(N.disp) && isfield(N.disp,'ux')
+                    sz=size(N.disp.ux);
+                end
+                parts{s}=sprintf('%d:%s',s,strjoin(string(sz),'x'));
+            end
+            key=matlab.lang.makeValidName(strjoin(parts,'|'));
+            umax=obj.cachedRange_('mvlemDeform',key,@() obj.computeGlobalDeformUmax_());
+        end
+
+        function umax=computeGlobalDeformUmax_(obj)
+            umax=0;
+            for s=1:numel(obj.NodalResp)
+                N=obj.NodalResp(s);
+                if ~isfield(N,'disp') || ~isstruct(N.disp) || ...
+                        ~isfield(N,'nodeTags')
+                    continue;
+                end
+                M=obj.ModelInfo(min(s,numel(obj.ModelInfo)));
+                P=plotter.polyscope.ModelAdapter.nodeCoords(M);
+                used=obj.mvlemNodeIndices_(M,size(P,1));
+                modelTags=plotter.polyscope.ModelAdapter.nodeTags(M);
+                physicalTags=modelTags(used);
+                [keep,~]=ismember(double(N.nodeTags(:)),physicalTags);
+                if ~any(keep),continue;end
+                names={'ux','uy','uz'};
+                nStep=0;
+                for d=1:3
+                    if isfield(N.disp,names{d}) && isnumeric(N.disp.(names{d}))
+                        nStep=max(nStep,size(N.disp.(names{d}),1));
+                    end
+                end
+                if nStep<1,continue;end
+                mag2=zeros(nStep,sum(keep));
+                for d=1:3
+                    if ~isfield(N.disp,names{d}),continue;end
+                    A=double(N.disp.(names{d}));
+                    rows=min(nStep,size(A,1));
+                    cols=min(numel(keep),size(A,2));
+                    selected=find(keep(1:cols));
+                    if ~isempty(selected)
+                        mag2(1:rows,1:numel(selected))=mag2(1:rows,1:numel(selected))+ ...
+                            A(1:rows,selected).^2;
+                    end
+                end
+                m=max(sqrt(mag2),[],'all','omitnan');
+                if isfinite(m),umax=max(umax,m);end
+            end
         end
 
         function nodalStep=alignedNodalStep_(~,R,N,localStep,nNodalSteps)
@@ -1392,14 +1520,21 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
         function advanceAnimationStep_(obj)
             stride=max(1,round(double(obj.gui_.frameStride)));
             next=obj.currentStep_+obj.animDir_*stride;
+            stopped=false;
             if next>=obj.nSteps_||next<0
                 if obj.gui_.pingpong
                     obj.animDir_=-obj.animDir_;
                     if obj.animDir_<0,next=obj.nSteps_-1;else,next=0;end
                 elseif obj.gui_.loop,next=mod(next,obj.nSteps_);
-                else,obj.gui_.playing=false;next=max(0,min(obj.nSteps_-1,next));end
+                else
+                    obj.gui_.playing=false;
+                    obj.Opts.animation.play=false;
+                    obj.configureAnimationRenderLoop_(false,obj.gui_.fps);
+                    stopped=true;
+                    next=max(0,min(obj.nSteps_-1,next));
+                end
             end
-            obj.setStep(next);
+            obj.setStep(next,stopped);
         end
     end
 end

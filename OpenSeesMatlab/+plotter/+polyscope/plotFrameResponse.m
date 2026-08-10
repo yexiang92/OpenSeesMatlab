@@ -551,6 +551,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if obj.guiChanged_(old, {'animationMode','playing','fps'})
                 obj.configureAnimationRenderLoop_();
             end
+            if old.playing && ~obj.gui_.playing
+                obj.setStep(obj.currentStep_, true);
+            end
             % FPS/loop/pingpong/playing only affect the animation loop; they do
             % not require a full diagram recompute. Only changes that alter the
             % displayed data need a response update.
@@ -1199,6 +1202,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         function advanceAnimationStep_(obj)
             stride = max(1, round(double(obj.gui_.frameStride)));
             nextStep = obj.currentStep_ + obj.animDir_ * stride;
+            stopped = false;
             if nextStep >= obj.nSteps_
                 if obj.gui_.pingpong
                     obj.animDir_ = -1;
@@ -1208,6 +1212,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 else
                     nextStep = obj.nSteps_ - 1;
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                 end
             elseif nextStep < 0
                 if obj.gui_.pingpong
@@ -1218,9 +1225,12 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 else
                     nextStep = 0;
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                 end
             end
-            obj.setStep(nextStep, false);
+            obj.setStep(nextStep, stopped);
         end
 
         function buildStepIndex_(obj)
