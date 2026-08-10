@@ -43,6 +43,7 @@ classdef ODB < handle
                 options.savePlaneResp           logical = true
                 options.saveSolidResp           logical = true
                 options.saveContactResp         logical = true
+                options.saveMVLEMResp           logical = true
                 options.saveSensitivityResp     logical = false
 
                 options.nodeTags                double = []
@@ -53,6 +54,7 @@ classdef ODB < handle
                 options.planeTags               double = []
                 options.solidTags               double = []
                 options.contactTags             double = []
+                options.mvlemTags               double = []
 
                 options.elasticFrameSecPoints (1,1) double {mustBeInteger, mustBePositive} = 9
                 options.interpolateBeamDisp = "off"
@@ -74,6 +76,22 @@ classdef ODB < handle
             %
             % Empty [] and logical false options are filtered where needed to avoid
             % passing invalid tokens to the C++ parser.
+
+            % An ODB tag identifies one database. Start from a clean directory
+            % when the same tag is created again; HDF5 cannot recreate datasets
+            % safely in an existing database.
+            if isfolder(obj.storePath)
+                [removed, message] = rmdir(obj.storePath, 's');
+                if ~removed
+                    error('post:ODB:OverwriteFailed', ...
+                        'Cannot replace existing ODB "%s": %s', ...
+                        obj.odbTag, message);
+                end
+            elseif isfile(obj.storePath)
+                error('post:ODB:InvalidStorePath', ...
+                    'Cannot create ODB "%s" because its database path is a file: %s', ...
+                    obj.odbTag, obj.storePath);
+            end
 
             args = {obj.filename};
 
@@ -164,6 +182,13 @@ classdef ODB < handle
                 args = [args, {'-saveContactResp'}];
                 if ~isempty(obj.kargs.contactTags)
                     args = [args, num2cell(obj.kargs.contactTags(:).')];
+                end
+            end
+
+            if obj.kargs.saveMVLEMResp
+                args = [args, {'-saveMVLEMResp'}];
+                if ~isempty(obj.kargs.mvlemTags)
+                    args = [args, num2cell(obj.kargs.mvlemTags(:).')];
                 end
             end
 
@@ -283,6 +308,10 @@ classdef ODB < handle
                     groups = "link";    respName = "LinkResponses";
                 case "contact"
                     groups = "contact"; respName = "ContactResponses";
+                case {"mvlem", "sfi_mvlem", "sfimvlem", ...
+                      "mvlem_3d", "mvlem3d", "sfi_mvlem_3d", "sfimvlem3d", ...
+                      "e_sfi_mvlem_3d", "esfimvlem3d"}
+                    groups = "mvlem";  respName = "MVLEMResponses";
                 otherwise
                     error("Unknown element type: %s", eleType);
             end
@@ -304,7 +333,7 @@ classdef ODB < handle
             %   odbTag  – ODB tag (string or numeric)
             %   options.groups – query type (default "" reads everything)
             %       "model", "nodal", "frame", "beam", "truss", "plane",
-            %       "shell", "solid", "brick", "link", "contact", "all"
+            %       "shell", "solid", "brick", "link", "contact", "mvlem", "all"
             %
             % Output:
             %   odb – scalar struct (single stage) or struct array (multi stage)
@@ -397,7 +426,7 @@ classdef ODB < handle
                 options.respType  string = ""
             end
 
-            [groups, respName] = post.ODB.eleTypeMap(options.eleType);
+            [groups, ~] = post.ODB.eleTypeMap(options.eleType);
             filename = post.ODB.getFilename(odbTag);
             args = post.ODB.buildArgs(options);
             data = ops.readFEMData(filename, groups, args{:});

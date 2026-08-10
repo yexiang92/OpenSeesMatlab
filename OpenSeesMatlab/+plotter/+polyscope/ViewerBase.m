@@ -398,9 +398,32 @@ classdef (Abstract) ViewerBase < handle
         end
 
         function fps = defaultAnimationFps_(~, nSteps)
-            % Target roughly a 20-second pass, bounded for usability and by
-            % the default interactive render-loop limit.
-            fps = max(5, min(60, round(double(max(1, nSteps)) / 20)));
+            % A responsive default which leaves rendering headroom.
+            fps = min(30, max(10, round(double(max(1, nSteps)) / 20)));
+        end
+
+        function fps = animationFpsUpperBound_(~, nSteps)
+            % Keep the animation rate proportional to the available samples.
+            % Short histories retain a practical 10 FPS upper limit.
+            fps = min(60, max(10, double(max(0, nSteps)) / 10));
+        end
+
+        function fps = clampAnimationFps_(obj, fps, nSteps)
+            fps = min(obj.animationFpsUpperBound_(nSteps), ...
+                max(1, double(fps)));
+        end
+
+        function stride = recommendedFrameStride_(~, nSteps, fps, duration)
+            fps = max(1, double(fps));
+            duration = max(1, double(duration));
+            stride = max(1, ceil(double(max(0, nSteps - 1)) / ...
+                (fps * duration)));
+        end
+
+        function duration = estimatedAnimationDuration_(~, nSteps, fps, stride)
+            nFrames = ceil(double(max(0, nSteps - 1)) / ...
+                max(1, double(stride)));
+            duration = nFrames / max(1, double(fps));
         end
 
         function initColorbarGuiState_(obj, defaultTitle)

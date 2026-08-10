@@ -159,6 +159,12 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.animationMode = obj.gui_.playing;
             obj.gui_.fps = obj.getOptField_(obj.Opts.animation, 'fps', ...
                 obj.defaultAnimationFps_(obj.nSteps_));
+            obj.gui_.fps = obj.clampAnimationFps_(obj.gui_.fps, obj.nSteps_);
+            obj.gui_.playDuration = obj.getOptField_(obj.Opts.animation, 'duration', 10);
+            obj.gui_.autoFrameStride = obj.getOptField_( ...
+                obj.Opts.animation, 'autoFrameStride', true);
+            obj.gui_.frameStride = obj.getOptField_(obj.Opts.animation, 'frameStride', ...
+                obj.recommendedFrameStride_(obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration));
             obj.gui_.loop = obj.getOptField_(obj.Opts.animation, 'loop', true);
             obj.gui_.pingpong = obj.getOptField_(obj.Opts.animation, 'pingpong', false);
             info = obj.beamInfo_(1, obj.nodeCoords_(1));
@@ -176,7 +182,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
 
         function configureAnimationRenderLoop_(obj)
             isRunning = isfield(obj.gui_, 'animationMode') && obj.gui_.animationMode && obj.gui_.playing;
-            fps = max(1, double(obj.getOptField_(obj.gui_, 'fps', 12)));
+            fps = obj.clampAnimationFps_( ...
+                obj.getOptField_(obj.gui_, 'fps', 12), obj.nSteps_);
             configureAnimationRenderLoop_@plotter.polyscope.ViewerBase(obj, isRunning, fps);
         end
     end
@@ -496,20 +503,39 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.Opts.scaleMode = 'global';
                 obj.gui_.climIdx = obj.indexOf_({'current','global','range'}, 'global');
                 obj.Opts.color.climMode = 'global';
-                if GB.button('Play / pause'), obj.gui_.playing = ~obj.gui_.playing; end
-                GB.sameLine();
-                if GB.button('Restart')
-                    obj.currentStep_ = 0;
-                    obj.gui_.step = 0;
+                if obj.gui_.playing
+                    if GB.button('Pause##frame_animation'), obj.gui_.playing = false; end
+                else
+                    if GB.button('Play##frame_animation'), obj.gui_.playing = true; end
                 end
-                obj.gui_.playing = GB.checkbox('Playing', obj.gui_.playing);
-                obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, 240);
+                GB.sameLine();
+                if GB.button('Restart##frame_animation'), obj.animDir_ = 1; obj.setStep(0, false); end
+                GB.sameLine();
+                if GB.button('Step##frame_animation'), obj.advanceAnimationStep_(); end
+                polyscope.ImGui.ProgressBar((obj.currentStep_ + 1) / max(1, obj.nSteps_), [0, 0], ...
+                    sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
+                maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
+                obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, maxFps);
+                obj.gui_.autoFrameStride = GB.checkbox( ...
+                    'Auto frame stride##frame_animation', obj.gui_.autoFrameStride);
+                obj.gui_.playDuration = GB.sliderFloat( ...
+                    'Target duration (s)##frame_animation', obj.gui_.playDuration, 2, 60);
+                if obj.gui_.autoFrameStride
+                    obj.gui_.frameStride = obj.recommendedFrameStride_( ...
+                        obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration);
+                    polyscope.ImGui.TextDisabled(sprintf('Frame stride: %d (automatic)', ...
+                        obj.gui_.frameStride));
+                else
+                    obj.gui_.frameStride = GB.sliderInt('Frame stride##frame_animation', ...
+                        obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
+                end
+                passTime = obj.estimatedAnimationDuration_( ...
+                    obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
+                polyscope.ImGui.TextDisabled(sprintf('Estimated pass: %.1f s', passTime));
                 obj.gui_.loop = GB.checkbox('Loop', obj.gui_.loop);
                 GB.sameLine();
                 obj.gui_.pingpong = GB.checkbox('Ping-pong', obj.gui_.pingpong);
                 obj.gui_.scale = GB.sliderFloat('Scale factor##frame_animation', obj.gui_.scale, 0.01, 20);
-                polyscope.ImGui.ProgressBar((obj.currentStep_ + 1) / max(1, obj.nSteps_), [0, 0], ...
-                    sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
             else
                 obj.gui_.playing = false;
             end
@@ -517,6 +543,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.Opts.animation.fps = obj.gui_.fps;
             obj.Opts.animation.loop = obj.gui_.loop;
             obj.Opts.animation.pingpong = obj.gui_.pingpong;
+            obj.Opts.animation.autoFrameStride = obj.gui_.autoFrameStride;
+            obj.Opts.animation.frameStride = obj.gui_.frameStride;
+            obj.Opts.animation.duration = obj.gui_.playDuration;
             obj.Opts.scale = double(obj.gui_.scale);
             % Only reconfigure the render loop when animation state/fps change.
             if obj.guiChanged_(old, {'animationMode','playing','fps'})
@@ -1164,13 +1193,18 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if ~isfield(obj.gui_, 'animationMode') || ~obj.gui_.animationMode || ~obj.gui_.playing
                 return;
             end
-            nextStep = obj.currentStep_ + obj.animDir_;
+            obj.advanceAnimationStep_();
+        end
+
+        function advanceAnimationStep_(obj)
+            stride = max(1, round(double(obj.gui_.frameStride)));
+            nextStep = obj.currentStep_ + obj.animDir_ * stride;
             if nextStep >= obj.nSteps_
                 if obj.gui_.pingpong
                     obj.animDir_ = -1;
-                    nextStep = max(0, obj.nSteps_ - 2);
+                    nextStep = obj.nSteps_ - 1;
                 elseif obj.gui_.loop
-                    nextStep = 0;
+                    nextStep = mod(nextStep, obj.nSteps_);
                 else
                     nextStep = obj.nSteps_ - 1;
                     obj.gui_.playing = false;
@@ -1178,9 +1212,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             elseif nextStep < 0
                 if obj.gui_.pingpong
                     obj.animDir_ = 1;
-                    nextStep = min(obj.nSteps_ - 1, 1);
+                    nextStep = 0;
                 elseif obj.gui_.loop
-                    nextStep = obj.nSteps_ - 1;
+                    nextStep = mod(nextStep, obj.nSteps_);
                 else
                     nextStep = 0;
                     obj.gui_.playing = false;

@@ -36,6 +36,9 @@ classdef Options
             opts.polyscope.showFixed = true;
             opts.polyscope.showMPConstraint = true;
             opts.elements.showWireframeOnFaces = false;
+            opts.mvlem.internalLines = struct('show', false, ...
+                'fiberWidths', [], 'fiberCount', 10, ...
+                'color', [0.20 0.20 0.20], 'radius', 0.00055);
             opts.outline.show = false;
             opts.polyscope.showScreenAxes = true;
             opts.polyscope.screenAxesSize = 78;
@@ -120,7 +123,9 @@ classdef Options
             opts.surf.renderMode = 'surface';
             opts.animation = struct('play', false, 'fps', [], ...
                                     'loop', true, 'pingpong', false, ...
-                                    'updateColors', true, 'updateVectors', false);
+                                    'updateColors', true, 'updateVectors', false, ...
+                                    'autoFrameStride', true, 'frameStride', [], ...
+                                    'duration', 10);
             opts.slice = struct();
             opts.slice.show = false;
             opts.slice.name = 'Slice plane';
@@ -153,7 +158,9 @@ classdef Options
             opts.polyscope.colorbarTitle = '';
             opts.animation = struct('play', false, 'fps', [], ...
                                     'loop', true, 'pingpong', false, ...
-                                    'updateColors', true);
+                                    'updateColors', true, ...
+                                    'autoFrameStride', true, 'frameStride', [], ...
+                                    'duration', 10);
             opts.color.climMode = 'step';
             opts.color.historyLineColor = [];
             opts.color.historyLineAlpha = 1.0;
@@ -195,7 +202,9 @@ classdef Options
             opts.polyscope.colorbarTitle = '';
             opts.animation = struct('play', false, 'fps', [], ...
                                     'loop', true, 'pingpong', false, ...
-                                    'updateColors', true);
+                                    'updateColors', true, ...
+                                    'autoFrameStride', true, 'frameStride', [], ...
+                                    'duration', 10);
             opts.stepIdx = 'absmax';
             opts.color.climMode = 'current';
             % Empty uses the light/dark theme-aware history-curve color.
@@ -217,6 +226,49 @@ classdef Options
             opts.slice.gridColor = [1.00, 1.00, 1.00];
             opts.slice.transparency = 0.45;
             opts.slice.cullWholeElements = false;
+        end
+
+        function opts = defaultMVLEMResponseOptions()
+            opts = plotter.polyscope.Options.defaultModelOptions();
+            opts.respType = 'curvature';
+            opts.responseDisplay = 'auto'; % auto | contour | diagram | both
+            opts.diagramStyle = 'surface'; % surface | wireframe
+            opts.localForceFlipEnd = true; % display end actions with section-force signs
+            opts.forceResultantFlipEnd = true; % common section sign at both wall ends
+            opts.topology = 'all'; % all | line | surface
+            opts.component = 'auto';
+            opts.stepIdx = 'absmax';
+            opts.color.useColormap = true;
+            opts.color.climMode = 'step';
+            opts.polyscope.scalarColorMap = 'coolwarm';
+            opts.polyscope.onscreenColorbar = false;
+            opts.polyscope.onscreenColorbarLocation = [1200, 800];
+            opts.polyscope.colorbarTitle = '';
+            opts.animation = struct('play', false, 'fps', 12, ...
+                                    'loop', true, 'pingpong', false, ...
+                                    'autoFrameStride', true, 'frameStride', [], ...
+                                    'duration', 10);
+            opts.deform = struct('show', true, 'autoScale', true, ...
+                'scale', 1.0, 'targetFraction', 0.10, 'showUndeformed', false);
+            opts.nodes = struct('show', false);
+            opts.lineDiagram = struct('show', true, 'showModel', true, ...
+                'scale', 1.0, 'heightFraction', 0.15, 'scaleMode', 'global');
+            opts.surfaceDiagram = struct('show', true, 'showContour', true, ...
+                'scale', 1.0, 'heightFraction', 0.12, 'scaleMode', 'current');
+            opts.surf.showEdges = false;
+            opts.surf.renderMode = 'surface';
+            opts.surf.edgeColor = [0.15 0.15 0.15];
+            opts.color.deformedAlpha = 1.0;
+            opts.color.solidColor = [0.72 0.74 0.78];
+            opts.color.undeformedAlpha = 0.30;
+            opts.color.undeformedColor = [0.72 0.72 0.72];
+            opts.fixed.show = true;
+            opts.fixed.symbolScale = 1.0;
+            opts.fibers = struct('show', true, 'width', [], 'fiberWidths', [], ...
+                'widthToHeight', 0.5, 'gapFraction', 0.0, ...
+                'showEdges', false, 'edgeRadius', 0.00045);
+            opts.mvlem.internalLines = struct('show', false, ...
+                'color', [0.18 0.18 0.18], 'radius', 0.00055);
         end
 
         function out = mergeOpts(base, user)

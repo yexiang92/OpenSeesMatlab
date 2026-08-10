@@ -67,6 +67,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 obj.registerLineFamilies_(P);
                 obj.registerSurfaceFamilies_();
             end
+            obj.registerMVLEMInternalLines_(P);
             obj.registerMPConstraints_(P);
             obj.registerLocalAxes_();
             obj.registerLoads_(P);
@@ -130,7 +131,13 @@ classdef plotModel < plotter.polyscope.ViewerBase
             end
 
             % Style & Colors
-            if GB.collapsingHeader('Colors', int32(0))
+            colorsOpen=GB.collapsingHeader('Colors', int32(0));
+            firstColorsFrame=colorsOpen&&~obj.gui_.colorsPanelOpenLast;
+            if firstColorsFrame
+                colorsBefore=obj.gui_.colors;
+                colorOptsBefore=obj.Opts;
+            end
+            if colorsOpen
                 GB.subtitle('Element coloring');
                 styles = {'byFamily', 'solid', 'wireframe'};
                 idx = GB.combo('Mode', obj.gui_.styleIdx, styles);
@@ -203,6 +210,13 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     end
                 GB.separator();
             end
+            if firstColorsFrame
+                obj.gui_.colors=colorsBefore;
+                obj.Opts=colorOptsBefore;
+                obj.applyStyleColors_();
+                obj.updateLoads_();
+            end
+            obj.gui_.colorsPanelOpenLast=colorsOpen;
 
             % Display toggles
             if GB.collapsingHeader('Display', int32(0))
@@ -285,11 +299,11 @@ classdef plotModel < plotter.polyscope.ViewerBase
                         end
                     end
                 else
-                    elemNames = {'Beam', 'Truss', 'Link', 'Plane', 'Shell', 'Solid', 'Contact'};
+                    elemNames = {'Beam', 'Truss', 'Link', 'Plane', 'Shell', 'Solid', 'Contact', 'MVLEM'};
                     elemFields = {'showBeam', 'showTruss', 'showLink', 'showPlane', ...
-                                  'showShell', 'showSolid', 'showContact'};
+                                  'showShell', 'showSolid', 'showContact', 'showMVLEM'};
                     guiFields = {'showBeam', 'showTruss', 'showLink', 'showPlane', ...
-                                 'showShell', 'showSolid', 'showContact'};
+                                 'showShell', 'showSolid', 'showContact', 'showMVLEM'};
                     familyDirty = false;
                     for ie = 1:numel(elemNames)
                         tf = GB.checkbox(elemNames{ie}, obj.gui_.(guiFields{ie}));
@@ -301,6 +315,16 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     end
                     if familyDirty
                         obj.applyElementVisibility_();
+                    end
+                end
+
+                if obj.hasMVLEM3D_()
+                    tf=GB.checkbox('MVLEM internal lines',obj.gui_.showMVLEMInternalLines);
+                    if tf~=obj.gui_.showMVLEMInternalLines
+                        obj.gui_.showMVLEMInternalLines=tf;
+                        obj.Opts.mvlem.internalLines.show=tf;
+                        obj.setHandleEnabled_('MVLEM3DInternalLines', ...
+                            tf&&obj.mvlemVisible_());
                     end
                 end
 
@@ -406,7 +430,13 @@ classdef plotModel < plotter.polyscope.ViewerBase
 
 
             % Appearance
-            if GB.collapsingHeader('Appearance', int32(0))
+            appearanceOpen=GB.collapsingHeader('Appearance', int32(0));
+            firstAppearanceFrame=appearanceOpen&&~obj.gui_.appearancePanelOpenLast;
+            if firstAppearanceFrame
+                appearanceGuiBefore=obj.gui_;
+                appearanceOptsBefore=obj.Opts;
+            end
+            if appearanceOpen
                 GB.subtitle('Sizes');
                 r = GB.sliderFloat('Node radius', obj.gui_.nodeRadius, 0.0001, 0.012);
                 if abs(r - obj.gui_.nodeRadius) > eps
@@ -482,6 +512,23 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 end
                 GB.separator();
             end
+            if firstAppearanceFrame
+                obj.gui_=appearanceGuiBefore;
+                obj.Opts=appearanceOptsBefore;
+                obj.applyNodeRadius_();
+                obj.applyEdgeRadius_();
+                obj.applyVectorRadius_();
+                obj.applySurfaceAlpha_();
+                obj.applySurfaceMaterial_();
+                obj.applySurfaceSmoothShade_();
+                try
+                    obj.App.polyscopeHandle().set_ground_plane_mode(obj.gui_.groundPlaneMode);
+                catch
+                end
+                obj.gui_.appearancePanelOpenLast=true;
+            else
+                obj.gui_.appearancePanelOpenLast=appearanceOpen;
+            end
 
             % Render quality
             if GB.collapsingHeader('Render quality', int32(0))
@@ -555,6 +602,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
             obj.gui_.showShell  = obj.Opts.elements.showShell;
             obj.gui_.showSolid  = obj.Opts.elements.showSolid;
             obj.gui_.showContact = obj.Opts.elements.showContact;
+            obj.gui_.showMVLEM = obj.Opts.elements.showMVLEM;
+            obj.gui_.showMVLEMInternalLines = obj.Opts.mvlem.internalLines.show;
 
             obj.gui_.wireframeOnly = obj.Opts.elements.wireframeOnly;
             obj.gui_.showWireframeOnFaces = obj.Opts.elements.showWireframeOnFaces;
@@ -610,6 +659,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
 
             obj.gui_.title = char(string(obj.Opts.general.title));
             obj.gui_.showHelp = false;
+            obj.gui_.colorsPanelOpenLast = false;
+            obj.gui_.appearancePanelOpenLast = false;
             obj.gui_.queryEnabled = false;
             obj.gui_.queryText = 'No selection.';
             obj.gui_.queryLastMouse = [NaN NaN];
@@ -778,7 +829,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
             showFlags = [obj.Opts.elements.showBeam, ...
                          obj.Opts.elements.showTruss, ...
                          obj.Opts.elements.showLink, ...
-                         obj.Opts.elements.showContact];
+                         obj.Opts.elements.showContact, ...
+                         obj.Opts.elements.showMVLEM];
             for k = 1:numel(famNames)
                 name = famNames{k};
                 edges = plotter.polyscope.ModelAdapter.lineEdges(obj.ModelInfo, name);
@@ -859,6 +911,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
                         plotter.polyscope.ModelAdapter.volumeFamilyNames()];
             showFlags = [obj.Opts.elements.showPlane, ...
                          obj.Opts.elements.showShell, ...
+                         obj.Opts.elements.showMVLEM, ...
                          obj.Opts.elements.showSolid];
             wireframeOnly = obj.isWireframeOnly_();
             wireColor = plotter.polyscope.utils.colorToRgb( ...
@@ -1284,6 +1337,41 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 rgb = palette(mod(idx - 1, size(palette, 1)) + 1, :);
             end
             rgb = obj.asRgb_(rgb);
+        end
+
+        function registerMVLEMInternalLines_(obj,P)
+            if ~obj.hasMVLEM3D_(),return;end
+            fam=plotter.polyscope.ModelAdapter.families(obj.ModelInfo);
+            nCell=size(fam.MVLEM3D.Cells,1);
+            counts=obj.Opts.mvlem.internalLines.fiberCount;
+            if isscalar(counts),counts=repmat(counts,nCell,1);end
+            [Pi,Ei]=plotter.polyscope.MVLEMGeometry.internalLines(P, ...
+                fam.MVLEM3D.Cells,obj.Opts.mvlem.internalLines.fiberWidths,counts);
+            if isempty(Ei),return;end
+            hi=obj.App.polyscopeHandle().register_curve_network( ...
+                obj.structName_('MVLEM3D internal lines'),Pi,Ei);
+            hi.set_color(plotter.polyscope.utils.colorToRgb( ...
+                obj.Opts.mvlem.internalLines.color));
+            hi.set_radius(obj.Opts.mvlem.internalLines.radius*obj.L_,false);
+            hi.set_material(obj.Opts.polyscope.lineMaterial);
+            hi.set_enabled(obj.mvlemVisible_()&&obj.Opts.mvlem.internalLines.show);
+            obj.handles_.MVLEM3DInternalLines=hi;
+        end
+
+        function tf=hasMVLEM3D_(obj)
+            fam=plotter.polyscope.ModelAdapter.families(obj.ModelInfo);
+            tf=isfield(fam,'MVLEM3D')&&isstruct(fam.MVLEM3D)&& ...
+                isfield(fam.MVLEM3D,'Cells')&&~isempty(fam.MVLEM3D.Cells);
+        end
+
+        function tf=mvlemVisible_(obj)
+            tf=obj.Opts.elements.showMVLEM;
+            if ~tf||~isfield(obj.gui_,'classNames'),return;end
+            names=obj.gui_.classNames;
+            hit=find(contains(lower(string(names)),'mvlem'),1);
+            if ~isempty(hit)&&isfield(obj.gui_.classShow,names{hit})
+                tf=tf&&obj.gui_.classShow.(names{hit});
+            end
         end
 
         function coords = rawCoordsForTags_(obj, tags)
@@ -2387,7 +2475,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
             lineFlags = [obj.Opts.elements.showBeam, ...
                          obj.Opts.elements.showTruss, ...
                          obj.Opts.elements.showLink, ...
-                         obj.Opts.elements.showContact];
+                         obj.Opts.elements.showContact, ...
+                         obj.Opts.elements.showMVLEM];
             for k = 1:numel(lineNames)
                 obj.setHandleEnabled_(lineNames{k}, lineFlags(k));
             end
@@ -2395,6 +2484,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
                             plotter.polyscope.ModelAdapter.volumeFamilyNames()];
             surfaceFlags = [obj.Opts.elements.showPlane, ...
                             obj.Opts.elements.showShell, ...
+                            obj.Opts.elements.showMVLEM, ...
                             obj.Opts.elements.showSolid];
             wireframeOnly = obj.isWireframeOnly_();
             showWireframeOnFaces = obj.Opts.elements.showWireframeOnFaces;
@@ -2404,6 +2494,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 obj.setHandleEnabled_(name, showFlag && ~wireframeOnly);
                 obj.setHandleEnabled_([name 'Wire'], showFlag && (wireframeOnly || showWireframeOnFaces));
             end
+            obj.setHandleEnabled_('MVLEM3DInternalLines', ...
+                obj.mvlemVisible_()&&obj.Opts.mvlem.internalLines.show);
             if isfield(obj.gui_, 'classNames')
                 for k = 1:numel(obj.gui_.classNames)
                     name = obj.gui_.classNames{k};

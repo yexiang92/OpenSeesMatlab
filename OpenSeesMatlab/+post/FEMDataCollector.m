@@ -220,6 +220,8 @@ classdef FEMDataCollector < handle
                 'Solid', struct('Tags',zeros(0,1),'Cells',zeros(0,0),'CellTypes',zeros(0,1,'int32')), ...
                 'Joint', struct('Tags',zeros(0,1)), ...
                 'Contact', struct('Tags',zeros(0,1),'Cells',zeros(0,3)), ...
+                'MVLEM', struct('Tags',zeros(0,1),'Cells',zeros(0,3),'CellTypes',zeros(0,1,'int32')), ...
+                'MVLEM3D', struct('Tags',zeros(0,1),'Cells',zeros(0,0),'CellTypes',zeros(0,1,'int32')), ...
                 'Unstructured', struct('Tags',zeros(0,1),'Cells',zeros(0,0),'CellTypes',zeros(0,1,'int32')));
         end
 
@@ -599,6 +601,24 @@ classdef FEMDataCollector < handle
                         for j = 1:numel(vtkCells)
                             classBuffers = obj.appendVTKCell(classBuffers, classField, vtkCells{j}, obj.LINE_CELL_TYPE_VTK.n2, e);
                         end
+
+                    case 'mvlem'
+                        if numNodes == 2
+                            tBuf.nMVLEM = tBuf.nMVLEM + 1;
+                            n = tBuf.nMVLEM;
+                            tBuf.mvlemTags(n) = e;
+                            tBuf.mvlemCells(n,:) = lineCell;
+                            tBuf.mvlemTypes(n) = int32(obj.LINE_CELL_TYPE_VTK.n2);
+                        else
+                            [vtkCell, vtkType] = obj.makeSurfaceSolidCell('shell', classTag, idxs, numNodes);
+                            classBuffers = obj.appendVTKCell(classBuffers, classField, vtkCell, vtkType, e);
+                            tBuf.nMVLEM3D = tBuf.nMVLEM3D + 1;
+                            n = tBuf.nMVLEM3D;
+                            tBuf.mvlem3DTags(n) = e;
+                            tBuf.mvlem3DCells{n} = vtkCell;
+                            tBuf.mvlem3DTypes(n) = int32(vtkType);
+                            tBuf = obj.appendUnstru(tBuf, e, vtkCell, vtkType);
+                        end
                 end
             end
 
@@ -670,6 +690,15 @@ classdef FEMDataCollector < handle
             buf.nContact = 0;
             buf.contactTags = zeros(4*nEle,1);
             buf.contactCells = zeros(4*nEle,3);
+
+            buf.nMVLEM = 0;
+            buf.mvlemTags = zeros(nEle,1);
+            buf.mvlemCells = zeros(nEle,3);
+            buf.mvlemTypes = zeros(nEle,1,'int32');
+            buf.nMVLEM3D = 0;
+            buf.mvlem3DTags = zeros(nEle,1);
+            buf.mvlem3DCells = cell(nEle,1);
+            buf.mvlem3DTypes = zeros(nEle,1,'int32');
 
             buf.nUnstru = 0;
             buf.unstruTags = zeros(2*nEle,1);
@@ -760,6 +789,16 @@ classdef FEMDataCollector < handle
                 'Tags', buf.contactTags(1:buf.nContact), ...
                 'Cells', buf.contactCells(1:buf.nContact,:));
 
+            Fam.MVLEM = struct( ...
+                'Tags', buf.mvlemTags(1:buf.nMVLEM), ...
+                'Cells', buf.mvlemCells(1:buf.nMVLEM,:), ...
+                'CellTypes', buf.mvlemTypes(1:buf.nMVLEM));
+
+            Fam.MVLEM3D = struct( ...
+                'Tags', buf.mvlem3DTags(1:buf.nMVLEM3D), ...
+                'Cells', obj.padJagged(buf.mvlem3DCells(1:buf.nMVLEM3D),'double'), ...
+                'CellTypes', buf.mvlem3DTypes(1:buf.nMVLEM3D));
+
             Fam.Unstructured = struct( ...
                 'Tags', buf.unstruTags(1:buf.nUnstru), ...
                 'Cells', obj.padJagged(buf.unstruCells(1:buf.nUnstru),'double'), ...
@@ -777,6 +816,8 @@ classdef FEMDataCollector < handle
                 Fam.Solid.Tags = zeros(0,1); Fam.Solid.Cells = zeros(0,0); Fam.Solid.CellTypes = zeros(0,1,'int32');
                 Fam.Joint.Tags = zeros(0,1);
                 Fam.Contact.Tags = zeros(0,1); Fam.Contact.Cells = zeros(0,3);
+                Fam.MVLEM.Tags = zeros(0,1); Fam.MVLEM.Cells = zeros(0,3); Fam.MVLEM.CellTypes = zeros(0,1,'int32');
+                Fam.MVLEM3D.Tags = zeros(0,1); Fam.MVLEM3D.Cells = zeros(0,0); Fam.MVLEM3D.CellTypes = zeros(0,1,'int32');
                 Fam.Unstructured.Tags = zeros(0,1); Fam.Unstructured.Cells = zeros(0,0); Fam.Unstructured.CellTypes = zeros(0,1,'int32');
                 return;
             end
@@ -1133,7 +1174,8 @@ classdef FEMDataCollector < handle
             end
 
             m = obj.maps.EleTags;
-            if     any(classTag == m.Truss),   family = 'truss';
+            if     any(classTag == m.Wall),    family = 'mvlem';
+            elseif any(classTag == m.Truss),   family = 'truss';
             elseif any(classTag == m.Beam),    family = 'beam';
             elseif any(classTag == m.Link),    family = 'link';
             elseif any(classTag == m.Plane),   family = 'plane';

@@ -166,6 +166,33 @@ classdef OpenSeesMatlabVisPolyscope < handle
             h = plotter.polyscope.plotFrameResponse(modelInfo, frameRespData, options.opts);
         end
 
+        function h = plotMVLEMResponse(obj, respData, options)
+            % Open the Polyscope MVLEM scalar-response viewer.
+            arguments
+                obj (1,1) plotter.OpenSeesMatlabVisPolyscope
+                respData struct
+                options.respType {mustBeTextScalar} = "curvature"
+                options.respComponent {mustBeTextScalar} = "auto"
+                options.stepIdx = "absmax"
+                options.topology {mustBeTextScalar, mustBeMember(options.topology, ...
+                    ["all","line","surface"])} = "all"
+                options.opts (1,1) struct = struct()
+            end
+            options.opts.respType = char(string(options.respType));
+            options.opts.component = char(string(options.respComponent));
+            options.opts.stepIdx = options.stepIdx;
+            options.opts.topology = char(options.topology);
+            if isfield(respData(1), 'odbTag')
+                odbTag = respData(1).odbTag;
+                modelInfo = post.ODB.readModelInfo(obj.parent.parent.opensees, odbTag);
+                nodalResp = post.ODB.readNodeResponse(obj.parent.parent.opensees, odbTag);
+            else
+                modelInfo = obj.parent.parent.post.getModelData();
+                nodalResp = struct();
+            end
+            h = plotter.polyscope.plotMVLEMResponse(modelInfo, respData, options.opts, nodalResp);
+        end
+
         function h = plotShellResponse(obj, respData, options)
             % Open the Polyscope shell-response viewer.
             %
