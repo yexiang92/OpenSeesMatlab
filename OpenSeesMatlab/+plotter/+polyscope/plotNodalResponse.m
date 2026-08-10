@@ -260,9 +260,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
 
                 GB.separator();
                 if GB.collapsingHeader('Style', int32(0))
-                if obj.drawStyleGui_()
-                    needsUpdate = true;
-                end
+                    [scalarChanged, ~] = obj.drawStyleGui_();
+                    needsUpdate = needsUpdate || scalarChanged;
                 end
 
                 GB.separator();
@@ -453,6 +452,11 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.Opts.animation.updateColors = logical(obj.gui_.animUpdateColors);
             obj.Opts.animation.updateVectors = logical(obj.gui_.animUpdateVectors);
             obj.Opts.deform.scale = obj.gui_.deformScale;
+            if oldState.playing && ~obj.gui_.playing
+                % Recreate only the final frame so native scalar/vector
+                % quantities replaced during a long animation are released.
+                obj.setStep(obj.currentStep_, true);
+            end
             changed = changed || oldMode ~= obj.gui_.animationMode || ...
                 obj.guiChanged_(oldState, {'autoScale','deformScale','climIdx'});
         end
@@ -693,7 +697,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             end
         end
 
-        function changed = drawStyleGui_(obj)
+        function [scalarChanged, styleChanged] = drawStyleGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             oldState = obj.gui_;
             GB.subtitle('Colormap && Colorbar');
@@ -743,14 +747,13 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.syncOptsFromGui_();
             styleChanged = obj.guiChanged_(oldState, {'solidColor','ghostColor', ...
                 'vectorColor','deformedAlpha','undeformedAlpha','edgeRadius','nodeRadius','vectorRadius'});
-            changed = obj.guiChanged_(oldState, {'useColormap','cmapIdx','climIdx', ...
+            scalarChanged = obj.guiChanged_(oldState, {'useColormap','cmapIdx','climIdx', ...
                 'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
                 'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'});
             if styleChanged
                 obj.applyStyle_();
             end
-            changed = changed || styleChanged;
-            if changed
+            if scalarChanged
                 obj.invalidateClimCache_();
             end
         end
@@ -1014,8 +1017,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             h.set_material(obj.Opts.polyscope.lineMaterial);
         end
 
-        function registerNodes_(obj, ps, ~)
-            h = ps.register_point_cloud(obj.structName_('Nodes', 'def'), obj.P0_);
+        function registerNodes_(obj, ps, segIdx)
+            rows = obj.displayNodeRows_(segIdx, size(obj.P0_, 1));
+            h = ps.register_point_cloud(obj.structName_('Nodes', 'def'), obj.P0_(rows,:));
             h.set_radius(obj.Opts.polyscope.nodeRadius, true);
             h.set_color(obj.asRgb_(obj.gui_.solidColor));
             h.set_point_render_mode(obj.Opts.polyscope.pointRenderMode);
@@ -1035,8 +1039,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.handles_.def_Fixed = h;
         end
 
-        function registerVectorCloud_(obj, ps, ~)
-            h = ps.register_point_cloud(obj.structName_('Vectors', 'def'), obj.P0_);
+        function registerVectorCloud_(obj, ps, segIdx)
+            rows = obj.displayNodeRows_(segIdx, size(obj.P0_, 1));
+            h = ps.register_point_cloud(obj.structName_('Vectors', 'def'), obj.P0_(rows,:));
             h.set_radius(max(obj.Opts.polyscope.nodeRadius * 0.15, 0.0005), true);
             h.set_color(obj.asRgb_(obj.gui_.vectorColor));
             h.set_enabled(obj.Opts.vector.show);
@@ -1094,9 +1099,18 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             if obj.Opts.deform.showUndeformed && ~obj.hasGhostHandles_()
                 obj.registerGhosts_(ps, obj.currentSeg_);
             end
-            obj.updateNodeStructures_(obj.nodeCoordsForCurrentStep_(), [], {}, obj.currentSeg_, obj.scalarQuantityName_());
-            obj.updateVectorStructure_(obj.nodeCoordsForCurrentStep_(), obj.currentSeg_, obj.currentLocalStep_);
             obj.applyStyle_();
+            % Optional structures are commonly created when their GUI
+            % checkbox is enabled.  Upload the current scalar field in the
+            % same frame; using an empty field here leaves a newly-created
+            % point cloud at its solid/default blue color until the next
+            % response-step update.
+            [Snode, clim] = obj.scalarField_( ...
+                obj.currentSeg_, obj.currentLocalStep_);
+            qargs = obj.scalarArgs_(clim);
+            obj.updateNodeStructures_(obj.nodeCoordsForCurrentStep_(), ...
+                Snode, qargs, obj.currentSeg_, obj.scalarQuantityName_());
+            obj.updateVectorStructure_(obj.nodeCoordsForCurrentStep_(), obj.currentSeg_, obj.currentLocalStep_);
         end
 
         function updateStep_(obj, segIdx, localStep)
@@ -1251,12 +1265,14 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
         function updateNodeStructures_(obj, Pdef, Snode, qargs, segIdx, qname)
             if isfield(obj.handles_, 'def_Nodes')
                 h = obj.handles_.def_Nodes;
-                h.update_point_positions(Pdef);
+                rows = obj.displayNodeRows_(segIdx, size(Pdef, 1));
+                h.update_point_positions(Pdef(rows,:));
                 if ~isempty(Snode)
-                    h.add_scalar_quantity(qname, Snode, qargs{:});
+                    h.add_scalar_quantity(qname, Snode(rows), qargs{:});
                 else
-                    h.add_scalar_quantity(qname, zeros(size(Pdef, 1), 1), 'enabled', false);
+                    h.add_scalar_quantity(qname, zeros(numel(rows), 1), 'enabled', false);
                 end
+                h.set_enabled(logical(obj.Opts.nodes.show));
             end
             if isfield(obj.handles_, 'def_Fixed')
                 [Pfix, ~, ~, fixedRows] = plotter.polyscope.SupportGlyphs.build( ...
@@ -1280,10 +1296,11 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
         function updateVectorStructure_(obj, Pdef, segIdx, localStep)
             if ~isfield(obj.handles_, 'def_Vectors'), return; end
             h = obj.handles_.def_Vectors;
-            h.update_point_positions(Pdef);
+            rows = obj.displayNodeRows_(segIdx, size(Pdef, 1));
+            h.update_point_positions(Pdef(rows,:));
             V = obj.vectorField_(segIdx, localStep);
             if isempty(V), V = zeros(size(Pdef)); end
-            h.add_vector_quantity(obj.vectorQuantityName_(), V, ...
+            h.add_vector_quantity(obj.vectorQuantityName_(), V(rows,:), ...
                 'enabled', obj.Opts.vector.show, ...
                 'vectortype', 'standard', ...
                 'length', obj.Opts.polyscope.vectorLength, ...
@@ -1477,6 +1494,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
         function stepAnimationOnce_(obj)
             stride = max(1, round(double(obj.gui_.frameStride)));
             next = obj.gui_.step + obj.gui_.animDir * stride;
+            stopped = false;
             if next > obj.nSteps_ - 1 || next < 0
                 if obj.gui_.pingpong
                     obj.gui_.animDir = -obj.gui_.animDir;
@@ -1486,10 +1504,13 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                     next = mod(next, obj.nSteps_);
                 else
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                     next = max(0, min(obj.nSteps_ - 1, next));
                 end
             end
-            obj.setStep(next);
+            obj.setStep(next, stopped);
         end
 
         function [Pdef, U3, scale] = deformedCoords_(obj, P, segIdx, localStep)
@@ -2032,6 +2053,34 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 E = mi.Elements;
                 if isfield(E, 'Families'), fam = E.Families; else, fam = E; end
             end
+        end
+
+        function rows = displayNodeRows_(obj, segIdx, nNode)
+            % Point clouds should contain nodes referenced by physical
+            % element topology.  MVLEM formulations may retain auxiliary
+            % domain nodes which otherwise appear as orphan colored dots.
+            used = zeros(0,1);
+            fam = obj.families_(segIdx);
+            names = fieldnames(fam);
+            for k = 1:numel(names)
+                S = fam.(names{k});
+                if ~isstruct(S) || ~isfield(S,'Cells') || isempty(S.Cells)
+                    continue;
+                end
+                C = double(S.Cells);
+                for i = 1:size(C,1)
+                    row = C(i,:);
+                    row = row(isfinite(row));
+                    if isempty(row), continue; end
+                    count = round(row(1));
+                    if count >= 1 && numel(row) >= count + 1
+                        row = row(2:count+1);
+                    end
+                    used = [used; round(row(:))]; %#ok<AGROW>
+                end
+            end
+            rows = unique(used(used>=1 & used<=nNode),'stable');
+            if isempty(rows), rows = (1:nNode).'; end
         end
 
         function [Pfix, rows] = fixedNodes_(obj, segIdx, Poverride)

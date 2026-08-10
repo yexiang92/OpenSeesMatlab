@@ -1532,11 +1532,11 @@ classdef (Abstract) ViewerBase < handle
             end
             % Updating the six axis/label curve networks is relatively costly
             % because each operation crosses the MEX boundary. Camera motion is
-            % still visually smooth at 30 Hz, even when the main UI renders at
-            % 60 Hz.
+            % remains responsive at 15 Hz and avoids six sets of geometry MEX
+            % calls competing with response and colorbar updates.
             if ~isempty(obj.screenAxesUpdateTimer_)
                 try
-                    if toc(obj.screenAxesUpdateTimer_) < (1 / 30)
+                    if toc(obj.screenAxesUpdateTimer_) < (1 / 15)
                         return;
                     end
                 catch

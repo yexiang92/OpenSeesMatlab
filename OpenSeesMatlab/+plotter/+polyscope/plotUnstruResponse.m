@@ -310,13 +310,16 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             old = obj.gui_;
             obj.gui_.eleTypeIdx = GB.combo('Element type##unstru_response', obj.gui_.eleTypeIdx, obj.eleTypes_);
             obj.Opts.eleType = obj.eleTypes_{obj.gui_.eleTypeIdx};
-            obj.respTypes_ = obj.collectResponseTypes_();
+            elementTypeChanged = obj.gui_.eleTypeIdx ~= old.eleTypeIdx;
+            if elementTypeChanged
+                obj.respTypes_ = obj.collectResponseTypes_();
+            end
             obj.gui_.respIdx = min(obj.gui_.respIdx, numel(obj.respTypes_));
             obj.gui_.respIdx = GB.combo('Response##unstru_response', obj.gui_.respIdx, obj.respTypes_);
             obj.Opts.respType = obj.respTypes_{obj.gui_.respIdx};
-            responseChanged = obj.gui_.respIdx ~= old.respIdx;
-            obj.components_ = obj.componentsForResponse_(obj.Opts.respType);
+            responseChanged = elementTypeChanged || obj.gui_.respIdx ~= old.respIdx;
             if responseChanged
+                obj.components_ = obj.componentsForResponse_(obj.Opts.respType);
                 obj.gui_.compIdx = 1;
             end
             obj.gui_.compIdx = min(obj.gui_.compIdx, numel(obj.components_));
@@ -518,7 +521,12 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.Opts.animation.frameStride = obj.gui_.frameStride;
             obj.Opts.animation.duration = obj.gui_.playDuration;
             obj.Opts.animation.updateColors = obj.gui_.animUpdateColors;
-            obj.configureAnimationRenderLoop_();
+            if obj.guiChanged_(old, {'animationMode','playing','fps'})
+                obj.configureAnimationRenderLoop_();
+            end
+            if old.playing && ~obj.gui_.playing
+                obj.setStep(obj.currentStep_, true);
+            end
             % FPS/loop/pingpong/playing only affect the animation loop; they do
             % not require a full scalar-field recompute. Only animation mode
             % and color-limit changes need a response update.
@@ -1258,6 +1266,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         function advanceAnimationStep_(obj)
             stride = max(1, round(double(obj.gui_.frameStride)));
             step = obj.currentStep_ + obj.animDir_ * stride;
+            stopped = false;
             if step >= obj.nSteps_
                 if obj.gui_.pingpong
                     obj.animDir_ = -1;
@@ -1267,6 +1276,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 else
                     step = obj.nSteps_ - 1;
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                 end
             elseif step < 0
                 if obj.gui_.pingpong
@@ -1277,11 +1289,14 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 else
                     step = 0;
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                 end
             end
             obj.currentStep_ = step;
             obj.gui_.step = step;
-            obj.setStep(step, false);
+            obj.setStep(step, stopped);
         end
 
         function [Pdef, scale] = deformedCoords_(obj, segIdx, localStep)
