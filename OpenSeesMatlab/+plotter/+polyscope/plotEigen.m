@@ -988,17 +988,7 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 obj.gui_.onscreenColorbarLocation = double(loc(:).');
                 return;
             end
-            try
-                ws = obj.safeWindowSize_();
-                if numel(ws) >= 2 && all(isfinite(ws(1:2))) && all(ws(1:2) > 0)
-                    % Place horizontally centered near the top, away from side panels
-                    loc = [max(20, round(ws(1) / 2) - 60), 40];
-                else
-                    loc = [400, 40];
-                end
-            catch
-                loc = [400, 40];
-            end
+            loc = obj.defaultColorbarLocation_();
             obj.Opts.polyscope.onscreenColorbarLocation = loc;
             obj.gui_.onscreenColorbarLocation = loc;
         end
@@ -1279,6 +1269,7 @@ classdef plotEigen < plotter.polyscope.ViewerBase
 
                 % Toggles
                 tf = GB.checkbox('Auto scale', obj.gui_.autoScale);
+                GB.helpMarker('Automatically scales each mode shape to a visible fraction of the model size.');
                 if tf ~= obj.gui_.autoScale
                     obj.gui_.autoScale = tf;
                     obj.Opts.mode.autoScale = tf;
@@ -1545,7 +1536,7 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             try
                 loc = obj.gui_.onscreenColorbarLocation;
                 if numel(loc) < 2 || any(~isfinite(loc))
-                    loc = [1200, 800];
+                    loc = obj.defaultColorbarLocation_();
                 end
                 if isfield(obj.gui_, 'colorbarForcePos') && obj.gui_.colorbarForcePos
                     cond = int32(polyscope.ImGui.get_constant('ImGuiCond_Always'));

@@ -80,7 +80,7 @@ classdef Options
             opts.polyscope.ghostTransparency = 0.35;
             opts.polyscope.scalarSymmetry   = false;
             opts.polyscope.onscreenColorbar = false;
-            opts.polyscope.onscreenColorbarLocation = [];  % empty = auto, placed near top center
+            opts.polyscope.onscreenColorbarLocation = [];  % auto: lower-right of model viewport
             opts.polyscope.onscreenColorbarSize = 1.0;  % multiplier for the native colorbar size
             opts.polyscope.colorbarTitle = '';  % custom title for the onscreen colorbar
             opts.unstructured.showEdges = false;
@@ -112,7 +112,7 @@ classdef Options
             opts.polyscope.lineMaterial    = 'flat';
             opts.polyscope.surfaceSmoothShade = false;
             opts.polyscope.onscreenColorbar = false;
-            opts.polyscope.onscreenColorbarLocation = [1200, 800];
+            opts.polyscope.onscreenColorbarLocation = [];
             opts.polyscope.colorbarTitle = '';
             opts.polyscope.vectorColor      = [0.85 0.33 0.10];
             opts.polyscope.vectorLength     = 0.05;  % relative
@@ -157,7 +157,7 @@ classdef Options
             opts.polyscope.lineMaterial    = 'flat';
             opts.polyscope.surfaceSmoothShade = false;
             opts.polyscope.onscreenColorbar = false;
-            opts.polyscope.onscreenColorbarLocation = [1200, 800];
+            opts.polyscope.onscreenColorbarLocation = [];
             opts.polyscope.colorbarTitle = '';
             opts.animation = struct('play', false, 'fps', [], ...
                                     'loop', true, 'pingpong', false, ...
@@ -201,7 +201,7 @@ classdef Options
             opts.polyscope.surfaceMaterial = 'flat';
             opts.polyscope.surfaceSmoothShade = false;
             opts.polyscope.onscreenColorbar = false;
-            opts.polyscope.onscreenColorbarLocation = [1200, 800];
+            opts.polyscope.onscreenColorbarLocation = [];
             opts.polyscope.colorbarTitle = '';
             opts.animation = struct('play', false, 'fps', [], ...
                                     'loop', true, 'pingpong', false, ...
@@ -245,7 +245,7 @@ classdef Options
             opts.color.climMode = 'step';
             opts.polyscope.scalarColorMap = 'coolwarm';
             opts.polyscope.onscreenColorbar = false;
-            opts.polyscope.onscreenColorbarLocation = [1200, 800];
+            opts.polyscope.onscreenColorbarLocation = [];
             opts.polyscope.colorbarTitle = '';
             opts.animation = struct('play', false, 'fps', 12, ...
                                     'loop', true, 'pingpong', false, ...

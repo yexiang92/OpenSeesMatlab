@@ -224,6 +224,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 GB = plotter.polyscope.GuiBuilder;
                 obj.ensureUiThemeForFrame_();
                 ws = obj.safeWindowSize_();
+                obj.captureAnimationVideoFrame_(obj.currentStep_, obj.gui_.playing);
                 obj.advanceAnimation_();
                 panelW = 380;
                 panelH = max(520, ws(2));
@@ -300,8 +301,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                     obj.applyStyle_();
                     obj.updateStep_(obj.currentSeg_, obj.currentLocalStep_);
                 end
+                obj.clearGuiCallbackError_();
             catch ME
-                fprintf('plotNodalResponse.guiCallback_ error: %s\n', ME.message);
+                obj.reportGuiCallbackError_('plotNodalResponse', ME);
             end
         end
     end
@@ -418,15 +420,18 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 obj.gui_.autoScale = true;
                 obj.Opts.deform.autoScale = true;
                 obj.gui_.deformScale = GB.sliderFloat('Scale factor##animation', obj.gui_.deformScale, 0, 100);
+                GB.helpMarker('Multiplier applied only to the displayed deformation; response data are unchanged.');
                 oldFps = obj.gui_.fps;
                 maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
                 obj.gui_.fps = GB.sliderFloat( ...
                     'FPS##animation', obj.gui_.fps, 1, maxFps);
+                GB.helpMarker('Requested playback and export frame rate. Actual speed also depends on rendering time.');
                 if abs(oldFps - obj.gui_.fps) > eps
                     obj.configureAnimationRenderLoop_();
                 end
                 obj.gui_.autoFrameStride = GB.checkbox( ...
                     'Auto frame stride##nodal_animation', obj.gui_.autoFrameStride);
+                GB.helpMarker('Automatically skips response steps to meet the target pass duration.');
                 obj.gui_.playDuration = GB.sliderFloat( ...
                     'Target duration (s)##nodal_animation', obj.gui_.playDuration, 2, 60);
                 if obj.gui_.autoFrameStride
@@ -437,10 +442,20 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 else
                     obj.gui_.frameStride = GB.sliderInt('Frame stride##nodal_animation', ...
                         obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
+                    GB.helpMarker('Number of response steps advanced for each rendered or exported frame.');
                 end
                 passTime = obj.estimatedAnimationDuration_( ...
                     obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
                 polyscope.ImGui.TextDisabled(sprintf('Estimated pass: %.1f s', passTime));
+                if obj.drawVideoRecorderGui_('##nodal_animation', obj.gui_.fps)
+                    obj.gui_.animationMode = true;
+                    obj.gui_.playing = true;
+                    obj.gui_.loop = false;
+                    obj.gui_.pingpong = false;
+                    obj.gui_.animDir = 1;
+                    obj.setStep(0, false);
+                    obj.configureAnimationRenderLoop_();
+                end
             end
             obj.Opts.animation.play = logical(obj.gui_.playing);
             obj.Opts.animation.loop = logical(obj.gui_.loop);
@@ -708,9 +723,12 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.Opts.polyscope.scalarColorMap = cmapNames{obj.gui_.cmapIdx};
             climModes = {'step','global','range','absmax','absmin'};
             obj.gui_.climIdx = GB.combo('Color limits', obj.gui_.climIdx, climModes);
+            GB.helpMarker(['Step rescales each frame. Global keeps one range for the full history. ' ...
+                'Range and extrema modes use their corresponding response ranges.']);
             obj.Opts.color.climMode = climModes{obj.gui_.climIdx};
+            colorbarChanged = false;
             if obj.gui_.showField && obj.gui_.useColormap
-                obj.drawColorbarGui_('##style', true);
+                colorbarChanged = obj.drawColorbarGui_('##style', true);
             end
 
             GB.separator();
@@ -747,9 +765,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.syncOptsFromGui_();
             styleChanged = obj.guiChanged_(oldState, {'solidColor','ghostColor', ...
                 'vectorColor','deformedAlpha','undeformedAlpha','edgeRadius','nodeRadius','vectorRadius'});
-            scalarChanged = obj.guiChanged_(oldState, {'useColormap','cmapIdx','climIdx', ...
-                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
-                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'});
+            scalarChanged = obj.guiChanged_(oldState, ...
+                {'useColormap','cmapIdx','climIdx'}) || colorbarChanged;
             if styleChanged
                 obj.applyStyle_();
             end

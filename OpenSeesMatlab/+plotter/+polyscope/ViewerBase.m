@@ -25,6 +25,15 @@ classdef (Abstract) ViewerBase < handle
         screenAxesUpdateTimer_ = []
         guiEnabled_ logical = false
         logoTextures_ struct = struct()
+        videoRecording_ logical = false
+        videoLastStep_ double = -1
+        videoFrameFiles_ cell = {}
+        videoTempDir_ char = ''
+        videoOutputFile_ char = ''
+        videoFormat_ char = 'mp4'
+        videoFps_ double = 12
+        videoStatus_ char = ''
+        lastGuiCallbackError_ char = ''
     end
 
     methods
@@ -434,6 +443,12 @@ classdef (Abstract) ViewerBase < handle
                 'onscreenColorbar', false);
             obj.gui_.onscreenColorbarLocation = obj.getOptField_(obj.Opts.polyscope, ...
                 'onscreenColorbarLocation', []);
+            if numel(obj.gui_.onscreenColorbarLocation) ~= 2 || ...
+                    any(~isfinite(obj.gui_.onscreenColorbarLocation))
+                obj.gui_.onscreenColorbarLocation = obj.defaultColorbarLocation_();
+                obj.Opts.polyscope.onscreenColorbarLocation = ...
+                    obj.gui_.onscreenColorbarLocation;
+            end
             obj.gui_.colorbarTitle = char(string(obj.getOptField_(obj.Opts.polyscope, ...
                 'colorbarTitle', defaultTitle)));
             obj.gui_.colorbarBackgroundColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
@@ -451,17 +466,24 @@ classdef (Abstract) ViewerBase < handle
             if nargin < 3, includeTitle = true; end
             changed = false;
             labelSuffix = char(string(idSuffix));
-            oldState = obj.gui_;
             GB = plotter.polyscope.GuiBuilder;
+            oldShow = obj.gui_.onscreenColorbar;
             obj.gui_.onscreenColorbar = GB.checkbox(['Colorbar' labelSuffix], obj.gui_.onscreenColorbar);
+            GB.helpMarker('Show or hide the on-screen legend for the active scalar response.');
+            changed = changed || oldShow ~= obj.gui_.onscreenColorbar;
             obj.Opts.polyscope.onscreenColorbar = logical(obj.gui_.onscreenColorbar);
             if obj.gui_.onscreenColorbar
                 GB.subtitle('Colorbar settings');
                 loc = obj.gui_.onscreenColorbarLocation;
                 if numel(loc) < 2 || any(~isfinite(loc))
-                    loc = [1200, 800];
+                    loc = obj.defaultColorbarLocation_();
+                    obj.gui_.onscreenColorbarLocation = loc;
+                    obj.Opts.polyscope.onscreenColorbarLocation = loc;
                 end
                 [moved, loc] = polyscope.ImGui.InputFloat2(['Colorbar pos' labelSuffix], double(loc(:).'));
+                GB.helpMarker(['Edit the X and Y pixel coordinates to move the colorbar. ' ...
+                    'The origin is at the upper-left of the Polyscope window.']);
+                changed = changed || obj.itemEditCommitted_(moved);
                 if moved
                     obj.gui_.onscreenColorbarLocation = loc;
                     obj.Opts.polyscope.onscreenColorbarLocation = loc;
@@ -469,6 +491,7 @@ classdef (Abstract) ViewerBase < handle
                 if includeTitle
                     title = char(string(obj.gui_.colorbarTitle));
                     [tchg, title] = polyscope.ImGui.InputText(['Colorbar title' labelSuffix], title);
+                    changed = changed || obj.itemEditCommitted_(tchg);
                     if tchg
                         obj.gui_.colorbarTitle = title;
                         obj.Opts.polyscope.colorbarTitle = title;
@@ -477,38 +500,60 @@ classdef (Abstract) ViewerBase < handle
                 GB.subtitle('Colorbar colors');
                 [cchg, color] = polyscope.ImGui.ColorEdit4( ...
                     ['Colorbar background' labelSuffix], obj.gui_.colorbarBackgroundColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
                 if cchg
                     obj.gui_.colorbarBackgroundColor = obj.asRgba_(color, 0.70);
                     obj.Opts.polyscope.colorbarBackgroundColor = obj.gui_.colorbarBackgroundColor;
                 end
                 [cchg, color] = polyscope.ImGui.ColorEdit4( ...
                     ['Colorbar ticks' labelSuffix], obj.gui_.colorbarTickColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
                 if cchg
                     obj.gui_.colorbarTickColor = obj.asRgba_(color, 1);
                     obj.Opts.polyscope.colorbarTickColor = obj.gui_.colorbarTickColor;
                 end
                 [cchg, color] = polyscope.ImGui.ColorEdit4( ...
                     ['Colorbar labels' labelSuffix], obj.gui_.colorbarLabelColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
                 if cchg
                     obj.gui_.colorbarLabelColor = obj.asRgba_(color, 1);
                     obj.Opts.polyscope.colorbarLabelColor = obj.gui_.colorbarLabelColor;
                 end
                 [cchg, color] = polyscope.ImGui.ColorEdit4( ...
                     ['Colorbar title color' labelSuffix], obj.gui_.colorbarTitleColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
                 if cchg
                     obj.gui_.colorbarTitleColor = obj.asRgba_(color, 1);
                     obj.Opts.polyscope.colorbarTitleColor = obj.gui_.colorbarTitleColor;
                 end
             end
-            fields = {'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
-                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'};
-            for i = 1:numel(fields)
-                nm = fields{i};
-                if isfield(oldState, nm) && isfield(obj.gui_, nm) && ~isequal(oldState.(nm), obj.gui_.(nm))
-                    changed = true;
-                    return;
+        end
+
+        function committed = itemEditCommitted_(~, changed)
+            % Expensive native updates should run once when a continuous
+            % text/position/color edit is released, not on every drag frame.
+            committed = logical(changed);
+            try
+                if polyscope.ImGui.IsItemActive()
+                    committed = false;
+                elseif polyscope.ImGui.IsItemDeactivatedAfterEdit()
+                    committed = true;
                 end
+            catch
             end
+        end
+
+        function loc = defaultColorbarLocation_(obj)
+            % ImGui coordinates use the upper-left window corner as origin.
+            % Reserve the docked response panel and place the colorbar near
+            % the lower-right corner of the remaining model viewport.
+            ws = obj.safeWindowSize_([1280, 720]);
+            panelWidth = 400;
+            colorbarWidth = 150;
+            bottomOffset = 210;
+            margin = 20;
+            loc = [max(margin, round(ws(1) - panelWidth - colorbarWidth - margin)), ...
+                   max(margin, round(ws(2) - bottomOffset))];
         end
 
         function cb = colorbarArgs_(obj)
@@ -1079,6 +1124,161 @@ classdef (Abstract) ViewerBase < handle
             catch
                 % Decorative overlay must never interrupt viewer interaction.
             end
+        end
+
+        function startRequested = drawVideoRecorderGui_(obj, idSuffix, fps)
+            % Shared controls for response-animation GIF/MP4 export.
+            if nargin < 2, idSuffix = ''; end
+            if nargin < 3, fps = 12; end
+            startRequested = false;
+            if ~isfield(obj.gui_, 'videoFilename') || isempty(obj.gui_.videoFilename)
+                obj.gui_.videoFilename = 'OpenSeesMatlab_animation';
+            end
+            GB = plotter.polyscope.GuiBuilder;
+            GB.separator();
+            GB.subtitle('Animation export');
+            if ~obj.videoRecording_
+                [changed, name] = polyscope.ImGui.InputText( ...
+                    ['File name' char(string(idSuffix))], char(obj.gui_.videoFilename));
+                GB.helpMarker(['Enter a file name or path. The GIF or MP4 button replaces the extension ' ...
+                    'automatically and exports using the current FPS and frame stride.']);
+                if changed, obj.gui_.videoFilename = name; end
+                if GB.button(['Export GIF' char(string(idSuffix))])
+                    obj.startVideoRecording_(obj.gui_.videoFilename, fps, 'gif');
+                    startRequested = obj.videoRecording_;
+                end
+                GB.sameLine();
+                if GB.button(['Export MP4' char(string(idSuffix))])
+                    obj.startVideoRecording_(obj.gui_.videoFilename, fps, 'mp4');
+                    startRequested = obj.videoRecording_;
+                end
+            else
+                polyscope.ImGui.Text(sprintf('Recording: %d frames', ...
+                    numel(obj.videoFrameFiles_)));
+                if GB.button(['Cancel recording' char(string(idSuffix))])
+                    obj.cancelVideoRecording_('Animation export cancelled.');
+                end
+            end
+            if ~isempty(obj.videoStatus_)
+                polyscope.ImGui.TextWrapped(obj.videoStatus_);
+            end
+        end
+
+        function captureAnimationVideoFrame_(obj, step, playing)
+            % Capture the framebuffer rendered by the preceding GUI frame.
+            if ~obj.videoRecording_, return; end
+            step = double(step);
+            if step ~= obj.videoLastStep_
+                try
+                    file = fullfile(obj.videoTempDir_, ...
+                        sprintf('frame_%06d.png', numel(obj.videoFrameFiles_) + 1));
+                    obj.App.screenshot(file);
+                    obj.videoFrameFiles_{end + 1} = file;
+                    obj.videoLastStep_ = step;
+                catch ME
+                    obj.cancelVideoRecording_(['Animation capture failed: ' ME.message]);
+                    return;
+                end
+            end
+            if ~playing
+                obj.finishVideoRecording_();
+            end
+        end
+
+        function startVideoRecording_(obj, filename, fps, format)
+            obj.cancelVideoRecording_('');
+            filename = char(string(filename));
+            format = lower(char(string(format)));
+            if ~any(strcmp(format, {'gif', 'mp4'})), format = 'mp4'; end
+            if isempty(filename), filename = 'OpenSeesMatlab_animation'; end
+            [folder, base] = fileparts(filename);
+            if isempty(folder), folder = pwd; end
+            if ~isfolder(folder)
+                obj.videoStatus_ = ['Animation folder does not exist: ' folder];
+                return;
+            end
+            obj.videoFormat_ = format;
+            obj.videoOutputFile_ = fullfile(folder, [base '.' format]);
+            obj.videoTempDir_ = tempname;
+            mkdir(obj.videoTempDir_);
+            obj.videoFrameFiles_ = {};
+            obj.videoLastStep_ = -1;
+            obj.videoFps_ = max(1, double(fps));
+            obj.videoStatus_ = ['Recording to ' obj.videoOutputFile_];
+            obj.videoRecording_ = true;
+        end
+
+        function finishVideoRecording_(obj)
+            if ~obj.videoRecording_, return; end
+            files = obj.videoFrameFiles_;
+            output = obj.videoOutputFile_;
+            obj.videoRecording_ = false;
+            if isempty(files)
+                obj.videoStatus_ = 'Animation export stopped before any frame was captured.';
+                obj.clearVideoTemp_();
+                return;
+            end
+            try
+                if strcmp(obj.videoFormat_, 'gif')
+                    delay = 1 / max(1, obj.videoFps_);
+                    for i = 1:numel(files)
+                        rgb = imread(files{i});
+                        [indexed, map] = rgb2ind(rgb, 256);
+                        if i == 1
+                            imwrite(indexed, map, output, 'gif', ...
+                                'LoopCount', inf, 'DelayTime', delay);
+                        else
+                            imwrite(indexed, map, output, 'gif', ...
+                                'WriteMode', 'append', 'DelayTime', delay);
+                        end
+                    end
+                else
+                    writer = VideoWriter(output, 'MPEG-4');
+                    writer.FrameRate = max(1, obj.videoFps_);
+                    writer.Quality = 95;
+                    open(writer);
+                    cleanup = onCleanup(@() close(writer));
+                    frameSize = [];
+                    for i = 1:numel(files)
+                        rgb = imread(files{i});
+                        % MPEG-4 requires an even, constant frame size.
+                        h = size(rgb, 1) - mod(size(rgb, 1), 2);
+                        w = size(rgb, 2) - mod(size(rgb, 2), 2);
+                        rgb = rgb(1:h, 1:w, :);
+                        if isempty(frameSize)
+                            frameSize = [h, w];
+                        elseif any([h, w] ~= frameSize)
+                            error('OpenSeesMatlab:VideoFrameSizeChanged', ...
+                                'The viewer window size changed during recording.');
+                        end
+                        writeVideo(writer, rgb);
+                    end
+                    clear cleanup
+                end
+                obj.videoStatus_ = sprintf('Saved %d frames: %s', numel(files), output);
+            catch ME
+                obj.videoStatus_ = ['Animation encoding failed: ' ME.message];
+            end
+            obj.clearVideoTemp_();
+        end
+
+        function cancelVideoRecording_(obj, status)
+            obj.videoRecording_ = false;
+            obj.clearVideoTemp_();
+            if nargin >= 2, obj.videoStatus_ = char(string(status)); end
+        end
+
+        function clearVideoTemp_(obj)
+            if ~isempty(obj.videoTempDir_) && isfolder(obj.videoTempDir_)
+                files = dir(fullfile(obj.videoTempDir_, '*.png'));
+                for i = 1:numel(files)
+                    delete(fullfile(files(i).folder, files(i).name));
+                end
+                rmdir(obj.videoTempDir_);
+            end
+            obj.videoTempDir_ = '';
+            obj.videoFrameFiles_ = {};
+            obj.videoLastStep_ = -1;
         end
 
         function [lineColor, markerFill, markerOutline] = historyPlotColors_(obj)
@@ -1982,6 +2182,21 @@ classdef (Abstract) ViewerBase < handle
         end
 
         function configureAnimationRenderLoop_(obj, isRunning, fps)
+            % Arguments are optional because viewers also call this after a
+            % natural stop and during initial construction.
+            if nargin < 2 || isempty(isRunning)
+                isRunning = isfield(obj.gui_, 'playing') && ...
+                    logical(obj.gui_.playing);
+            end
+            if nargin < 3 || isempty(fps)
+                if isfield(obj.gui_, 'fps')
+                    fps = obj.gui_.fps;
+                elseif isfield(obj.Opts, 'animation')
+                    fps = obj.getOptField_(obj.Opts.animation, 'fps', 12);
+                else
+                    fps = 12;
+                end
+            end
             try
                 ps = obj.App.polyscopeHandle();
                 if isRunning
@@ -1996,6 +2211,19 @@ classdef (Abstract) ViewerBase < handle
                 end
             catch
             end
+        end
+
+        function clearGuiCallbackError_(obj)
+            obj.lastGuiCallbackError_ = '';
+        end
+
+        function reportGuiCallbackError_(obj, source, ME)
+            message = char(string(ME.message));
+            if strcmp(obj.lastGuiCallbackError_, message)
+                return;
+            end
+            fprintf('%s.guiCallback_ error: %s\n', char(string(source)), message);
+            obj.lastGuiCallbackError_ = message;
         end
 
         function val = cachedRange_(obj, namespace, key, computeFcn)
@@ -2021,6 +2249,9 @@ classdef (Abstract) ViewerBase < handle
         function closeViewerSession_(obj)
             % Break callback ownership first, then destroy the native window,
             % OpenGL/GLFW context, and process-global Polyscope state.
+            if obj.videoRecording_
+                obj.cancelVideoRecording_('Animation export cancelled because the viewer closed.');
+            end
             try
                 obj.App.clearUserCallback();
             catch

@@ -140,6 +140,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
     methods
         function guiCallback_(obj)
             try
+                obj.captureAnimationVideoFrame_(obj.currentStep_, obj.gui_.playing);
                 obj.advanceAnimation_();
                 GB = plotter.polyscope.GuiBuilder;
                 obj.ensureUiThemeForFrame_();
@@ -217,11 +218,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 if isfield(obj.gui_, 'showHistory') && obj.gui_.showHistory
                     obj.drawResponseHistoryWindow_(ws);
                 end
+                obj.clearGuiCallbackError_();
             catch ME
-                try
-                    polyscope.ImGui.Text(['GUI error: ' ME.message]);
-                catch
-                end
+                obj.reportGuiCallbackError_('plotUnstruResponse', ME);
             end
         end
     end
@@ -392,7 +391,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.showDeform = GB.checkbox('Deformed shape##unstru_geometry', obj.gui_.showDeform);
             GB.sameLine();
             obj.gui_.autoScale = GB.checkbox('Auto scale##unstru_geometry', obj.gui_.autoScale);
+            GB.helpMarker('Uses one deformation scale derived from the response; animation uses the global history scale.');
             obj.gui_.deformScale = GB.sliderFloat('Deformation scale##unstru_geometry', obj.gui_.deformScale, 0, 100);
+            GB.helpMarker('Manual multiplier for the displayed deformation. It does not alter stored results.');
             obj.gui_.showUndeformed = GB.checkbox('Undeformed ghost##unstru_geometry', obj.gui_.showUndeformed);
             GB.separator();
             GB.subtitle('Render quality');
@@ -417,12 +418,15 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.Opts.color.colormap = cmapNames{obj.gui_.cmapIdx};
             climModes = {'step','range','global','absmax','absmin'};
             obj.gui_.climIdx = GB.combo('Color limits##unstru_style', obj.gui_.climIdx, climModes);
+            GB.helpMarker('Step rescales each frame; Global uses one range for the complete response history.');
             obj.Opts.color.climMode = climModes{obj.gui_.climIdx};
             colorModes = {'auto','node','element'};
             obj.gui_.colorModeIdx = GB.combo('Color mode##unstru_style', obj.gui_.colorModeIdx, colorModes);
+            GB.helpMarker('Auto chooses nodal or element coloring from the selected response location.');
             obj.Opts.surf.colorMode = colorModes{obj.gui_.colorModeIdx};
+            colorbarChanged = false;
             if obj.gui_.showField && obj.gui_.useColormap
-                obj.drawColorbarGui_('##unstru_style', true);
+                colorbarChanged = obj.drawColorbarGui_('##unstru_style', true);
             end
             GB.separator();
             GB.subtitle('Appearance');
@@ -449,9 +453,8 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 obj.setStep(obj.currentStep_, true);
             end
             obj.syncOptsFromGui_();
-            dataChanged = obj.guiChanged_(old, {'useColormap','cmapIdx','climIdx','colorModeIdx', ...
-                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
-                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'});
+            dataChanged = obj.guiChanged_(old, ...
+                {'useColormap','cmapIdx','climIdx','colorModeIdx'}) || colorbarChanged;
             styleChanged = obj.guiChanged_(old, {'solidColor','edgeColor','ghostColor', ...
                 'deformedAlpha','ghostAlpha','edgeRadius','nodeRadius','viewIdx'});
             if dataChanged
@@ -490,8 +493,10 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                     sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
                 maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
                 obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, maxFps);
+                GB.helpMarker('Requested playback and export frame rate. Large meshes can reduce the achieved rate.');
                 obj.gui_.autoFrameStride = GB.checkbox( ...
                     'Auto frame stride##unstru_animation', obj.gui_.autoFrameStride);
+                GB.helpMarker('Automatically chooses the step increment from FPS and target duration.');
                 obj.gui_.playDuration = GB.sliderFloat( ...
                     'Target duration (s)##unstru_animation', obj.gui_.playDuration, 2, 60);
                 if obj.gui_.autoFrameStride
@@ -502,6 +507,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 else
                     obj.gui_.frameStride = GB.sliderInt('Frame stride##unstru_animation', ...
                         obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
+                    GB.helpMarker('Number of response steps advanced per animation frame.');
                 end
                 passTime = obj.estimatedAnimationDuration_( ...
                     obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
@@ -510,6 +516,13 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 GB.sameLine();
                 obj.gui_.pingpong = GB.checkbox('Ping-pong', obj.gui_.pingpong);
                 obj.gui_.animUpdateColors = GB.checkbox('Update colors', obj.gui_.animUpdateColors);
+                if obj.drawVideoRecorderGui_('##unstru_animation', obj.gui_.fps)
+                    obj.gui_.playing = true;
+                    obj.gui_.loop = false;
+                    obj.gui_.pingpong = false;
+                    obj.animDir_ = 1;
+                    obj.setStep(0, false);
+                end
             else
                 obj.gui_.playing = false;
             end

@@ -209,6 +209,59 @@ classdef GuiBuilder
             polyscope.ImGui.TextDisabled(txt);
         end
 
+        function helpMarker(txt)
+            % Stateless hover help drawn directly on the foreground layer.
+            polyscope.ImGui.SameLine(0, 6);
+            polyscope.ImGui.TextDisabled('(?)');
+            if ~polyscope.ImGui.IsItemHovered()
+                return;
+            end
+            try
+            txt = char(string(txt));
+            wrapWidth = 320;
+            pad = 12;
+            words = strsplit(strtrim(txt));
+            lines = {};
+            line = '';
+            for i = 1:numel(words)
+                if isempty(line)
+                    candidate = words{i};
+                else
+                    candidate = [line ' ' words{i}]; %#ok<AGROW>
+                end
+                candidateSize = double(polyscope.ImGui.CalcTextSize(candidate));
+                if ~isempty(line) && candidateSize(1) > wrapWidth
+                    lines{end + 1} = line; %#ok<AGROW>
+                    line = words{i};
+                else
+                    line = candidate;
+                end
+            end
+            if ~isempty(line), lines{end + 1} = line; end %#ok<AGROW>
+            wrapped = strjoin(lines, sprintf('\n'));
+            mouse = double(polyscope.ImGui.GetMousePos());
+            io = polyscope.ImGui.GetIO();
+            displaySize = double(io.DisplaySize(:).');
+            textSize = double(polyscope.ImGui.CalcTextSize(wrapped));
+            boxSize = [min(wrapWidth, max(180, textSize(1))) + 2 * pad, ...
+                       max(24, textSize(2)) + 2 * pad];
+            pos = mouse(:).' + [16, 18];
+            if numel(displaySize) >= 2
+                pos = min(pos, max([8, 8], displaySize(1:2) - boxSize - 8));
+            end
+            dl = polyscope.ImGui.GetForegroundDrawList();
+            % ImDrawList MEX bindings expect packed colors as double scalars.
+            bg = double(polyscope.ImGui.GetColorU32Vec4([0.08, 0.09, 0.11, 0.96]));
+            border = double(polyscope.ImGui.GetColorU32Vec4([0.42, 0.68, 0.92, 1.00]));
+            fg = double(polyscope.ImGui.GetColorU32Vec4([0.96, 0.97, 0.99, 1.00]));
+            dl.AddRectFilled(pos, pos + boxSize, bg, 5);
+            dl.AddRect(pos, pos + boxSize, border, 5, 0, 1);
+            dl.AddText(pos + pad, fg, wrapped);
+            catch
+                % Help overlays must never interrupt the owning GUI callback.
+            end
+        end
+
         function sameLine()
             polyscope.ImGui.SameLine();
         end
