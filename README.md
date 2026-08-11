@@ -85,7 +85,9 @@ with the standard OpenSees analysis workflow:
 
 - Define linear or history-dependent uniaxial materials with MATLAB callbacks
 - Couple MATLAB numerical substructures to an OpenSees domain
-- Solve supported sparse systems with the NVIDIA cuDSS GPU backend
+- Solve supported sparse systems with the NVIDIA cuDSS GPU backend, including
+  CPU crossover, configurable ordering/pivoting, hybrid execution,
+  single-node multi-GPU and Schur-complement controls
 
 See the [extension guides](https://openseesmatlab.readthedocs.io/en/latest/getting_started/extensions/)
 for setup instructions and runnable examples. CUDA and cuDSS are optional; CPU

@@ -1616,9 +1616,41 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % systemType : str
-            %   The system type. CuDSS variants use the optional GPU extension.
+            %   The system type. CuDSS, CuDSSGeneral, CuDSSSymmetric, and
+            %   CuDSSSPD use the optional NVIDIA GPU extension.
             % systemArgs : varargin
-            %   Additional arguments for the system.
+            %   Additional arguments for the system. CuDSS accepts:
+            %
+            %   Runtime and device selection:
+            %     '-cudaMajor', auto|12|13
+            %     '-cudaPath', directory
+            %     '-cudssPath', directory
+            %     '-device', auto|index
+            %     '-devices', 'i,j,...'       single-node multi-GPU
+            %
+            %   Numerical and performance controls:
+            %     '-cpuThreshold', equations  CPU SparseLU below this size (0)
+            %     '-reorder', default|btf|colamd|amd|nd|none
+            %     '-factorization', default|multiblock|general
+            %     '-pivot', auto|none|globalCol|globalRow|diagonal|local
+            %     '-pivotThreshold', value
+            %     '-pivotEpsilon', value
+            %     '-refinement', count        default 0
+            %     '-tolerance', value         default 1e-12
+            %     '-deterministic'
+            %
+            %   Advanced execution controls:
+            %     '-hybridMemory'
+            %     '-hybridMemoryLimit', bytes
+            %     '-hybridExecute'
+            %     '-hostThreads', count
+            %     '-threadingLayer', library
+            %     '-schurSize', equations     symmetric systems only
+            %     '-estimates', '-diagnostics', '-verbose'
+            %
+            %   Options are forwarded unchanged to the cuDSS extension. Disable
+            %   diagnostics, verbose output, estimates, and deterministic mode
+            %   for representative performance timing.
             arguments
                 obj
                 systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
