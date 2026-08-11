@@ -38,6 +38,10 @@ transient analysis.
 The optional cuDSS backend solves sparse linear systems on a supported NVIDIA
 GPU. It is selected through `ops.system("CuDSS", ...)` and is most useful for
 large systems or analyses that repeatedly factorize tangent matrices.
+The wrapper exposes CPU/GPU crossover, reordering, factorization and pivoting
+controls, hybrid memory/execution, host threading, single-node multi-GPU and
+Schur-complement options. Symbolic analysis and numerical factors are reused
+when the OpenSees equation graph permits it.
 
 [Read the cuDSS configuration and usage guide](extensions/cudss_solver.md){ .md-button .md-button--primary }
 

@@ -105,6 +105,75 @@ reordering and symbolic analysis while the equation graph is unchanged, uses
 refactorization for later changed tangent matrices, and skips the matrix upload
 and factorization when only the right-hand side changes.
 
+## Options
+
+All options below are passed through `ops.system` to the cuDSS extension.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `-cudaMajor auto\|12\|13` | `auto` | Select the CUDA runtime major family. |
+| `-cudaPath directory` | automatic | CUDA DLL directory or installation root. |
+| `-cudssPath directory` | automatic | cuDSS DLL directory or installation root. |
+| `-device auto\|index` | `auto` | Select one zero-based GPU index. |
+| `-devices "i,j,..."` | disabled | Enable single-node multi-GPU execution on at least two GPUs. |
+| `-cpuThreshold equations` | `0` | Use Eigen SparseLU at or below this equation count; zero disables CPU crossover. |
+| `-reorder default\|btf\|colamd\|amd\|nd\|none` | `default` | Select the symbolic reordering algorithm. |
+| `-factorization default\|multiblock\|general` | `default` | Select the numerical factorization algorithm. |
+| `-pivot auto\|none\|globalCol\|globalRow\|diagonal\|local` | `auto` | Select numerical pivoting. Valid combinations depend on matrix type and reordering. |
+| `-pivotThreshold value` | cuDSS default | Set the pivot acceptance threshold. |
+| `-pivotEpsilon value` | cuDSS default | Set the static-pivot replacement epsilon. |
+| `-refinement count` | `0` | Maximum iterative-refinement steps. |
+| `-tolerance value` | `1e-12` | Iterative-refinement relative tolerance. |
+| `-deterministic` | off | Request reproducible execution; it may reduce performance. |
+| `-estimates` | off | Print factorization memory and FLOP estimates after analysis. |
+| `-hybridMemory` | off | Allow factor data to use host and device memory. |
+| `-hybridMemoryLimit bytes` | unset | Enable hybrid memory and set the per-device GPU memory limit. |
+| `-hybridExecute` | off | Enable hybrid host/device execution. |
+| `-hostThreads count` | cuDSS default | Set the host thread count for hybrid or MT execution. |
+| `-threadingLayer library` | unset | Load a cuDSS-compatible threading backend, such as VCOMP on Windows. |
+| `-schurSize equations` | disabled | Use the final N equations as a Schur set; currently requires `CuDSSSymmetric` or `CuDSSSPD`. |
+| `-diagnostics` | off | Synchronize and query errors after each phase; debugging only. |
+| `-verbose` | off | Print runtime, device, and transfer details. |
+
+For example, a performance-oriented symmetric-indefinite configuration is:
+
+```matlab
+ops.system("CuDSSSymmetric", ...
+    "-cpuThreshold", 1000, ...
+    "-reorder", "amd", ...
+    "-pivot", "diagonal");
+```
+
+Start with the default algorithms and benchmark alternatives on a representative
+model. `amd` is often a useful symmetric baseline, while `btf` or `colamd` may
+benefit general matrices. An incompatible reordering/pivot combination is
+rejected by cuDSS rather than silently changed.
+
+## Performance behavior
+
+The implementation uses 64-bit CSR indices, precomputed constant-time assembly
+lookups, asynchronous transfers on a dedicated stream, symbolic-analysis reuse,
+and refactorization when the sparsity pattern is unchanged. If refactorization
+fails, it retries a complete numerical factorization.
+
+Small systems can be faster on the CPU because GPU launch and transfer overhead
+dominates. Tune `-cpuThreshold` with the actual model and hardware; values around
+500--3000 equations are reasonable starting experiments, not universal defaults.
+Single-node multi-GPU is intended for sufficiently large factorizations and may
+be slower for modest systems. Hybrid memory primarily extends capacity when the
+factorization does not fit in GPU memory and is not normally a speed optimization.
+
+Do not enable `-diagnostics`, `-verbose`, or `-estimates` in production timing.
+Deterministic execution can also reduce throughput. Schur mode performs the
+reduced dense solve on the CPU and is beneficial only when the selected Schur
+set is relatively small.
+
+The C++ extension additionally supports multiple dense right-hand sides through
+`SOE::solveMultiple`. The standard OpenSees `LinearSOE` analysis path continues
+to submit one right-hand side. Cross-node MGMN and batching independent OpenSees
+domains require an external communicator or analysis scheduler and are not
+created automatically by `ops.system`.
+
 For troubleshooting, add `-diagnostics`:
 
 ```matlab
