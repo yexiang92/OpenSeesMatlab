@@ -17,7 +17,6 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
         segCounts_ double = []
         currentSeg_ double = 0
         hasMixedTopology_ logical = false
-        lastGuiError_ char = ''
     end
 
     methods
@@ -104,6 +103,7 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
 
         function guiCallback_(obj)
             try
+                obj.captureAnimationVideoFrame_(obj.currentStep_,obj.gui_.playing);
                 obj.advanceAnimation_();
                 GB = plotter.polyscope.GuiBuilder;
                 obj.ensureUiThemeForFrame_();
@@ -142,12 +142,9 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                 end
                 obj.drawScreenAxesOverlay_();
                 if obj.gui_.showHistory,obj.drawHistoryWindow_(ws);end
-                obj.lastGuiError_='';
+                obj.clearGuiCallbackError_();
             catch ME
-                if ~strcmp(obj.lastGuiError_,ME.message)
-                    fprintf('plotMVLEMResponse.guiCallback_ error: %s\n',ME.message);
-                    obj.lastGuiError_=ME.message;
-                end
+                obj.reportGuiCallbackError_('plotMVLEMResponse', ME);
             end
         end
     end
@@ -256,6 +253,8 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             oldDisplay=obj.gui_.responseDisplayIdx;
             obj.gui_.responseDisplayIdx=GB.combo( ...
                 'Display##mvlem',oldDisplay,displayModes);
+            GB.helpMarker(['Auto selects a contour or diagram from the response type. Both overlays the ' ...
+                'response diagram on the colored MVLEM surface.']);
             obj.Opts.responseDisplay=displayModes{obj.gui_.responseDisplayIdx};
             if obj.gui_.responseDisplayIdx~=oldDisplay
                 obj.setStep(obj.currentStep_,true);
@@ -383,7 +382,9 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.gui_.showDeform=GB.checkbox('Deformed shape##mvlem',obj.gui_.showDeform);
             GB.sameLine();
             obj.gui_.autoScale=GB.checkbox('Auto scale##mvlem',obj.gui_.autoScale);
+            GB.helpMarker('Automatically derives deformation scale; animation uses one global scale for all steps.');
             obj.gui_.deformScale=GB.sliderFloat('Deformation scale##mvlem',obj.gui_.deformScale,0,100);
+            GB.helpMarker('Manual multiplier for displayed deformation only.');
             obj.gui_.showUndeformed=GB.checkbox('Undeformed ghost##mvlem',obj.gui_.showUndeformed);
             obj.Opts.deform.show=obj.gui_.showDeform;
             obj.Opts.deform.autoScale=obj.gui_.autoScale;
@@ -407,9 +408,12 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                 GB.separator(); GB.subtitle('Surface representation');
                 rm={'surface','wireframe'};
                 obj.gui_.surfaceRenderModeIdx=GB.combo('Surface##mvlem',obj.gui_.surfaceRenderModeIdx,rm);
+                GB.helpMarker('Surface draws filled response faces; Wireframe displays only the physical element boundaries.');
                 obj.gui_.surfaceEdges=GB.checkbox('Mesh edges##mvlem',obj.gui_.surfaceEdges);
                 obj.gui_.showInternalLines=GB.checkbox( ...
                     'MVLEM internal lines##mvlem',obj.gui_.showInternalLines);
+                GB.helpMarker(['Show the Multiple-Vertical-Line subdivisions inside MVLEM surfaces. ' ...
+                    'These are visualization lines, not additional model nodes.']);
                 obj.Opts.surf.renderMode=rm{obj.gui_.surfaceRenderModeIdx};
                 obj.Opts.surf.showEdges=obj.gui_.surfaceEdges;
                 obj.Opts.mvlem.internalLines.show=obj.gui_.showInternalLines;
@@ -486,16 +490,16 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.Opts.polyscope.scalarColorMap=cmaps{obj.gui_.cmapIdx};
             modes={'step','global'};
             obj.gui_.climIdx=GB.combo('Color limits##mvlem',obj.gui_.climIdx,modes);
+            GB.helpMarker('Step rescales the current frame; Global keeps one color range for the full history.');
             obj.Opts.color.climMode=modes{obj.gui_.climIdx};
-            obj.drawColorbarGui_('##mvlem',true);
+            colorbarChanged=obj.drawColorbarGui_('##mvlem',true);
             [chg,obj.gui_.edgeColor]=GB.colorEdit3('Edge color##mvlem',obj.gui_.edgeColor);
             if chg,obj.Opts.surf.edgeColor=obj.gui_.edgeColor;end
             obj.gui_.surfaceAlpha=GB.sliderFloat('Surface alpha##mvlem',obj.gui_.surfaceAlpha,0,1);
             obj.gui_.ghostAlpha=GB.sliderFloat('Ghost alpha##mvlem',obj.gui_.ghostAlpha,0,1);
             obj.Opts.color.deformedAlpha=obj.gui_.surfaceAlpha;
             obj.Opts.color.undeformedAlpha=obj.gui_.ghostAlpha;
-            scalarChanged=obj.guiChanged_(old,{'cmapIdx','climIdx','onscreenColorbar', ...
-                    'onscreenColorbarLocation','colorbarTitle'});
+            scalarChanged=obj.guiChanged_(old,{'cmapIdx','climIdx'}) || colorbarChanged;
             appearanceChanged=obj.guiChanged_(old,{'edgeColor','surfaceAlpha','ghostAlpha'});
             if scalarChanged
                 obj.setStep(obj.currentStep_,false);
@@ -559,8 +563,10 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             obj.gui_.pingpong=GB.checkbox('Ping-pong##mvlem',obj.gui_.pingpong);
             maxFps=obj.animationFpsUpperBound_(obj.nSteps_);
             obj.gui_.fps=GB.sliderFloat('FPS##mvlem',obj.gui_.fps,1,maxFps);
+            GB.helpMarker('Requested playback and export frame rate. Fiber surfaces may reduce the achieved rate.');
             obj.gui_.autoFrameStride=GB.checkbox( ...
                 'Auto frame stride##mvlem',obj.gui_.autoFrameStride);
+            GB.helpMarker('Automatically chooses the step increment from FPS and target duration.');
             obj.gui_.playDuration=GB.sliderFloat( ...
                 'Target duration (s)##mvlem',obj.gui_.playDuration,2,60);
             if obj.gui_.autoFrameStride
@@ -571,10 +577,19 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             else
                 obj.gui_.frameStride=GB.sliderInt('Frame stride##mvlem', ...
                     obj.gui_.frameStride,1,max(1,obj.nSteps_-1));
+                GB.helpMarker('Number of response steps advanced per animation frame.');
             end
             passTime=obj.estimatedAnimationDuration_( ...
                 obj.nSteps_,obj.gui_.fps,obj.gui_.frameStride);
             polyscope.ImGui.TextDisabled(sprintf('Estimated pass: %.1f s',passTime));
+            if obj.drawVideoRecorderGui_('##mvlem_animation',obj.gui_.fps)
+                obj.gui_.playing=true;
+                obj.gui_.loop=false;
+                obj.gui_.pingpong=false;
+                obj.animDir_=1;
+                obj.setStep(0,false);
+                obj.lastTick_=tic;
+            end
             obj.Opts.animation.play=obj.gui_.playing;
             obj.Opts.animation.fps=obj.gui_.fps;
             obj.Opts.animation.loop=obj.gui_.loop;

@@ -191,6 +191,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
     methods
         function guiCallback_(obj)
             try
+                obj.captureAnimationVideoFrame_(obj.currentStep_, obj.gui_.playing);
                 obj.advanceAnimation_();
                 GB = plotter.polyscope.GuiBuilder;
                 obj.ensureUiThemeForFrame_();
@@ -252,8 +253,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                     obj.applyStyle_();
                     obj.applyVisibility_();
                 end
+                obj.clearGuiCallbackError_();
             catch ME
-                try, polyscope.ImGui.Text(['GUI error: ' ME.message]); catch, end
+                obj.reportGuiCallbackError_('plotFrameResponse', ME);
             end
         end
     end
@@ -455,11 +457,13 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.Opts.polyscope.scalarColorMap = cmaps{obj.gui_.cmapIdx};
             climModes = {'current','global','range'};
             obj.gui_.climIdx = GB.combo('Color limits##frame_style', obj.gui_.climIdx, climModes);
+            GB.helpMarker('Current rescales each step; Global keeps a fixed range for the complete animation.');
             obj.Opts.color.climMode = climModes{obj.gui_.climIdx};
             obj.gui_.useColormap = GB.checkbox('Use colormap##frame_style', obj.gui_.useColormap);
             obj.Opts.color.useColormap = logical(obj.gui_.useColormap);
+            colorbarChanged = false;
             if obj.gui_.useColormap
-                obj.drawColorbarGui_('##frame_style', true);
+                colorbarChanged = obj.drawColorbarGui_('##frame_style', true);
                 obj.Opts.cbar.show = logical(obj.gui_.onscreenColorbar);
             end
             GB.separator();
@@ -481,9 +485,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.setCameraForPoints_(obj.nodeCoords_(obj.currentSeg_), obj.Opts.general.view);
             end
             obj.syncOptsFromGui_();
-            dataChanged = obj.guiChanged_(old, {'cmapIdx','climIdx','useColormap', ...
-                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle', ...
-                'colorbarBackgroundColor','colorbarTickColor','colorbarLabelColor','colorbarTitleColor'});
+            dataChanged = obj.guiChanged_(old, ...
+                {'cmapIdx','climIdx','useColormap'}) || colorbarChanged;
             styleChanged = obj.guiChanged_(old, {'solidColor','wireColor','modelColor','zeroColor', ...
                 'faceAlpha','diagramRadius','modelRadius','zeroRadius','viewIdx'});
             if dataChanged, obj.invalidateCaches_(); end
@@ -516,8 +519,10 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                     sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
                 maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
                 obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, maxFps);
+                GB.helpMarker('Requested playback and export frame rate. Complex diagrams may render more slowly.');
                 obj.gui_.autoFrameStride = GB.checkbox( ...
                     'Auto frame stride##frame_animation', obj.gui_.autoFrameStride);
+                GB.helpMarker('Automatically chooses the step increment from FPS and target duration.');
                 obj.gui_.playDuration = GB.sliderFloat( ...
                     'Target duration (s)##frame_animation', obj.gui_.playDuration, 2, 60);
                 if obj.gui_.autoFrameStride
@@ -528,6 +533,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 else
                     obj.gui_.frameStride = GB.sliderInt('Frame stride##frame_animation', ...
                         obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
+                    GB.helpMarker('Number of response steps advanced per animation frame.');
                 end
                 passTime = obj.estimatedAnimationDuration_( ...
                     obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
@@ -536,6 +542,13 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 GB.sameLine();
                 obj.gui_.pingpong = GB.checkbox('Ping-pong', obj.gui_.pingpong);
                 obj.gui_.scale = GB.sliderFloat('Scale factor##frame_animation', obj.gui_.scale, 0.01, 20);
+                if obj.drawVideoRecorderGui_('##frame_animation', obj.gui_.fps)
+                    obj.gui_.playing = true;
+                    obj.gui_.loop = false;
+                    obj.gui_.pingpong = false;
+                    obj.animDir_ = 1;
+                    obj.setStep(0, false);
+                end
             else
                 obj.gui_.playing = false;
             end
