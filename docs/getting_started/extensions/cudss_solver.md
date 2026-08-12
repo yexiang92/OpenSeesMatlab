@@ -27,11 +27,14 @@ used when it was compiled.
 
 ## Configure the cuDSS runtime
 
-If cuDSS is installed in its standard directory, automatic discovery is usually
-enough. Otherwise, set the installation directory before creating the solver:
+If cuDSS is installed in its standard directory, try the shortest form first:
 
-The paths may also be supplied directly to `ops.system` with `-cudaPath` and
-`-cudssPath`. This is useful when several CUDA or cuDSS versions are installed.
+```matlab
+ops.system("CuDSS");
+```
+
+If the runtime is not found, or if several CUDA versions are installed, pass
+the two DLL locations explicitly with `-cudaPath` and `-cudssPath`.
 
 For custom or Conda layouts, specify the two DLL directories independently.
 Each value may be either the directory that directly contains the DLLs or an
@@ -40,11 +43,11 @@ installation root containing `bin` or `Library\bin`:
 ```matlab
 % for cuda v12.6, for example
 cudssPath = "C:\Program Files\NVIDIA cuDSS\v0.8\bin\12";
-cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin"
+cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin";
 
 % for cuda 13.1, for example
 cudssPath = "C:\Program Files\NVIDIA cuDSS\v0.8\bin\13";
-cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin"
+cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin";
 
 ops.system("CuDSS", ...
     "-cudaPath", cudaPath, ...   % cudart64_*.dll, cublas64_*.dll, cublasLt64_*.dll
@@ -104,6 +107,17 @@ The default `-refinement` value is `0`. OpenSeesMatlab reuses the cuDSS
 reordering and symbolic analysis while the equation graph is unchanged, uses
 refactorization for later changed tangent matrices, and skips the matrix upload
 and factorization when only the right-hand side changes.
+
+Once the solver loads correctly, remove `-verbose` for normal runs:
+
+```matlab
+CuDSSOptions = {"-cudaPath", cudaPath, "-cudssPath", cudssPath};
+ops.system("CuDSS", CuDSSOptions{:});
+```
+
+Keeping the options in a cell array is convenient when several scripts use the
+same runtime. The `{:}` expands the cell contents into separate arguments. Add
+`"-verbose"` only when checking which DLLs and GPU were selected.
 
 ## Options
 
@@ -167,6 +181,36 @@ Do not enable `-diagnostics`, `-verbose`, or `-estimates` in production timing.
 Deterministic execution can also reduce throughput. Schur mode performs the
 reduced dense solve on the CPU and is beneficial only when the selected Schur
 set is relatively small.
+
+### A sensible tuning order
+
+1. Run the model with a trusted CPU solver and keep its result and elapsed time
+   as a reference.
+2. Select `CuDSS` with default settings and confirm that the response agrees.
+3. Remove `-verbose`, `-diagnostics`, and `-estimates` before measuring time.
+4. If the analysis contains many small systems, test `-cpuThreshold` values
+   such as `500`, `1000`, and `3000`.
+5. Only then benchmark reordering or matrix-type variants on the full model.
+
+Measure the complete analysis, not a single solve. GPU initialization can make
+the first run slower, while symbolic-analysis reuse becomes useful over many
+steps. Compare runs with the same model, recorder, and convergence settings.
+
+A straightforward production setup is:
+
+```matlab
+CuDSSOptions = { ...
+    "-cudaPath", cudaPath, ...
+    "-cudssPath", cudssPath, ...
+    "-cpuThreshold", 1000, ...
+    "-refinement", 0};
+
+ops.system("CuDSS", CuDSSOptions{:});
+```
+
+Do not copy `-cpuThreshold`, reordering, or pivot values blindly. The best
+choice depends on equation count, sparsity pattern, GPU, and how often the
+tangent matrix changes.
 
 The C++ extension additionally supports multiple dense right-hand sides through
 `SOE::solveMultiple`. The standard OpenSees `LinearSOE` analysis path continues

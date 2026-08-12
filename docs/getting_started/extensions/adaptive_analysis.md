@@ -46,6 +46,20 @@ if ok ~= 0
 end
 ```
 
+For a nonlinear analysis, this is a practical starting configuration:
+
+```matlab
+ok = ops.adaptiveAnalyze(numSteps, ...
+    "-iterations", 3, 100, ...
+    "-algorithms", "KrylovNewton", "Newton", ...
+    "-subdivision", 0.5, abs(initialStep) * 1e-6, 10);
+```
+
+This first allows more iterations, then tries the listed algorithms, and
+finally divides only the failed step. The accepted substeps still complete the
+original target; the command does not skip the unfinished part. Treat these
+values as a starting point rather than a universal setting.
+
 ### Static example
 
 For static analysis, configure the integrator as usual. `LoadControl` and
@@ -111,6 +125,15 @@ group to leave the feature disabled.
 
 The rest of this guide explains the stepping behavior and every parameter in
 detail.
+
+### Which command should I use?
+
+Use `ops.analyze` when the chosen step size and algorithm already converge
+reliably. It has the least control overhead. Use `ops.adaptiveAnalyze` when a
+long nonlinear run occasionally encounters a difficult step and you want a
+repeatable recovery sequence. Adaptive recovery cannot repair an unstable
+model, missing constraint, unsuitable material parameters, or inconsistent
+units; repeated failure at the minimum step is a reason to inspect the model.
 
 ## Detailed analysis modes
 
@@ -297,8 +320,21 @@ success or failure summary is always printed, even when debug output is off.
 The summary includes wall-clock analysis time and the available convergence
 norm information.
 
-CSV logging records each attempt, including the OpenSees domain time. This is
-different from the summary's wall-clock duration.
+CSV logging records each attempt, including `timeStart`, `timeEnd`,
+`targetTime`, `remainingTime`, `stageID`, and `successFlag`. These are OpenSees
+Domain values and are different from the summary's wall-clock duration.
+
+Use logging while tuning a model:
+
+```matlab
+ok = ops.adaptiveAnalyze(numSteps, ...
+    "-subdivision", 0.5, minStep, 10, ...
+    "-log", "adaptive_attempts.csv", ...
+    "-debug");
+```
+
+After the settings are stable, remove `"-debug"` to keep the command window
+readable. The CSV file can remain enabled when an attempt history is useful.
 
 Check the return value in scripts:
 
