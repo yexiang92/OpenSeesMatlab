@@ -75,6 +75,22 @@ assert(ok == 0, 'OpenSees analysis did not converge.');
 
 OpenSees returns `0` when the requested analysis completes successfully. Always check the return code in scripts that will run unattended.
 
+The six analysis commands above do different jobs:
+
+| Command | What it chooses |
+|---|---|
+| `system` | Linear-equation solver |
+| `numberer` | Equation numbering |
+| `constraints` | Constraint handling |
+| `integrator` | Load or time stepping |
+| `algorithm` | Iterative solution method |
+| `analysis` | Static or transient analysis driver |
+
+When a nonlinear model does not converge, changing all six commands at once
+usually hides the cause. Start from a known configuration, check the return
+code, and then change one part at a time. For automatic retries and failed-step
+subdivision, use the [adaptive analysis guide](extensions/adaptive_analysis.md).
+
 ## Read and verify the result
 
 ```matlab

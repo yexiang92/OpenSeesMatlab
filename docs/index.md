@@ -1,6 +1,8 @@
 # OpenSeesMatlab
 
-**OpenSeesMatlab** brings the OpenSees finite-element engine into MATLAB. You build and analyze a model with familiar OpenSees-style commands, then use MATLAB variables and the toolbox modules to prepare inputs, manage analyses, retrieve results, and visualize them.
+**OpenSeesMatlab** lets you build and run OpenSees models directly in MATLAB.
+The model and analysis commands keep the familiar OpenSees names, while inputs,
+results, plots, loops, and parameter studies use ordinary MATLAB code.
 
 <div class="grid cards" markdown>
 
@@ -37,6 +39,11 @@ Most projects follow the same sequence:
 3. Read values directly during analysis, use standard OpenSees recorders, or create an OpenSeesMatlab ODB for structured results.
 4. Use MATLAB or [`opsMat.vis`][plotter.OpenSeesMatlabVis] to inspect and visualize the results.
 5. Call `wipe` before building an unrelated model in the same MATLAB session.
+
+In practice, a script normally has five visible blocks: create the interface,
+build the model, apply loads, configure the analysis, and read the results. Keep
+those blocks separate at first. It makes unit, boundary-condition, and
+convergence problems much easier to locate.
 
 ```matlab
 opsMat = OpenSeesMatlab();

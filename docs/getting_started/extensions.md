@@ -4,6 +4,16 @@ OpenSeesMatlab includes optional features that extend the standard OpenSees
 command workflow. These extensions use the same `ops` interface as native
 commands, but they are implemented and maintained by OpenSeesMatlab.
 
+| If you need to... | Start with |
+|---|---|
+| Retry a difficult nonlinear step without losing its remainder | `adaptiveAnalyze` |
+| Run a component or condensed model in a MATLAB function | `matlabSubstructure` |
+| Define a path-dependent uniaxial material in MATLAB | MATLAB uniaxial material |
+| Solve a large sparse system on an NVIDIA GPU | `CuDSS` |
+
+Use an extension only where it solves a specific problem. An ordinary OpenSees
+command is still the clearest choice for the rest of the model.
+
 ## Adaptive analysis recovery
 
 [`adaptiveAnalyze`][ops.OpenSeesMatlabCmds.adaptiveAnalyze] is a replacement

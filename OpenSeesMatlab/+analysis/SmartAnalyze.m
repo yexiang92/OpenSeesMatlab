@@ -458,6 +458,9 @@ classdef SmartAnalyze < handle
                 obj
                 dt (1,1) double {mustBeFinite, mustBeReal}
             end
+            if dt <= obj.eps_
+                error('SmartAnalyze:InvalidInput', 'Transient step dt must be positive.');
+            end
             obj.requireOps();
             if obj.analysisType ~= "Transient"
                 error('SmartAnalyze:InvalidState', 'Analysis type is not Transient.');
@@ -487,6 +490,9 @@ classdef SmartAnalyze < handle
                 nodeTag (1,1) double {mustBeInteger, mustBePositive}
                 dof     (1,1) double {mustBeInteger, mustBePositive}
                 seg     (1,1) double {mustBeFinite, mustBeReal}
+            end
+            if abs(seg) <= obj.eps_
+                error('SmartAnalyze:InvalidInput', 'Static displacement increment must be nonzero.');
             end
             obj.requireOps();
             if obj.analysisType ~= "Static"
@@ -777,7 +783,10 @@ classdef SmartAnalyze < handle
                 if verbose, fprintf('%s Trying algorithm type %g. ✳️\n', obj.logo, a); end
                 obj.applyAlgorithm(a);
                 ok = obj.analyzeOne(step, verbose, sprintf('tryAlterAlgo:%g', a));
-                if ok == 0, return; end
+                if ok == 0
+                    obj.applyAlgorithm(obj.cfg.algoTypes(1));
+                    return
+                end
             end
             obj.applyAlgorithm(obj.cfg.algoTypes(1));
         end
@@ -818,6 +827,8 @@ classdef SmartAnalyze < handle
             remain   = step;
             stepTry  = step * alpha;
             completed = 0.0;
+            attempts = 0;
+            maxAttempts = 1000;
 
             if verbose
                 fprintf('%s Dividing current step %.3e into %.3e and %.3e. ✳️\n', ...
@@ -825,6 +836,15 @@ classdef SmartAnalyze < handle
             end
 
             while abs(remain) > obj.eps_
+                if attempts >= maxAttempts
+                    if abs(completed) > obj.eps_
+                        obj.flagPartialAdvance(step, completed, remain, stepTry, "maxAttemptsReached");
+                    end
+                    if verbose
+                        fprintf('%s Step relaxation exceeded %d attempts. ❌\n', obj.logo, maxAttempts);
+                    end
+                    return
+                end
                 if abs(stepTry) < minStep
                     if abs(completed) > obj.eps_
                         obj.flagPartialAdvance(step, completed, remain, stepTry, "minStepReached");
@@ -843,6 +863,7 @@ classdef SmartAnalyze < handle
                 if abs(stepTry) > abs(remain), stepTry = remain; end
 
                 ok = obj.analyzeOne(stepTry, verbose, "tryRelaxStep");
+                attempts = attempts + 1;
 
                 if ok == 0
                     remain    = remain - stepTry;
@@ -1086,6 +1107,14 @@ classdef SmartAnalyze < handle
             if isempty(c.UserAlgoArgs), c.UserAlgoArgs = {}; end
             if isempty(c.initialStep) || (isscalar(c.initialStep) && isnan(c.initialStep))
                 c.initialStep = [];
+            end
+            if ~isscalar(c.relaxation) || ~isfinite(c.relaxation) || ...
+                    c.relaxation <= 0 || c.relaxation >= 1
+                error('SmartAnalyze:InvalidInput', ...
+                    'relaxation must be a finite scalar strictly between 0 and 1.');
+            end
+            if ~isscalar(c.minStep) || ~isfinite(c.minStep) || c.minStep <= 0
+                error('SmartAnalyze:InvalidInput', 'minStep must be a positive finite scalar.');
             end
 
             t = double(c.looseTestTolTo(:)).';
