@@ -1,5 +1,19 @@
 # Changes Log
 
+## v3.8.0.3
+
+- Add configurable ODB storage options.
+- Add the ``adaptiveAnalyze`` extension for adaptive nonlinear analysis.
+- Add unified Polyscope rendering and model-label display.
+- Add MVLEM response post-processing and visualization.
+- Add optimized Polyscope response animation.
+- Add unified GUI controls for geometry, appearance, colormaps and colorbars.
+- Add slice-plane intersection contours and a separate 2-D ImPlot contour window.
+- Add ``post.xarray.ResponseDataset`` and ``post.xarray.ResponseArray`` for label-aware response data.
+- Add dot-path response access together with ``sel`` and ``isel`` selection.
+- Add automatic dimensions for node, element, Gauss-point, section and fiber responses.
+- Add C++ FEMData response-schema metadata with MATLAB-side compatibility fallback.
+
 ## v3.8.0.2
 
 - Add MATLAB callback-backed uniaxial materials through ``ops.uniaxialMaterial("MatlabUniaxialMaterial", ...)``. User-defined callbacks can provide stress, tangent and history-dependent state while supporting OpenSees trial, commit and revert semantics for failed-step recovery.

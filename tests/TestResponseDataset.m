@@ -23,7 +23,7 @@ classdef TestResponseDataset < matlab.unittest.TestCase
                 'disp',struct('ux',[1 2;3 4;5 6]));
             ds=post.toResponseDataset(r);
             a=ds.disp.ux;
-            testCase.verifyClass(a,'post.ResponseArray');
+            testCase.verifyClass(a,'post.xarray.ResponseArray');
             testCase.verifyEqual(ds.disp.ux.time,[0;0.5;1]);
             testCase.verifyEqual(ds.disp.ux.time(2),0.5);
             testCase.verifyEqual(ds.disp.ux.node,[10;20]);
@@ -32,7 +32,7 @@ classdef TestResponseDataset < matlab.unittest.TestCase
         function convertsElementComponents(testCase)
             r=struct('time',[0;1],'eleTags',[101;205], ...
                 'force',reshape(1:12,[2 2 3]));
-            ds=post.ResponseDataset.fromStruct(r);
+            ds=post.xarray.ResponseDataset.fromStruct(r);
             a=ds("force");
             testCase.verifyEqual(a.Dimensions,["time","element","component"]);
             testCase.verifyEqual(size(a.sel("element",205).Data),[2 1 3]);
@@ -125,6 +125,62 @@ classdef TestResponseDataset < matlab.unittest.TestCase
                 ["interpolationCell","cellEntry"]);
             testCase.verifyEqual(ds.interpolateDisp.Dimensions, ...
                 ["time","interpolationPoint","component"]);
+        end
+        function resolvesCollidingInternalFieldNames(testCase)
+            r=struct('time',[0;1],'a',struct('b',[1;2]),'a_b',[3;4]);
+            ds=post.toResponseDataset(r);
+            testCase.verifyEqual(ds.a.b.Data,[1;2]);
+            testCase.verifyEqual(ds.a_b.Data,[3;4]);
+            testCase.verifyFalse(isfield(ds.a.b.Attributes,'time'));
+        end
+        function supportsNamedReductionsAndDimensionUtilities(testCase)
+            data=reshape(1:12,[3,2,2]);
+            a=post.xarray.ResponseArray(data,["time","node","component"], ...
+                struct('time',[0;1;2],'node',[10;20],'component',[1;2]),"a",struct());
+            avg=a.mean("time");
+            testCase.verifyEqual(avg.Dimensions,["node","component"]);
+            testCase.verifyEqual(avg.Data,reshape(mean(data,1),[2,2]));
+            total=a.sum("component");
+            testCase.verifyEqual(total.Dimensions,["time","node"]);
+            testCase.verifyEqual(total.Data,reshape(sum(data,3),[3,2]));
+            transposed=a.transpose(["component","node","time"]);
+            testCase.verifyEqual(transposed.Data,permute(data,[3,2,1]));
+            testCase.verifyEqual(transposed.sizes().component,2);
+            renamed=a.renameDimension("node","joint").assignCoordinates("joint",[100;200]);
+            testCase.verifyEqual(renamed.joint,[100;200]);
+            testCase.verifyEqual(a.coordinate("node"),[10;20]);
+        end
+        function supportsSqueezeWhereAndScalarReduction(testCase)
+            a=post.xarray.ResponseArray(reshape(1:4,[4,1,1]), ...
+                ["time","element","section"], ...
+                struct('time',(1:4).','element',1,'section',1),"a",struct());
+            compact=a.squeeze();
+            testCase.verifyEqual(compact.Dimensions,"time");
+            testCase.verifyEqual(compact.Data,(1:4).');
+            masked=compact.where(compact.Data>2,-1);
+            testCase.verifyEqual(masked.Data,[-1;-1;3;4]);
+            replaced=compact.where(compact.Data>2,(11:14).');
+            testCase.verifyEqual(replaced.Data,[11;12;3;4]);
+            scalar=compact.mean("time");
+            testCase.verifyEmpty(scalar.Dimensions);
+            testCase.verifyEqual(scalar.Data,2.5);
+            testCase.verifyEqual(scalar.toTable().a,2.5);
+        end
+        function supportsDatasetWideSelectionAndReduction(testCase)
+            r=struct('time',[0;1;2],'nodeTags',[10;20], ...
+                'disp',struct('ux',[1 2;3 4;5 6]),'history',[7;8;9]);
+            ds=post.toResponseDataset(r);
+            selected=ds.sel("node",20,"time",1);
+            testCase.verifyEqual(selected.disp.ux.Data,4);
+            testCase.verifyEqual(selected.history.Data,8);
+            averaged=ds.mean("time");
+            testCase.verifyEqual(averaged.disp.ux.Data,[3;4]);
+            testCase.verifyEqual(averaged.history.Data,8);
+            testCase.verifyError(@() ds.sel("missing",1), ...
+                'post:xarray:ResponseDataset:UnknownDimension');
+            renamed=ds.renameDimension("node","joint").assignCoordinates("joint",[1;2]);
+            testCase.verifyEqual(renamed.disp.ux.Dimensions,["time","joint"]);
+            testCase.verifyEqual(renamed.disp.ux.joint,[1;2]);
         end
     end
 end

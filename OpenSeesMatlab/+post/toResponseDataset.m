@@ -13,7 +13,7 @@ if wasArray, merged = post.utils.ResponseStructTransformer.merge(response);
 else, merged = response;
 end
 
-meta = {'odbTag','eleType','time','nodeTags','eleTags','responseSchema'};
+meta = {'odbTag','eleType'};
 attrs = struct('segmentCount', numel(response), 'mergedSegments', wasArray);
 for i=1:numel(meta)
     if isfield(merged,meta{i}), attrs.(meta{i})=merged.(meta{i}); end
@@ -28,7 +28,8 @@ variables=struct(); paths=strings(0,1);
 sourceType="response";
 if isfield(merged,'nodeTags') && ~isfield(merged,'eleTags'), sourceType="nodal"; end
 if isfield(merged,'eleTags'), sourceType="element"; end
-ds=post.ResponseDataset(variables,paths,attrs,sourceType);
+variableKeys=string(fieldnames(variables));
+ds=post.xarray.ResponseDataset(variables,paths,attrs,sourceType,variableKeys);
 end
 
 function [variables,paths]=collect_(s,prefix,coords,attrs,variables,paths,schema)
@@ -58,9 +59,13 @@ for i=1:numel(names)
             varCoords=coordinates_(dims,value,coords,localDofs);
         end
         base=matlab.lang.makeValidName(char(replace(path,'.','_')));
-        key=matlab.lang.makeUniqueStrings(base,fieldnames(variables));
+        key=base; suffix=1;
+        while isfield(variables,key)
+            suffix=suffix+1; key=base+"_"+suffix;
+        end
+        key=char(key);
         varAttrs=attrs; varAttrs.path=path;
-        variables.(key)=post.ResponseArray(value,dims,varCoords,path,varAttrs);
+        variables.(key)=post.xarray.ResponseArray(value,dims,varCoords,path,varAttrs);
         paths(end+1,1)=path; %#ok<AGROW>
     end
 end

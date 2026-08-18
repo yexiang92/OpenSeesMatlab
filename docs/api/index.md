@@ -107,6 +107,9 @@ Data recording, retrieval, and export.
 **Data structures:**
 - Scalar struct: single stage, fixed topology
 - Struct array: multi-stage, each element covers a contiguous time block
+- [`ResponseArray` and `ResponseDataset`](ResponseArrayDataset.md): optional
+  label-aware response views with named dimensions, coordinates, selection,
+  reductions, and dimension operations
 
 ---
 
@@ -194,6 +197,7 @@ General helper functions.
 - [OpenSeesMatlabCmds](OpenSeesMatlabCmds.md) — Native commands
 - [OpenSeesMatlabPre](OpenSeesMatlabPre.md) — Preprocessing
 - [OpenSeesMatlabPost](OpenSeesMatlabPost.md) — Post-processing
+- [ResponseArray and ResponseDataset](ResponseArrayDataset.md) — Label-aware response data
 - [OpenSeesMatlabVis](OpenSeesMatlabVis.md) — Visualization
 - [OpenSeesMatlabVisPolyscope](OpenSeesMatlabVisPolyscope.md) — Interactive Polyscope visualization
 - [OpenSeesMatlabAnalysis](OpenSeesMatlabAnalysis.md) — Analysis utilities
