@@ -106,6 +106,7 @@ if runPushoverExample
     ops.wipe();
 end
 % Time-history analysis
+% [acc_1.txt](../../utils/acc_1.txt)
 
 if runTimeHistoryExample
     data = build_model(ops, outputDir);

@@ -13,7 +13,6 @@
 % 
 
 clc; clear; close all;
-
 opsm = OpenSeesMatlab();
 ops = opsm.opensees;
 % Model
@@ -549,7 +548,7 @@ ops.analysis('Static');
 ops.analyze(3);   % Automatically write data to the ODB.
 fprintf('Soil gravity nonlinear analysis completed.\n');
 % Seismic analysis
-% [elcentro.txt](../utils/elcentro.txt)   
+% [elcentro.txt](../../utils/elcentro.txt)   
 
 
 %% ------------------------------------------------------------------------
@@ -596,13 +595,13 @@ opsm.post.writeResponsePVD("myODB");
 % Note that when you set variables to display colors, you need to rescale the 
 % color bar range to cover the current time step or all time steps.
 % 
-% ![](../utils/paraview-soil-structure.png)
+% 
 % 
 % If you want to display a vector graphic, please click ``filter - common - 
 % Calculator - disp/vel/accel...``, and on  Calculator to ``filter - common - 
 % Glyph - disp/vel/accel...`
 % 
-% ![](../utils/paraview-soil-structure-vector.png)
+% 
 % Element responses
 
 frameResp = opsm.post.getElementResponse("myODB", eleType="Frame");

@@ -334,11 +334,11 @@ opsMAT.post.writeResponsePVD("myODB");
 %% 
 % 
 % 
-% ![](../utils/paraview-excavation-node-resp.png)
 % 
 % 
 % 
-% ![](../utils/paraview-excavation-plane-resp.png)
+% 
+% 
 % 
 % 
 % Transform data

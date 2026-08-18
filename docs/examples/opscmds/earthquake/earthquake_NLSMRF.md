@@ -36,6 +36,9 @@ g  = 9.81*(m/sec^2);     % gravitational acceleration
 ```
 
 ## Earthquake record
+
+[RSN960\_NORTHR\_LOS270.AT2](../../utils/RSN960\_NORTHR\_LOS270.AT2)
+
 ```matlab
 %% ------------------------------------------------------------------------
 %  Earthquake record

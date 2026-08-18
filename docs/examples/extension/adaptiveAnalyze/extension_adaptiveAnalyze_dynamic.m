@@ -339,6 +339,7 @@ ops.wipe();
 % Local functions
 
 
+%%
 function [time, displacement] = runFixedAnalysis( ...
     ops, p, dt, algorithm, tolerance, maxIterations)
 %RUNFIXEDANALYSIS Run an ordinary fixed-step transient analysis.
