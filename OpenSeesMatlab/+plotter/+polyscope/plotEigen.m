@@ -124,6 +124,7 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             S = obj.computeScalarField_(Uraw);
 
             obj.updateStructures_(Pdef, S);
+            obj.updateSliceVisualization_();
             obj.updateProgramName_();
 
             if isfield(obj.gui_, 'modeIdx')
@@ -207,6 +208,73 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             obj.gui_.modelStats = obj.computeModelStats_();
 
             obj.initSliceGuiState_();
+        end
+
+        function updateSliceVisualization_(obj)
+            if ~obj.built_ || ~isfield(obj.Opts, 'slice') || ...
+                    ~isfield(obj.Opts.slice, 'planes')
+                return;
+            end
+            handleNames = fieldnames(obj.handles_);
+            for k = 1:numel(handleNames)
+                if startsWith(handleNames{k}, 'SliceContour_')
+                    try, obj.handles_.(handleNames{k}).set_enabled(false); catch, end
+                end
+            end
+            if ~obj.Opts.color.useColormap, return; end
+            [Uraw, scale] = obj.computeModeDisplacement_(obj.currentIdx_);
+            Pdef = obj.P0_ + scale * Uraw;
+            Snode = obj.computeScalarField_(Uraw);
+            scalarOpts = obj.scalarOpts_();
+            ps = obj.App.polyscopeHandle();
+            for i = 1:numel(obj.Opts.slice.planes)
+                p = obj.Opts.slice.planes(i);
+                if ~logical(obj.getOptField_(p, 'show', false)) || ...
+                        ~logical(obj.getOptField_(p, 'showContour', false))
+                    continue;
+                end
+                V = zeros(0, 3); F = zeros(0, 3); C = zeros(0, 1);
+                BV = zeros(0, 3); BE = zeros(0, 2);
+                center = obj.resolveSliceCenterForPlane_(p);
+                normal = obj.getOptField_(p, 'normal', [0, 0, 1]);
+                if obj.hasElementClasses_()
+                    groups = obj.classData_;
+                else
+                    groups = obj.surfData_;
+                end
+                names = fieldnames(groups);
+                for k = 1:numel(names)
+                    data = groups.(names{k});
+                    if ~isfield(data, 'kind') || ~strcmp(data.kind, 'volume')
+                        continue;
+                    end
+                    [Vk, Fk, Ck, BVk, BEk] = ...
+                        plotter.polyscope.SliceContourBuilder.build(Pdef, ...
+                        data.cellTypes, data.cells, Snode, center, normal);
+                    F = [F; Fk + size(V, 1)]; V = [V; Vk]; C = [C; Ck]; %#ok<AGROW>
+                    BE = [BE; BEk + size(BV, 1)]; BV = [BV; BVk]; %#ok<AGROW>
+                end
+                mapIdx = find(strcmp(scalarOpts, 'map_range'), 1);
+                clim = [];
+                if ~isempty(mapIdx), clim = scalarOpts{mapIdx + 1}; end
+                obj.cacheSlicePlotData_(i, V, F, C, center, normal, clim);
+                if isempty(F), continue; end
+                field = sprintf('SliceContour_%d', i);
+                meshName = obj.structName_(sprintf('Slice contour %d', i), 'def');
+                h = ps.register_surface_mesh(meshName, V, F, 'smooth_shade', false);
+                h.set_enabled(true);
+                qargs = {'enabled', true, 'color_map', scalarOpts{2}};
+                if ~isempty(mapIdx), qargs = [qargs, scalarOpts(mapIdx:mapIdx+1)]; end
+                h.add_vertex_scalar_quantity('mode', C, qargs{:});
+                obj.handles_.(field) = h;
+                if logical(obj.getOptField_(p, 'showContourEdges', true)) && ~isempty(BE)
+                    he = ps.register_curve_network([meshName ' boundary'], BV, BE);
+                    he.set_enabled(true);
+                    he.set_color(obj.asRgb_(obj.getOptField_(p, 'gridColor', [1, 1, 1])));
+                    try, he.set_radius(obj.Opts.polyscope.edgeRadius * 0.7, true); catch, end
+                    obj.handles_.([field '_Edges']) = he;
+                end
+            end
         end
 
         function cb = colorbarArgs_(obj)
@@ -884,13 +952,28 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 end
             end
 
-            lineNames = plotter.polyscope.ModelAdapter.lineFamilyNames();
             hasLine = false;
-            for k = 1:numel(lineNames)
-                hName = ['def_' lineNames{k}];
-                if isfield(obj.handles_, hName)
-                    hasLine = true;
-                    obj.handles_.(hName).set_enabled(obj.Opts.line.show);
+            if obj.hasElementClasses_()
+                classNames = fieldnames(obj.classData_);
+                for k = 1:numel(classNames)
+                    data = obj.classData_.(classNames{k});
+                    if ~isfield(data, 'kind') || ~strcmp(data.kind, 'line')
+                        continue;
+                    end
+                    hName = ['def_' classNames{k}];
+                    if isfield(obj.handles_, hName)
+                        hasLine = true;
+                        obj.handles_.(hName).set_enabled(obj.Opts.line.show);
+                    end
+                end
+            else
+                lineNames = plotter.polyscope.ModelAdapter.lineFamilyNames();
+                for k = 1:numel(lineNames)
+                    hName = ['def_' lineNames{k}];
+                    if isfield(obj.handles_, hName)
+                        hasLine = true;
+                        obj.handles_.(hName).set_enabled(obj.Opts.line.show);
+                    end
                 end
             end
             if obj.Opts.line.show && ~hasLine
@@ -1279,7 +1362,8 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 if tf ~= obj.gui_.showUndeformed
                     obj.gui_.showUndeformed = tf;
                     obj.Opts.mode.showUndeformed = tf;
-                    needsRebuild = needsRebuild || obj.applyVisibility_();
+                    visibilityRebuild = obj.applyVisibility_();
+                    needsRebuild = needsRebuild || visibilityRebuild;
                 end
                 representations = {'surface / solid','wireframe'};
                 representationIdx = 1 + double(obj.gui_.wireframe);
@@ -1309,7 +1393,8 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 if tf ~= obj.gui_.showLines
                     obj.gui_.showLines = tf;
                     obj.Opts.line.show = tf;
-                    needsRebuild = needsRebuild || obj.applyVisibility_();
+                    visibilityRebuild = obj.applyVisibility_();
+                    needsRebuild = needsRebuild || visibilityRebuild;
                 end
                 tf = GB.checkbox('Surfaces', obj.gui_.showSurfaces);
                 if tf ~= obj.gui_.showSurfaces
@@ -1327,13 +1412,15 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 if tf ~= obj.gui_.showNodes
                     obj.gui_.showNodes = tf;
                     obj.Opts.nodes.show = tf;
-                    needsRebuild = needsRebuild || obj.applyVisibility_();
+                    visibilityRebuild = obj.applyVisibility_();
+                    needsRebuild = needsRebuild || visibilityRebuild;
                 end
                 tf = GB.checkbox('Fixed nodes', obj.gui_.showFixed);
                 if tf ~= obj.gui_.showFixed
                     obj.gui_.showFixed = tf;
                     obj.Opts.fixed.show = tf;
-                    needsRebuild = needsRebuild || obj.applyVisibility_();
+                    visibilityRebuild = obj.applyVisibility_();
+                    needsRebuild = needsRebuild || visibilityRebuild;
                 end
                 GB.sameLine();
                 fixedScale = GB.sliderFloat('Size##eigen_fixed_symbol', ...
@@ -1347,7 +1434,8 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 if tf ~= obj.gui_.showMP
                     obj.gui_.showMP = tf;
                     obj.Opts.mpConstraint.show = tf;
-                    needsRebuild = needsRebuild || obj.applyVisibility_();
+                    visibilityRebuild = obj.applyVisibility_();
+                    needsRebuild = needsRebuild || visibilityRebuild;
                 end
                 end
 
@@ -1454,6 +1542,7 @@ classdef plotEigen < plotter.polyscope.ViewerBase
                 end
 
                 obj.drawModeInfoWindow_();
+                obj.drawSlicePlotWindows_();
                 obj.drawScreenAxesOverlay_();
                 obj.updateScreenAxes3D_();
 

@@ -104,8 +104,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
             sliceDirty = false;
             obj.drawPlotThemeGui_('##model');
 
-            % View
-            if GB.collapsingHeader('View', int32(0))
+            % View and render quality
+            if GB.collapsingHeader('View & Quality', int32(0))
                 GB.subtitle('Camera');
                 views = obj.viewNames_();
                 idx = GB.combo('Preset', obj.gui_.viewIdx, views);
@@ -128,6 +128,9 @@ classdef plotModel < plotter.polyscope.ViewerBase
                     obj.gui_.showModelInfo = tf;
                     obj.Opts.polyscope.showModelInfo = tf;
                 end
+                GB.separator();
+                GB.subtitle('Render quality');
+                obj.drawSsaaGui_('##model_view_quality');
             end
 
             % Style & Colors
@@ -219,7 +222,7 @@ classdef plotModel < plotter.polyscope.ViewerBase
             obj.gui_.colorsPanelOpenLast=colorsOpen;
 
             % Display toggles
-            if GB.collapsingHeader('Display', int32(0))
+            if GB.collapsingHeader('Geometry', int32(0))
                 GB.subtitle('Element rendering');
                 representation = {'surface / solid','wireframe'};
                 representationIdx = 1 + double(obj.gui_.wireframeOnly);
@@ -528,13 +531,6 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 obj.gui_.appearancePanelOpenLast=true;
             else
                 obj.gui_.appearancePanelOpenLast=appearanceOpen;
-            end
-
-            % Render quality
-            if GB.collapsingHeader('Render quality', int32(0))
-                GB.subtitle('Anti-aliasing');
-                obj.drawSsaaGui_();
-                GB.separator();
             end
 
             % Actions

@@ -98,6 +98,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.setStep(obj.currentStep_, true);
             obj.registerSlicePlanes_();
             obj.applySliceCullWholeElements_();
+            obj.updateSliceVisualization_();
             if firstBuild
                 obj.setCameraForPoints_(obj.P0_, obj.Opts.general.view);
             end
@@ -216,6 +217,69 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 obj.getOptField_(obj.gui_, 'fps', 12), obj.nSteps_);
             configureAnimationRenderLoop_@plotter.polyscope.ViewerBase(obj, isRunning, fps);
         end
+
+        function updateSliceVisualization_(obj)
+            if ~obj.built_ || obj.currentSeg_ < 1 || ...
+                    ~isfield(obj.Opts, 'slice') || ~isfield(obj.Opts.slice, 'planes')
+                return;
+            end
+            handleNames = fieldnames(obj.handles_);
+            for k = 1:numel(handleNames)
+                if startsWith(handleNames{k}, 'SliceContour_')
+                    try, obj.handles_.(handleNames{k}).set_enabled(false); catch, end
+                end
+            end
+            [Snode, clim] = obj.scalarField_(obj.currentSeg_, obj.currentLocalStep_);
+            if isempty(Snode), return; end
+            Pbase = obj.nodeCoords_(obj.currentSeg_);
+            [Pdef, ~, scale] = obj.deformedCoords_(Pbase, obj.currentSeg_, obj.currentLocalStep_);
+            Pdef = obj.interpAdjustedNodeCoords_(Pbase, Pdef, obj.currentSeg_, ...
+                obj.currentLocalStep_, scale);
+            ps = obj.App.polyscopeHandle();
+            planes = obj.Opts.slice.planes;
+            for i = 1:numel(planes)
+                p = planes(i);
+                if ~logical(obj.getOptField_(p, 'show', false)) || ...
+                        ~logical(obj.getOptField_(p, 'showContour', false))
+                    continue;
+                end
+                center = obj.resolveSliceCenterForPlane_(p);
+                normal = obj.getOptField_(p, 'normal', [0, 0, 1]);
+                V = zeros(0, 3); F = zeros(0, 3); C = zeros(0, 1);
+                BV = zeros(0, 3); BE = zeros(0, 2);
+                families = fieldnames(obj.volumeData_);
+                for k = 1:numel(families)
+                    data = obj.volumeData_.(families{k});
+                    [Vk, Fk, Ck, BVk, BEk] = ...
+                        plotter.polyscope.SliceContourBuilder.build(Pdef, ...
+                        data.cellTypes, data.cells, Snode, center, normal);
+                    F = [F; Fk + size(V, 1)]; %#ok<AGROW>
+                    V = [V; Vk]; C = [C; Ck]; %#ok<AGROW>
+                    BE = [BE; BEk + size(BV, 1)]; %#ok<AGROW>
+                    BV = [BV; BVk]; %#ok<AGROW>
+                end
+                obj.cacheSlicePlotData_(i, V, F, C, center, normal, clim);
+                if isempty(F), continue; end
+                field = sprintf('SliceContour_%d', i);
+                meshName = obj.structName_(sprintf('Slice contour %d', i), 'def');
+                h = ps.register_surface_mesh(meshName, V, F, 'smooth_shade', false);
+                h.set_enabled(true);
+                qargs = {'enabled', true, 'color_map', char(string(obj.Opts.polyscope.scalarColorMap))};
+                if numel(clim) == 2 && all(isfinite(clim))
+                    qargs = [qargs, {'map_range', double(clim(:).')}];
+                end
+                h.add_vertex_scalar_quantity(obj.scalarQuantityName_(), C, qargs{:});
+                obj.handles_.(field) = h;
+                edgeField = [field '_Edges'];
+                if logical(obj.getOptField_(p, 'showContourEdges', true)) && ~isempty(BE)
+                    he = ps.register_curve_network([meshName ' boundary'], BV, BE);
+                    he.set_enabled(true);
+                    he.set_color(obj.asRgb_(obj.getOptField_(p, 'gridColor', [1, 1, 1])));
+                    try, he.set_radius(obj.Opts.polyscope.edgeRadius * 0.7, true); catch, end
+                    obj.handles_.(edgeField) = he;
+                end
+            end
+        end
     end
 
     methods
@@ -260,9 +324,24 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 end
 
                 GB.separator();
-                if GB.collapsingHeader('Style', int32(0))
-                    [scalarChanged, ~] = obj.drawStyleGui_();
-                    needsUpdate = needsUpdate || scalarChanged;
+                if GB.collapsingHeader('Appearance', int32(0))
+                    obj.drawAppearanceGui_();
+                end
+
+                GB.separator();
+                if GB.collapsingHeader('Colormap & Colorbar', int32(0))
+                    colormapChanged = obj.drawColormapGui_();
+                    needsUpdate = needsUpdate || colormapChanged;
+                end
+
+                GB.separator();
+                if GB.collapsingHeader('View & Quality', int32(0))
+                    obj.drawViewQualityGui_();
+                end
+
+                GB.separator();
+                if obj.drawSlicePlaneGui_('##response')
+                    obj.applySlicePlane_();
                 end
 
                 GB.separator();
@@ -270,11 +349,6 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                     if obj.drawAnimationGui_()
                         needsUpdate = true;
                     end
-                end
-
-                GB.separator();
-                if obj.drawSlicePlaneGui_('##response')
-                    obj.applySlicePlane_();
                 end
 
                 GB.separator();
@@ -293,6 +367,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 if isfield(obj.gui_, 'showHistory') && obj.gui_.showHistory
                     obj.drawNodeHistoryWindow_(ws);
                 end
+                obj.drawSlicePlotWindows_();
 
                 if needsRebuild
                     obj.setStep(obj.currentStep_, true);
@@ -696,10 +771,6 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.vectorAuto = GB.checkbox('Vector auto scale', obj.gui_.vectorAuto);
             obj.gui_.vectorScale = GB.sliderFloat('Vector scale', obj.gui_.vectorScale, 0, 2);
 
-            GB.separator();
-            GB.subtitle('Render quality');
-            obj.drawSsaaGui_('##nodal_geometry');
-
             obj.syncOptsFromGui_();
             visibilityChanged = obj.guiChanged_(oldState, {'showLines','showSurfaces', ...
                 'showSurfaceEdges','surfaceRenderModeIdx','showNodes','showFixed','showMP', ...
@@ -712,10 +783,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             end
         end
 
-        function [scalarChanged, styleChanged] = drawStyleGui_(obj)
+        function scalarChanged = drawColormapGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             oldState = obj.gui_;
-            GB.subtitle('Colormap && Colorbar');
             obj.gui_.useColormap = GB.checkbox('Use colormap##style', obj.gui_.useColormap);
             cmapNames = obj.colormapNames_();
             obj.gui_.cmapIdx = GB.combo('Colormap##style', obj.gui_.cmapIdx, cmapNames);
@@ -731,8 +801,17 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 colorbarChanged = obj.drawColorbarGui_('##style', true);
             end
 
-            GB.separator();
-            GB.subtitle('Appearance');
+            obj.syncOptsFromGui_();
+            scalarChanged = obj.guiChanged_(oldState, ...
+                {'useColormap','cmapIdx','climIdx'}) || colorbarChanged;
+            if scalarChanged
+                obj.invalidateClimCache_();
+            end
+        end
+
+        function styleChanged = drawAppearanceGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            oldState = obj.gui_;
             [changed, obj.gui_.solidColor] = GB.colorEdit3('Solid color', obj.gui_.solidColor);
             obj.gui_.solidColor = obj.asRgb_(obj.gui_.solidColor);
             if changed, obj.Opts.color.solidColor = obj.gui_.solidColor; end
@@ -749,8 +828,17 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.nodeRadius = GB.sliderFloat('Node radius', obj.gui_.nodeRadius, 0.0003, 0.012);
             obj.gui_.vectorRadius = GB.sliderFloat('Vector radius', obj.gui_.vectorRadius, 0.0002, 0.006);
 
-            GB.separator();
-            GB.subtitle('View');
+            obj.syncOptsFromGui_();
+            styleChanged = obj.guiChanged_(oldState, {'solidColor','ghostColor', ...
+                'vectorColor','deformedAlpha','undeformedAlpha','edgeRadius','nodeRadius','vectorRadius'});
+            if styleChanged
+                obj.applyStyle_();
+            end
+        end
+
+        function drawViewQualityGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            GB.subtitle('Camera');
             views = obj.viewNames_();
             obj.gui_.viewIdx = GB.combo('View', obj.gui_.viewIdx, views);
             if GB.button('Apply view')
@@ -762,17 +850,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 obj.syncOptsFromGui_();
                 obj.setStep(obj.currentStep_, true);
             end
-            obj.syncOptsFromGui_();
-            styleChanged = obj.guiChanged_(oldState, {'solidColor','ghostColor', ...
-                'vectorColor','deformedAlpha','undeformedAlpha','edgeRadius','nodeRadius','vectorRadius'});
-            scalarChanged = obj.guiChanged_(oldState, ...
-                {'useColormap','cmapIdx','climIdx'}) || colorbarChanged;
-            if styleChanged
-                obj.applyStyle_();
-            end
-            if scalarChanged
-                obj.invalidateClimCache_();
-            end
+            GB.separator();
+            GB.subtitle('Render quality');
+            obj.drawSsaaGui_('##nodal_view_quality');
         end
 
         function registerSegment_(obj, segIdx)
@@ -1146,6 +1226,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.updateNodeStructures_(Pdef, Snode, qargs, segIdx, scalarName);
             obj.updateVectorStructure_(Pdef, segIdx, localStep);
             obj.applyVisibility_();
+            obj.updateSliceVisualization_();
 
             if scale > 0 && obj.Opts.deform.show
                 obj.App.polyscopeHandle().set_program_name(sprintf('OpenSeesMatlab | Nodal response | step %d | scale %.4g', obj.currentStep_, scale));

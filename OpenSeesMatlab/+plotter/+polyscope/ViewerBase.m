@@ -34,6 +34,7 @@ classdef (Abstract) ViewerBase < handle
         videoFps_ double = 12
         videoStatus_ char = ''
         lastGuiCallbackError_ char = ''
+        slicePlotData_ struct = struct()
     end
 
     methods
@@ -616,7 +617,8 @@ classdef (Abstract) ViewerBase < handle
                        'center', [0, 0, 0], 'normal', [0, 0, 1], ...
                        'widgetSize', 0.75, 'transparency', 0.45, ...
                        'color', [0.90, 0.35, 0.55], 'gridColor', [1, 1, 1], ...
-                       'cullWholeElements', false);
+                       'cullWholeElements', false, 'showContour', false, ...
+                       'showContourEdges', true, 'showContourWindow', false);
         end
 
         function g = slicePlaneOptsToGui_(obj, p)
@@ -635,6 +637,9 @@ classdef (Abstract) ViewerBase < handle
             g.color = plotter.polyscope.utils.colorToRgb(obj.getOptField_(p, 'color', [0.90, 0.35, 0.55]));
             g.gridColor = plotter.polyscope.utils.colorToRgb(obj.getOptField_(p, 'gridColor', [1, 1, 1]));
             g.cullWholeElements = logical(obj.getOptField_(p, 'cullWholeElements', false));
+            g.showContour = logical(obj.getOptField_(p, 'showContour', false));
+            g.showContourEdges = logical(obj.getOptField_(p, 'showContourEdges', true));
+            g.showContourWindow = logical(obj.getOptField_(p, 'showContourWindow', false));
         end
 
         function normalizeSliceOpts_(obj)
@@ -655,7 +660,10 @@ classdef (Abstract) ViewerBase < handle
                               'color', [0.90, 0.35, 0.55], ...
                               'gridColor', [1, 1, 1], ...
                               'transparency', 0.45, ...
-                              'cullWholeElements', false);
+                              'cullWholeElements', false, ...
+                              'showContour', false, ...
+                              'showContourEdges', true, ...
+                              'showContourWindow', false);
             fields = fieldnames(defaults);
             % Legacy scalar slice options -> wrap into planes(1)
             if ~isfield(s, 'planes')
@@ -1535,6 +1543,7 @@ classdef (Abstract) ViewerBase < handle
             end
             obj.registerSlicePlanes_();
             obj.applySliceCullWholeElements_();
+            obj.updateSliceVisualization_();
             try
                 obj.App.polyscopeHandle().request_redraw();
             catch
@@ -1655,6 +1664,25 @@ classdef (Abstract) ViewerBase < handle
             if tf ~= g.cullWholeElements
                 g.cullWholeElements = tf;
                 sliceDirty = true;
+            end
+            tf = GB.checkbox(['Filled contour##slice_contour' tag], g.showContour);
+            if tf ~= g.showContour
+                g.showContour = tf;
+                sliceDirty = true;
+            end
+            if g.showContour
+                GB.sameLine();
+                tf = GB.checkbox(['Boundary##slice_contour_edges' tag], g.showContourEdges);
+                if tf ~= g.showContourEdges
+                    g.showContourEdges = tf;
+                    sliceDirty = true;
+                end
+                GB.helpMarker('Intersects supported 3-D solid elements and interpolates the active nodal scalar field on the cut surface.');
+                tf = GB.checkbox(['2-D ImPlot window##slice_contour_window' tag], g.showContourWindow);
+                if tf ~= g.showContourWindow
+                    g.showContourWindow = tf;
+                    sliceDirty = true;
+                end
             end
             % Write back
             obj.gui_.slicePlanes(idx) = g;
@@ -1948,7 +1976,10 @@ classdef (Abstract) ViewerBase < handle
                                   'color', [0.90, 0.35, 0.55], ...
                                   'gridColor', [1, 1, 1], ...
                                   'transparency', 0.45, ...
-                                  'cullWholeElements', false);
+                                  'cullWholeElements', false, ...
+                                  'showContour', false, ...
+                                  'showContourEdges', true, ...
+                                  'showContourWindow', false);
                 newPlane = defaults;
                 newIdx = 1;
             else
@@ -2006,7 +2037,181 @@ classdef (Abstract) ViewerBase < handle
             p.color = g.color;
             p.gridColor = g.gridColor;
             p.cullWholeElements = g.cullWholeElements;
+            p.showContour = g.showContour;
+            p.showContourEdges = g.showContourEdges;
+            p.showContourWindow = g.showContourWindow;
             obj.Opts.slice.planes(idx) = p;
+        end
+
+        function updateSliceVisualization_(~)
+            % Optional subclass hook for generated slice intersections.
+        end
+
+        function cacheSlicePlotData_(obj, idx, V, F, values, center, normal, clim)
+            field = sprintf('Plane_%d', idx);
+            data = struct('uv', zeros(0, 2), 'faces', zeros(0, 3), ...
+                'values', zeros(0, 1), 'heatmap', zeros(0, 1), ...
+                'heatmapSize', [0 0], 'boundaryX', [], 'boundaryY', [], ...
+                'contourLevels', [], 'contourX', {{}}, 'contourY', {{}}, ...
+                'bounds', [0 0 1 1], ...
+                'clim', double(clim(:)).', 'cmap', char(string( ...
+                obj.getOptField_(obj.Opts.polyscope, 'scalarColorMap', 'coolwarm'))));
+            if isempty(F), obj.slicePlotData_.(field) = data; return; end
+            normal = double(normal(:)).'; normal = normal / max(norm(normal), eps);
+            [~, axisIdx] = min(abs(normal));
+            seed = zeros(1, 3); seed(axisIdx) = 1;
+            u = cross(normal, seed); u = u / max(norm(u), eps);
+            v = cross(normal, u);
+            Q = double(V) - double(center(:)).';
+            uv = [Q * u(:), Q * v(:)];
+            mn = min(uv, [], 1); mx = max(uv, [], 1);
+            span = mx - mn;
+            flat = span <= eps;
+            mn(flat) = mn(flat) - 0.5;
+            mx(flat) = mx(flat) + 0.5;
+            mergeTol = max(norm(mx - mn), 1) * 1e-9;
+            [~, ~, vertexMap] = unique(round(uv / mergeTol), 'rows', 'stable');
+            nVertex = max(vertexMap);
+            uvMerged = [accumarray(vertexMap, uv(:,1), [nVertex 1], @mean), ...
+                        accumarray(vertexMap, uv(:,2), [nVertex 1], @mean)];
+            c0 = double(values(:));
+            c0(~isfinite(c0)) = 0;
+            valuesMerged = accumarray(vertexMap, c0, [nVertex 1], @mean);
+            facesMerged = reshape(vertexMap(double(F)), size(F));
+            facesMerged = facesMerged(facesMerged(:,1) ~= facesMerged(:,2) & ...
+                facesMerged(:,2) ~= facesMerged(:,3) & ...
+                facesMerged(:,3) ~= facesMerged(:,1), :);
+            if ~isempty(facesMerged)
+                [~, keepFaces] = unique(sort(facesMerged, 2), 'rows', 'stable');
+                facesMerged = facesMerged(sort(keepFaces), :);
+            end
+            data.uv = uvMerged;
+            data.faces = facesMerged;
+            data.values = valuesMerged;
+            data.bounds = [mn(1), mn(2), mx(1), mx(2)];
+            if numel(data.clim) ~= 2 || ~all(isfinite(data.clim))
+                finite = data.values(isfinite(data.values));
+                if isempty(finite), data.clim = [0 1]; else, data.clim = [min(finite), max(finite)]; end
+            end
+            if data.clim(1) == data.clim(2), data.clim(2) = data.clim(1) + eps; end
+            try
+                tr = triangulation(data.faces, data.uv);
+                boundary = freeBoundary(tr);
+                data.boundaryX = reshape([data.uv(boundary(:,1),1), ...
+                    data.uv(boundary(:,2),1), nan(size(boundary,1),1)].', [], 1);
+                data.boundaryY = reshape([data.uv(boundary(:,1),2), ...
+                    data.uv(boundary(:,2),2), nan(size(boundary,1),1)].', [], 1);
+            catch
+            end
+            data.contourLevels = linspace(data.clim(1), data.clim(2), 14);
+            data.contourX = cell(size(data.contourLevels));
+            data.contourY = cell(size(data.contourLevels));
+            edgePairs = [1 2; 2 3; 3 1];
+            for il = 1:numel(data.contourLevels)
+                level = data.contourLevels(il);
+                xs = zeros(0, 1); ys = zeros(0, 1);
+                for it = 1:size(data.faces, 1)
+                    ids = data.faces(it, :);
+                    c = data.values(ids);
+                    q = data.uv(ids, :);
+                    hits = zeros(0, 2);
+                    for ie = 1:3
+                        a = edgePairs(ie, 1); b = edgePairs(ie, 2);
+                        ca = c(a); cb = c(b);
+                        if ~isfinite(ca) || ~isfinite(cb) || ca == cb, continue; end
+                        if level < min(ca, cb) || level > max(ca, cb), continue; end
+                        t = (level - ca) / (cb - ca);
+                        hits(end+1, :) = q(a, :) + t * (q(b, :) - q(a, :)); %#ok<AGROW>
+                    end
+                    if size(hits, 1) >= 2
+                        xs = [xs; hits(1,1); hits(2,1); NaN]; %#ok<AGROW>
+                        ys = [ys; hits(1,2); hits(2,2); NaN]; %#ok<AGROW>
+                    end
+                end
+                data.contourX{il} = xs;
+                data.contourY{il} = ys;
+            end
+            obj.slicePlotData_.(field) = data;
+        end
+
+        function drawSlicePlotWindows_(obj)
+            if ~isfield(obj.Opts, 'slice') || ~isfield(obj.Opts.slice, 'planes'), return; end
+            GB = plotter.polyscope.GuiBuilder;
+            for i = 1:numel(obj.Opts.slice.planes)
+                p = obj.Opts.slice.planes(i);
+                if ~logical(obj.getOptField_(p, 'show', false)) || ...
+                        ~logical(obj.getOptField_(p, 'showContour', false)) || ...
+                        ~logical(obj.getOptField_(p, 'showContourWindow', false))
+                    continue;
+                end
+                field = sprintf('Plane_%d', i);
+                if ~isfield(obj.slicePlotData_, field) || isempty(obj.slicePlotData_.(field).faces), continue; end
+                d = obj.slicePlotData_.(field);
+                GB.begin(sprintf('Slice contour | %s##slice_plot_%d', ...
+                    char(string(p.name)), i), [30 + 24*i, 40 + 24*i], [760, 520]);
+                cleanup = onCleanup(@() GB.finish());
+                plotCleanup = [];
+                cmapCleanup = [];
+                try
+                    cmapIdx = int32(-1);
+                    try, cmapIdx = int32(polyscope.ImPlot.GetColormapIndex(d.cmap)); catch, end
+                    if cmapIdx < 0
+                        try, cmapIdx = int32(polyscope.ImPlot.GetColormapIndex('Cool')); catch, end
+                    end
+                    polyscope.ImPlot.PushColormap(cmapIdx);
+                    cmapCleanup = onCleanup(@() obj.safePopImPlotColormap_());
+                    flags = int32(0);
+                    try, flags = int32(polyscope.ImPlot.get_constant('ImPlotFlags_Equal')); catch, end
+                    try
+                        flags = bitor(flags, int32(polyscope.ImPlot.get_constant('ImPlotFlags_NoLegend')));
+                    catch
+                    end
+                    if polyscope.ImPlot.BeginPlot(sprintf('Plane coordinates##slice_heatmap_%d', i), [-135, -1], flags)
+                        plotCleanup = onCleanup(@() obj.safeEndImPlot_());
+                        polyscope.ImPlot.SetupAxes('U', 'V');
+                        always = int32(polyscope.ImPlot.get_constant('ImPlotCond_Always'));
+                        polyscope.ImPlot.SetupAxesLimits(d.bounds(1), d.bounds(3), ...
+                            d.bounds(2), d.bounds(4), always);
+                        denom = max(d.clim(2) - d.clim(1), eps);
+                        for il = 1:numel(d.contourLevels)
+                            if isempty(d.contourX{il}), continue; end
+                            t = (d.contourLevels(il) - d.clim(1)) / denom;
+                            rgba = polyscope.ImPlot.SampleColormap(max(0,min(1,t)), cmapIdx);
+                            polyscope.ImPlot.SetNextLineStyle(rgba, 2.0);
+                            polyscope.ImPlot.PlotLineXY(sprintf('%.5g##slice_level_%d', ...
+                                d.contourLevels(il), il), d.contourX{il}, ...
+                                d.contourY{il}, int32(0));
+                        end
+                        if ~isempty(d.boundaryX)
+                            polyscope.ImPlot.SetNextLineStyle([0.95 0.95 0.95 0.75], 1.0);
+                            polyscope.ImPlot.PlotLineXY('Cut boundary##slice_boundary', ...
+                                d.boundaryX, d.boundaryY, int32(0));
+                        end
+                        clear plotCleanup
+                    end
+                    polyscope.ImGui.SameLine();
+                    polyscope.ImPlot.ColormapScale('##slice_scale', d.clim(1), d.clim(2), ...
+                        [110, -1], '%.5g', int32(0), cmapIdx);
+                    clear cmapCleanup
+                catch ME
+                    clear plotCleanup
+                    clear cmapCleanup
+                    GB.labelDisabled(['2-D slice plot unavailable: ' ME.message]);
+                end
+                clear cleanup
+            end
+        end
+
+        function safeEndImPlot_(~)
+            try, polyscope.ImPlot.EndPlot(); catch, end
+        end
+
+        function safePopImPlotClip_(~)
+            try, polyscope.ImPlot.PopPlotClipRect(); catch, end
+        end
+
+        function safePopImPlotColormap_(~)
+            try, polyscope.ImPlot.PopColormap(int32(1)); catch, end
         end
 
         function [axisPts, labelPts, labelEdges, ok] = screenAxes3DGeometry_(obj)
