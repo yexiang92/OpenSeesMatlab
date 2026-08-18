@@ -291,6 +291,7 @@ ops.wipe();
 fprintf("Analysis Done!")
 % Post-processing
 % Nodal results
+% Let's take a look at the native struct.
 
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 nodeTags = nodeResp.nodeTags;  % node tags to track
@@ -321,6 +322,40 @@ xlabel('Time (s)');
 ylabel('Reaction (kip)');
 xlim([0 50]);
 title('Node 1 Reaction');
+%% 
+% In fact, we also provide a more user-friendly label-based structure, similar 
+% to the ``xarray`` style:
+
+nodeResp = opsMAT.post.getNodalResponse("myODB");
+
+ds = opsMAT.post.toResponseDataset(nodeResp);  % to dataset
+
+
+disp_ux = ds("disp.ux");   % get disp-ux
+resp = disp_ux.sel("node", 18);  % sel node-18
+disp_ux.Dimensions
+
+figure;
+plot(disp_ux.time, resp.Data, 'LineWidth', 1.5);
+grid on;
+xlabel('Time (s)');
+ylabel('Top Displacement (inch)');
+xlim([0 50]);
+title('Node 18 Disp');
+
+
+reaction_ux = ds("reaction.ux");  % get reaction-ux
+resp = reaction_ux.sel("node", 1);  % sel by node 1 
+
+figure;
+plot(reaction_ux.time, resp.Data, 'LineWidth', 1.5);
+grid on;
+xlabel('Time (s)');
+ylabel('Reaction (kip)');
+xlim([0 50]);
+title('Node 1 Reaction');
+%% 
+% 
 % Element results
 
 eleResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
@@ -343,6 +378,27 @@ grid on;
 xlabel('curvature (1/inch)');
 ylabel('Force (kip * inch)');
 title('Element 1 section 1 deformation-force');
+%% 
+% By xarray-style:
+
+eleResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
+ds = opsMAT.post.toResponseDataset(eleResp);  % to Dataset
+
+sectionForcesMZ = ds("sectionForces.Mz");
+sectionDefosMZ = ds("sectionDeformations.Mz");
+
+
+defo = sectionDefosMZ.sel("element", 1, "section", 1);  % sel by element 1 and section 1
+fo = sectionForcesMZ.sel("element", 1, "section", 1);
+
+figure;
+plot(defo.Data, fo.Data, 'LineWidth', 1.5);
+grid on;
+xlabel('curvature (1/inch)');
+ylabel('Force (kip * inch)');
+title('Element 1 section 1 deformation-force');
+%% 
+% 
 % Plot results
 
 opsMAT.vis.plotNodalResponse(nodeResp, stepIdx="absMax");
@@ -355,7 +411,7 @@ opsMAT.vis.plotDeformation(nodeResp, stepIdx="absMax");
 
 %opsMAT.post.writeResponsePVD("myODB")
 %% 
-% ![](../utils/paraview-3dFrame.png)
+% 
 % 
 % Frame responses
 

@@ -137,7 +137,7 @@ markdown_extensions:
       custom_checkbox: true
   - toc:
       permalink: "¤"
-      toc_depth: 3
+      toc_depth: 4
 
 plugins:
   - search
@@ -214,6 +214,7 @@ nav:
       - OpenSeesMatlabVis: "api/OpenSeesMatlabVis.md"
       - OpenSeesMatlabVisPolyscope: "api/OpenSeesMatlabVisPolyscope.md"
       - OpenSeesMatlabPost: "api/OpenSeesMatlabPost.md"
+      - ResponseArray and ResponseDataset: "api/ResponseArrayDataset.md"
       - OpenSeesMatlabPre: "api/OpenSeesMatlabPre.md"
       - OpenSeesMatlabAnalysis: "api/OpenSeesMatlabAnalysis.md"
       - OpenSeesMatlabTool: "api/OpenSeesMatlabTool.md"

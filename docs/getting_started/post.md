@@ -164,13 +164,17 @@ eleResp = opsMAT.post.getElementResponse("myODB", eleType="Shell");
 The response retrieval functions return ordinary MATLAB structs so that all
 existing visualization functions remain compatible. For interactive data
 analysis, a response struct can also be wrapped in a label-aware
-[`ResponseDataset`][post.OpenSeesMatlabPost.toResponseDataset], similar to the basic data-selection
+[`ResponseDataset`][post.xarray.ResponseDataset], similar to the basic data-selection
 workflow provided by xarray:
 
 ```matlab
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 ds = opsMAT.post.toResponseDataset(nodeResp);
 ```
+
+The concrete object types are [`ResponseDataset`][post.xarray.ResponseDataset] and
+[`ResponseArray`][post.xarray.ResponseArray]. The shorter conversion entry point remains in
+the main ``post`` package for convenience.
 
 The conversion does not modify or copy fields back into `nodeResp`. Continue to
 pass the original response struct to the visualization functions.
@@ -188,7 +192,7 @@ ds.names()                % all available variable paths
 ds.has("disp.ux")         % test whether a variable exists
 ```
 
-Each variable is a [`ResponseArray`][post.ResponseArray] containing the numeric
+Each variable is a [`ResponseArray`][post.xarray.ResponseArray] containing the numeric
 data, dimension names, coordinates, and source metadata:
 
 ```matlab
@@ -287,6 +291,41 @@ section. `ResponseArray` preserves the dimension names and scalar coordinates.
 raw = ux.toArray();        % plain numeric array
 s = ux.toStruct();         % data plus labels and metadata
 t = ux.toTable();          % variables with at most two dimensions
+```
+
+### Common Array Operations
+
+`ResponseArray` provides vectorized operations along named dimensions. These
+methods call MATLAB's native array functions directly:
+
+```matlab
+uMean = ux.mean("time");
+uMax = ux.max("time", "omitmissing");
+uSum = ux.sum("node");
+uStd = ux.std("time", "omitmissing");
+
+u = ux.transpose(["node", "time"]);
+u = ux.squeeze();
+u = ux.where(ux.Data >= 0, NaN);
+
+sz = ux.sizes();
+nodeTags = ux.coordinate("node");
+u = ux.renameDimension("node", "joint");
+u = u.assignCoordinates("joint", newJointTags);
+```
+
+The supported named reductions are `mean`, `sum`, `min`, `max`, `std`,
+`median`, `any`, and `all`. A reduction removes its dimension and preserves the
+remaining coordinates.
+
+Selection and reductions can also be applied to a complete Dataset. Only
+variables containing the requested dimension are processed:
+
+```matlab
+selected = ds.sel("node", [10 20], "time", 1.0);
+selected = ds.isel("time", 1:100);
+timeMean = ds.mean("time");
+jointDS = ds.renameDimension("node", "joint");
 ```
 
 New FEMData readers return a `responseSchema` field containing the exact
