@@ -13,10 +13,11 @@ This is a topic guide rather than a first tutorial. New users should begin with 
 3. [Eigenvalue Analysis Visualization](#eigenvalue-analysis-visualization)
 4. [Response Data Recording (ODB)](#response-data-recording-odb)
 5. [Retrieving Responses](#retrieving-responses)
-6. [Visualization of Analysis Results](#visualization-of-analysis-results)
-7. [Interactive GUI Plotters](#interactive-gui-plotters)
-8. [Export to ParaView (PVD)](#export-to-paraview-pvd)
-9. [Preprocessing Utilities](#preprocessing-utilities)
+6. [Label-Aware Response Data](#label-aware-response-data)
+7. [Visualization of Analysis Results](#visualization-of-analysis-results)
+8. [Interactive GUI Plotters](#interactive-gui-plotters)
+9. [Export to ParaView (PVD)](#export-to-paraview-pvd)
+10. [Preprocessing Utilities](#preprocessing-utilities)
 
 ---
 
@@ -155,6 +156,144 @@ sectionDefos  = frameResp.sectionDeformations;
 % Shell/Plane/Solid element responses
 eleResp = opsMAT.post.getElementResponse("myODB", eleType="Shell");
 ```
+
+---
+
+## Label-Aware Response Data
+
+The response retrieval functions return ordinary MATLAB structs so that all
+existing visualization functions remain compatible. For interactive data
+analysis, a response struct can also be wrapped in a label-aware
+[`ResponseDataset`][post.OpenSeesMatlabPost.toResponseDataset], similar to the basic data-selection
+workflow provided by xarray:
+
+```matlab
+nodeResp = opsMAT.post.getNodalResponse("myODB");
+ds = opsMAT.post.toResponseDataset(nodeResp);
+```
+
+The conversion does not modify or copy fields back into `nodeResp`. Continue to
+pass the original response struct to the visualization functions.
+
+### Variables and Dot Access
+
+Nested response fields become named variables. Access a variable using a dotted
+path or a string path:
+
+```matlab
+ux = ds.disp.ux;
+ux = ds("disp.ux");       % equivalent
+
+ds.names()                % all available variable paths
+ds.has("disp.ux")         % test whether a variable exists
+```
+
+Each variable is a [`ResponseArray`][post.ResponseArray] containing the numeric
+data, dimension names, coordinates, and source metadata:
+
+```matlab
+ux.Data
+ux.Dimensions             % for example: ["time", "node"]
+ux.Coordinates
+ux.Name
+ux.Attributes
+```
+
+Dimension coordinates are also available directly through dot access:
+
+```matlab
+t = ds.disp.ux.time;
+nodeTags = ds.disp.ux.node;
+
+t3 = ds.disp.ux.time(3);
+u3 = ds.disp.ux.Data(3, :);
+```
+
+### Select by Coordinate with `sel`
+
+Use `sel` when the requested values are coordinate values, such as actual node
+tags, element tags, section numbers, or analysis times:
+
+```matlab
+% Displacement history at node tag 18
+u18 = ds.disp.ux.sel("node", 18);
+
+% Multiple nodes and an exact recorded time
+u = ds.disp.ux.sel("node", [18 25], "time", 1.5);
+
+% Use the closest recorded time when an exact value is unavailable
+u = ds.disp.ux.sel("time", 1.53, "Method", "nearest");
+```
+
+Selections return another `ResponseArray`; use `.Data` when a plain MATLAB
+array is required:
+
+```matlab
+plot(u18.time, u18.Data);
+```
+
+### Select by Position with `isel`
+
+Use `isel` for ordinary one-based MATLAB positions along named dimensions:
+
+```matlab
+% First 100 steps and the second stored node
+u = ds.disp.ux.isel("time", 1:100, "node", 2);
+```
+
+`sel("node", 18)` selects node **tag 18**, whereas `isel("node", 18)` selects
+the **18th stored node**.
+
+### Element, Gauss-Point, Section, and Fiber Responses
+
+Dimension labels are assigned automatically from schema metadata supplied by
+the FEMData reader. Users do not need to specify array layouts manually. Common
+layouts include:
+
+| Response | Dimensions |
+|----------|------------|
+| Nodal displacement, velocity, acceleration, reaction | `time, node` |
+| Plane/solid response at Gauss points | `time, element, gaussPoint` |
+| Plane/solid response projected to nodes | `time, node` |
+| Shell stress/strain at Gauss points | `time, element, gaussPoint, fiber` |
+| Shell stress/strain at nodes | `time, node, fiber` |
+| Frame section force/deformation | `time, element, section` |
+| Frame fiber stress/strain | `time, element, section, fiber` |
+| MVLEM fiber response | `time, element, fiber` |
+
+For example:
+
+```matlab
+frameResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
+frameDS = post.toResponseDataset(frameResp);
+
+sectionDefosMZ = frameDS.sectionDeformations.Mz;
+defo = sectionDefosMZ.sel("element", 1, "section", 1);
+plot(defo.time, defo.Data);
+
+solidResp = opsMAT.post.getElementResponse("myODB", eleType="Solid");
+solidDS = post.toResponseDataset(solidResp);
+sxx = solidDS.StressAtGP.sxx.sel("element", 10, "gaussPoint", 2);
+```
+
+MATLAB may display a selection with trailing singleton dimensions as a lower
+rank numeric array. For example, logical dimensions `time, element, section`
+can have a physical size of `[nTime, 1]` after selecting one element and one
+section. `ResponseArray` preserves the dimension names and scalar coordinates.
+
+### Conversion and Compatibility
+
+```matlab
+raw = ux.toArray();        % plain numeric array
+s = ux.toStruct();         % data plus labels and metadata
+t = ux.toTable();          % variables with at most two dimensions
+```
+
+New FEMData readers return a `responseSchema` field containing the exact
+variable paths and dimension names. `toResponseDataset` consumes this metadata
+automatically and excludes it from the response variables. For response structs
+created by older readers, an internal MATLAB schema provides a compatibility
+fallback.
 
 ---
 
