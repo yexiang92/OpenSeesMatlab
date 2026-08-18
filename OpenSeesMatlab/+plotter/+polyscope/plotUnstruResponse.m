@@ -171,10 +171,16 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                     needsVisibility = needsVisibility || visibilityOnly;
                     needsRebuild = needsRebuild || grebuild;
                 end
-                if GB.collapsingHeader('Style', int32(0))
-                    [dataChanged, styleChanged] = obj.drawStyleGui_();
-                    needsUpdate = needsUpdate || dataChanged;
+                if GB.collapsingHeader('Appearance', int32(0))
+                    styleChanged = obj.drawAppearanceGui_();
                     needsVisibility = needsVisibility || styleChanged;
+                end
+                if GB.collapsingHeader('Colormap & Colorbar', int32(0))
+                    colormapChanged = obj.drawColormapGui_();
+                    needsUpdate = needsUpdate || colormapChanged;
+                end
+                if GB.collapsingHeader('View & Quality', int32(0))
+                    obj.drawViewQualityGui_();
                 end
                 if obj.drawSlicePlaneGui_('##unstru')
                     obj.registerSlicePlanes_();
@@ -395,9 +401,6 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.deformScale = GB.sliderFloat('Deformation scale##unstru_geometry', obj.gui_.deformScale, 0, 100);
             GB.helpMarker('Manual multiplier for the displayed deformation. It does not alter stored results.');
             obj.gui_.showUndeformed = GB.checkbox('Undeformed ghost##unstru_geometry', obj.gui_.showUndeformed);
-            GB.separator();
-            GB.subtitle('Render quality');
-            obj.drawSsaaGui_('##unstru_geometry');
             obj.syncOptsFromGui_();
             changed = obj.guiChanged_(old, {'showMesh','showEdges','surfaceRenderModeIdx','showNodes','showFixed','showMP', ...
                 'showLines','showDeform','autoScale','deformScale','showUndeformed'});
@@ -406,10 +409,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             visibilityOnly = changed && ~geometryChanged && ~rebuild;
         end
 
-        function [dataChanged, styleChanged] = drawStyleGui_(obj)
+        function dataChanged = drawColormapGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
-            GB.subtitle('Colormap && Colorbar');
             obj.gui_.useColormap = GB.checkbox('Use colormap##unstru_style', obj.gui_.useColormap);
             obj.Opts.color.useColormap = obj.gui_.useColormap;
             cmapNames = obj.colormapNames_();
@@ -428,8 +430,17 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             if obj.gui_.showField && obj.gui_.useColormap
                 colorbarChanged = obj.drawColorbarGui_('##unstru_style', true);
             end
-            GB.separator();
-            GB.subtitle('Appearance');
+            obj.syncOptsFromGui_();
+            dataChanged = obj.guiChanged_(old, ...
+                {'useColormap','cmapIdx','climIdx','colorModeIdx'}) || colorbarChanged;
+            if dataChanged
+                obj.invalidateScalarCaches_();
+            end
+        end
+
+        function styleChanged = drawAppearanceGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            old = obj.gui_;
             [cchg, obj.gui_.solidColor] = GB.colorEdit3('Solid color##unstru_style', obj.gui_.solidColor);
             if cchg, obj.Opts.color.solidColor = obj.asRgb_(obj.gui_.solidColor); end
             [cchg, obj.gui_.edgeColor] = GB.colorEdit3('Edge color##unstru_style', obj.gui_.edgeColor);
@@ -440,8 +451,17 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.ghostAlpha = GB.sliderFloat('Ghost alpha##unstru_style', obj.gui_.ghostAlpha, 0, 1);
             obj.gui_.edgeRadius = GB.sliderFloat('Line radius##unstru_style', obj.gui_.edgeRadius, 0.0001, 0.006);
             obj.gui_.nodeRadius = GB.sliderFloat('Node radius##unstru_style', obj.gui_.nodeRadius, 0.0003, 0.012);
-            GB.separator();
-            GB.subtitle('View');
+            obj.syncOptsFromGui_();
+            styleChanged = obj.guiChanged_(old, {'solidColor','edgeColor','ghostColor', ...
+                'deformedAlpha','ghostAlpha','edgeRadius','nodeRadius'});
+            if styleChanged
+                obj.applyStyle_();
+            end
+        end
+
+        function drawViewQualityGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            GB.subtitle('Camera');
             views = obj.viewNames_();
             obj.gui_.viewIdx = GB.combo('View##unstru_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##unstru_style')
@@ -452,17 +472,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             if GB.button('Rebuild##unstru_style')
                 obj.setStep(obj.currentStep_, true);
             end
-            obj.syncOptsFromGui_();
-            dataChanged = obj.guiChanged_(old, ...
-                {'useColormap','cmapIdx','climIdx','colorModeIdx'}) || colorbarChanged;
-            styleChanged = obj.guiChanged_(old, {'solidColor','edgeColor','ghostColor', ...
-                'deformedAlpha','ghostAlpha','edgeRadius','nodeRadius','viewIdx'});
-            if dataChanged
-                obj.invalidateScalarCaches_();
-            end
-            if styleChanged
-                obj.applyStyle_();
-            end
+            GB.separator();
+            GB.subtitle('Render quality');
+            obj.drawSsaaGui_('##unstru_view_quality');
         end
 
         function changed = drawAnimationGui_(obj)

@@ -118,8 +118,14 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                 if GB.collapsingHeader('Geometry', int32(0))
                     obj.drawGeometryGui_();
                 end
-                if GB.collapsingHeader('Style', int32(0))
-                    obj.drawStyleGui_();
+                if GB.collapsingHeader('Appearance', int32(0))
+                    obj.drawAppearanceGui_();
+                end
+                if GB.collapsingHeader('Colormap & Colorbar##mvlem', int32(0))
+                    obj.drawColormapGui_();
+                end
+                if GB.collapsingHeader('View & Quality##mvlem', int32(0))
+                    obj.drawViewQualityGui_();
                 end
                 if ~isfield(obj.gui_,'slicePlaneIdx') || ~isfield(obj.gui_,'slicePlanes')
                     obj.initSliceGuiState_();
@@ -127,9 +133,6 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                 if obj.drawSlicePlaneGui_('##mvlem'),obj.registerSlicePlanes_();end
                 if GB.collapsingHeader('Animation', int32(0))
                     obj.drawAnimationGui_();
-                end
-                if GB.collapsingHeader('Render quality##mvlem', int32(0))
-                    obj.drawSsaaGui_('##mvlem');
                 end
                 if GB.collapsingHeader('Debug', int32(0))
                     [~,localStep,seg] = obj.respAtStep_();
@@ -469,6 +472,11 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             else
                 polyscope.ImGui.Text('Element surface colored by the selected component.');
             end
+        end
+
+        function drawViewQualityGui_(obj)
+            GB=plotter.polyscope.GuiBuilder;
+            GB.subtitle('Camera');
             views=obj.viewNames_();
             obj.gui_.viewIdx=GB.combo('View##mvlem',obj.gui_.viewIdx,views);
             if GB.button('Apply view##mvlem')
@@ -477,9 +485,26 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
                 used=obj.mvlemNodeIndices_(M,size(P,1));
                 obj.setCameraForPoints_(P(used,:),obj.Opts.general.view);
             end
+            GB.separator();
+            GB.subtitle('Render quality');
+            obj.drawSsaaGui_('##mvlem_view_quality');
         end
 
-        function drawStyleGui_(obj)
+        function drawAppearanceGui_(obj)
+            GB=plotter.polyscope.GuiBuilder;
+            old=obj.gui_;
+            [chg,obj.gui_.edgeColor]=GB.colorEdit3('Edge color##mvlem',obj.gui_.edgeColor);
+            if chg,obj.Opts.surf.edgeColor=obj.gui_.edgeColor;end
+            obj.gui_.surfaceAlpha=GB.sliderFloat('Surface alpha##mvlem',obj.gui_.surfaceAlpha,0,1);
+            obj.gui_.ghostAlpha=GB.sliderFloat('Ghost alpha##mvlem',obj.gui_.ghostAlpha,0,1);
+            obj.Opts.color.deformedAlpha=obj.gui_.surfaceAlpha;
+            obj.Opts.color.undeformedAlpha=obj.gui_.ghostAlpha;
+            if obj.guiChanged_(old,{'edgeColor','surfaceAlpha','ghostAlpha'})
+                obj.applyAppearance_();
+            end
+        end
+
+        function drawColormapGui_(obj)
             GB=plotter.polyscope.GuiBuilder;
             if ~isfield(obj.gui_,'onscreenColorbar')
                 obj.initColorbarGuiState_(obj.quantityName_());
@@ -493,19 +518,9 @@ classdef plotMVLEMResponse < plotter.polyscope.ViewerBase
             GB.helpMarker('Step rescales the current frame; Global keeps one color range for the full history.');
             obj.Opts.color.climMode=modes{obj.gui_.climIdx};
             colorbarChanged=obj.drawColorbarGui_('##mvlem',true);
-            [chg,obj.gui_.edgeColor]=GB.colorEdit3('Edge color##mvlem',obj.gui_.edgeColor);
-            if chg,obj.Opts.surf.edgeColor=obj.gui_.edgeColor;end
-            obj.gui_.surfaceAlpha=GB.sliderFloat('Surface alpha##mvlem',obj.gui_.surfaceAlpha,0,1);
-            obj.gui_.ghostAlpha=GB.sliderFloat('Ghost alpha##mvlem',obj.gui_.ghostAlpha,0,1);
-            obj.Opts.color.deformedAlpha=obj.gui_.surfaceAlpha;
-            obj.Opts.color.undeformedAlpha=obj.gui_.ghostAlpha;
             scalarChanged=obj.guiChanged_(old,{'cmapIdx','climIdx'}) || colorbarChanged;
-            appearanceChanged=obj.guiChanged_(old,{'edgeColor','surfaceAlpha','ghostAlpha'});
             if scalarChanged
                 obj.setStep(obj.currentStep_,false);
-            end
-            if appearanceChanged
-                obj.applyAppearance_();
             end
         end
 

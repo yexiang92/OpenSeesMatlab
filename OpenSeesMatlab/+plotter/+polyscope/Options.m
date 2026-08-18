@@ -301,7 +301,7 @@ classdef Options
             p.copyrightLine2 = 'All rights reserved.';
             p.backgroundColor = [1, 1, 1];
             p.transparency = 1.0;   % Polyscope opacity: 1 = opaque, 0 = transparent
-            p.ssaaFactor = 1;       % supersampling anti-aliasing, valid range 1..4
+            p.ssaaFactor = 2;       % supersampling anti-aliasing, valid range 1..4
             p.maxFps = 60;
             p.verbosity = 0;                 % suppress routine backend initialization messages
             p.giveFocusOnShow = true;        % raise the viewer above MATLAB when shown

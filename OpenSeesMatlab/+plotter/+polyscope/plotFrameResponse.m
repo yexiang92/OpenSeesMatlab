@@ -214,24 +214,27 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                     needsRebuild = needsRebuild || rebuild;
                     obj.gui_.showHistory = GB.checkbox('Show response history', obj.gui_.showHistory);
                 end
-                if GB.collapsingHeader('Diagram', int32(0))
-                    [chg, styleOnly] = obj.drawDiagramGui_();
+                if GB.collapsingHeader('Geometry', int32(0))
+                    [chg, styleOnly] = obj.drawGeometryGui_();
                     needsUpdate = needsUpdate || (chg && ~styleOnly);
                     needsStyle = needsStyle || styleOnly;
                 end
-                if GB.collapsingHeader('Style', int32(0))
-                    [dataChanged, styleChanged] = obj.drawStyleGui_();
-                    needsUpdate = needsUpdate || dataChanged;
+                if GB.collapsingHeader('Appearance', int32(0))
+                    styleChanged = obj.drawAppearanceGui_();
                     needsStyle = needsStyle || styleChanged;
+                end
+                if GB.collapsingHeader('Colormap & Colorbar', int32(0))
+                    colormapChanged = obj.drawColormapGui_();
+                    needsUpdate = needsUpdate || colormapChanged;
+                end
+                if GB.collapsingHeader('View & Quality##frame_resp', int32(0))
+                    obj.drawViewQualityGui_();
                 end
                 if obj.drawSlicePlaneGui_('##frame_resp')
                     obj.registerSlicePlanes_();
                 end
                 if GB.collapsingHeader('Animation', int32(0))
                     if obj.drawAnimationGui_(), needsUpdate = true; end
-                end
-                if GB.collapsingHeader('Render quality##frame_resp', int32(0))
-                    obj.drawSsaaGui_('##frame_resp');
                 end
                 if GB.collapsingHeader('Debug', int32(0))
                     polyscope.ImGui.Text(sprintf('Step %d / %d', obj.currentStep_, obj.nSteps_ - 1));
@@ -407,7 +410,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             end
         end
 
-        function [changed, styleOnly] = drawDiagramGui_(obj)
+        function [changed, styleOnly] = drawGeometryGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
             obj.gui_.showDiagram = GB.checkbox('Diagram##frame_geom', obj.gui_.showDiagram);
@@ -448,10 +451,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 {'styleIdx','scaleModeIdx','scale','heightFrac'});
         end
 
-        function [dataChanged, styleChanged] = drawStyleGui_(obj)
+        function dataChanged = drawColormapGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
-            GB.subtitle('Colormap && Colorbar');
             cmaps = obj.colormapNames_();
             obj.gui_.cmapIdx = GB.combo('Colormap##frame_style', obj.gui_.cmapIdx, cmaps);
             obj.Opts.polyscope.scalarColorMap = cmaps{obj.gui_.cmapIdx};
@@ -466,8 +468,15 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 colorbarChanged = obj.drawColorbarGui_('##frame_style', true);
                 obj.Opts.cbar.show = logical(obj.gui_.onscreenColorbar);
             end
-            GB.separator();
-            GB.subtitle('Appearance');
+            obj.syncOptsFromGui_();
+            dataChanged = obj.guiChanged_(old, ...
+                {'cmapIdx','climIdx','useColormap'}) || colorbarChanged;
+            if dataChanged, obj.invalidateCaches_(); end
+        end
+
+        function styleChanged = drawAppearanceGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            old = obj.gui_;
             [~, obj.gui_.solidColor] = GB.colorEdit3('Solid color##frame_style', obj.gui_.solidColor);
             [~, obj.gui_.wireColor] = GB.colorEdit3('Wire color##frame_style', obj.gui_.wireColor);
             [~, obj.gui_.modelColor] = GB.colorEdit3('Model color##frame_style', obj.gui_.modelColor);
@@ -476,20 +485,23 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.diagramRadius = GB.sliderFloat('Diagram radius##frame_style', obj.gui_.diagramRadius, 0.0001, 0.006);
             obj.gui_.modelRadius = GB.sliderFloat('Model radius##frame_style', obj.gui_.modelRadius, 0.0001, 0.006);
             obj.gui_.zeroRadius = GB.sliderFloat('Zero radius##frame_style', obj.gui_.zeroRadius, 0.0001, 0.006);
-            GB.separator();
-            GB.subtitle('View');
+            obj.syncOptsFromGui_();
+            styleChanged = obj.guiChanged_(old, {'solidColor','wireColor','modelColor','zeroColor', ...
+                'faceAlpha','diagramRadius','modelRadius','zeroRadius'});
+        end
+
+        function drawViewQualityGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            GB.subtitle('Camera');
             views = obj.viewNames_();
             obj.gui_.viewIdx = GB.combo('View##frame_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##frame_style')
                 obj.Opts.general.view = views{obj.gui_.viewIdx};
                 obj.setCameraForPoints_(obj.nodeCoords_(obj.currentSeg_), obj.Opts.general.view);
             end
-            obj.syncOptsFromGui_();
-            dataChanged = obj.guiChanged_(old, ...
-                {'cmapIdx','climIdx','useColormap'}) || colorbarChanged;
-            styleChanged = obj.guiChanged_(old, {'solidColor','wireColor','modelColor','zeroColor', ...
-                'faceAlpha','diagramRadius','modelRadius','zeroRadius','viewIdx'});
-            if dataChanged, obj.invalidateCaches_(); end
+            GB.separator();
+            GB.subtitle('Render quality');
+            obj.drawSsaaGui_('##frame_view_quality');
         end
 
         function changed = drawAnimationGui_(obj)
