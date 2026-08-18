@@ -35,6 +35,13 @@ classdef Polyscope < handle
             % from MATLAB so the callback executes safely between
             % frame_begin()/frame_end(). Otherwise, defer to the native C++ show().
             if ~isempty(obj.userCallback_)
+                % frame_begin() may wait indefinitely when native idle redraw
+                % is disabled. That is safe for the C++ event loop, but here
+                % it would block MATLAB before it can pump the next GUI event.
+                % Keep callback-driven windows ticking; maxFps_ still limits
+                % CPU usage in wait_after_frame_().
+                obj.set_always_redraw(true);
+                obj.request_redraw();
                 obj.show_window();
                 % show_window() makes the GLFW window visible but does not
                 % necessarily raise it above MATLAB on Windows.

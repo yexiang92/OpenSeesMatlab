@@ -57,5 +57,25 @@ classdef TestPolyscopeSSAA < matlab.unittest.TestCase
             opts = plotter.polyscope.Options.defaultEigenOptions();
             testCase.verifyEqual(char(string(opts.polyscope.scalarColorMap)), 'coolwarm');
         end
+
+        function matlabCallbackLoopAdvancesMultipleFrames(testCase)
+            app = plotter.polyscope.PolyscopeApp();
+            cleanup = onCleanup(@() app.shutdown());
+
+            opts = plotter.polyscope.Options.defaultModelOptions();
+            opts.polyscope.headless = true;
+            opts.polyscope.alwaysRedraw = false;
+            app.init('openGL_mock', opts, false);
+
+            frameCount = 0;
+            app.setUserCallback(@countFrame);
+            app.show(3);
+
+            testCase.verifyEqual(frameCount, 3);
+
+            function countFrame()
+                frameCount = frameCount + 1;
+            end
+        end
     end
 end

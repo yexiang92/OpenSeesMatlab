@@ -44,6 +44,11 @@ classdef (Abstract) ViewerBase < handle
             end
             if obj.guiEnabled_
                 obj.App.setUserCallback(@obj.guiCallback_);
+                % MATLAB owns the callback render loop. Never allow the
+                % native frame_begin() to enter its idle wait path, because
+                % that blocks MATLAB before the next event-polling frame and
+                % leaves the GLFW window completely unresponsive.
+                obj.keepGuiEventLoopAlive_();
             end
             % Treat closing the native window as the end of this Polyscope
             % session. onCleanup also covers callback/MEX exceptions.
@@ -80,6 +85,7 @@ classdef (Abstract) ViewerBase < handle
             obj.applyPlotTheme_(themes{obj.gui_.plotThemeIdx});
             obj.guiEnabled_ = true;
             obj.App.setUserCallback(@obj.guiCallback_);
+            obj.keepGuiEventLoopAlive_();
         end
 
         function screenshot(obj, filename, varargin)
@@ -2411,9 +2417,24 @@ classdef (Abstract) ViewerBase < handle
                     ps.set_enable_vsync(false);
                 else
                     ps.set_max_fps(max(1, double(obj.getOptField_(obj.Opts.polyscope, 'maxFps', 30))));
-                    ps.set_always_redraw(obj.getOptField_(obj.Opts.polyscope, 'alwaysRedraw', false));
+                    % GUI callbacks execute from the MATLAB-managed frame
+                    % loop. Its event pump must not be suspended by the
+                    % native idle-redraw optimization.
+                    idleRedraw = obj.guiEnabled_ || ...
+                        logical(obj.getOptField_(obj.Opts.polyscope, 'alwaysRedraw', false));
+                    ps.set_always_redraw(idleRedraw);
                     ps.set_enable_vsync(obj.getOptField_(obj.Opts.polyscope, 'enableVsync', true));
                 end
+            catch
+            end
+        end
+
+        function keepGuiEventLoopAlive_(obj)
+            if ~obj.guiEnabled_ || isempty(obj.App), return; end
+            try
+                ps=obj.App.polyscopeHandle();
+                ps.set_always_redraw(true);
+                ps.request_redraw();
             catch
             end
         end
