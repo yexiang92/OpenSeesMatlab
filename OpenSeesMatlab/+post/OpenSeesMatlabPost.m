@@ -667,6 +667,17 @@ classdef OpenSeesMatlabPost < handle
             data = post.utils.ResponseStructTransformer.merge(respData);
         end
 
+        function data = toResponseDataset(obj, respData)
+            % Convert an existing response struct to a label-aware dataset.
+            % The input remains unchanged and can still be passed directly
+            % to all existing visualization functions.
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost %#ok<INUSA>
+                respData struct
+            end
+            data = post.toResponseDataset(respData);
+        end
+
         function results = writeResponsePVD(obj, odbTag, outDir, baseName, options)
             % Write nodal and Shell, Plane, Solid element responses to ParaView-readable VTU/PVD files.
             %
