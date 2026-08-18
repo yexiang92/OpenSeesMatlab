@@ -9,7 +9,7 @@ This example demonstrates how to read a GMSH model by physical groups and conver
 
 This example is based on GMSH Example [<u>t15</u>](<https://gmsh.info/doc/texinfo/gmsh.html#t15>).
 
-**msh** file can be found in [](../utils/t15.msh).
+**msh** file can be found in [](../../utils/t15.msh).
 
 ```matlab
 clc; clear;

@@ -36,6 +36,7 @@ inch = 0.0254*m;         % inch
 kg = KN*(sec^2)/m;       % derived mass unit
 g  = 9.81*(m/sec^2);     % gravitational acceleration
 % Earthquake record
+% [RSN960_NORTHR_LOS270.AT2](../../utils/RSN960_NORTHR_LOS270.AT2) 
 
 %% ------------------------------------------------------------------------
 %  Earthquake record

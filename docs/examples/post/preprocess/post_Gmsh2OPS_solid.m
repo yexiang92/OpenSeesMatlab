@@ -11,7 +11,7 @@
 % This example is based on GMSH Example <https://gmsh.info/doc/texinfo/gmsh.html#t15 
 % t15>.
 % 
-% *msh* file can be found in [](../utils/t15.msh).
+% *msh* file can be found in [](../../utils/t15.msh).
 
 clc; clear;
 %% 

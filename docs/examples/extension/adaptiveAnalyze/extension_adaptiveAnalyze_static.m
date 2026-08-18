@@ -7,6 +7,10 @@
 % 
 % 
 % 
+% 
+% 
+% 
+% 
 % Comparison:
 % 
 % 1. Fine-step Newton analysis used as the numerical reference.
@@ -33,8 +37,6 @@ close all;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-%% 
-% 
 % Analysis parameters
 
 referenceIncrement = -5.0e-4;
@@ -122,13 +124,6 @@ adaptive(1, :) = [
     ops.nodeDisp(controlNode, 2), ...
     ops.getLoadFactor(loadPatternTag), ...
     0];
-
-fprintf("\n");
-fprintf("============================================================\n");
-fprintf(" Adaptive coarse-step analysis\n");
-fprintf(" Watch for adaptiveAnalyze:: algorithm and subdivision output\n");
-fprintf("============================================================\n\n");
-
 for step = 1:adaptiveSteps
     fprintf( ...
         "\n--- Requested outer displacement step %d of %d ---\n", ...
