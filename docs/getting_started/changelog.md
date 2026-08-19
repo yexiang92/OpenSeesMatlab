@@ -4,6 +4,17 @@
 
 - Add configurable ODB storage options.
 - Add the ``adaptiveAnalyze`` extension for adaptive nonlinear analysis.
+- Add the optional SUNDIALS KINSOL nonlinear algorithm with Newton, line-search,
+  Picard and Anderson-acceleration modes while retaining the active OpenSees
+  ``LinearSOE`` for every linear solve.
+- Add the native ``TrustRegion`` nonlinear algorithm, based on the NOX
+  trust-region formulation, with Newton, Cauchy and dogleg subproblems.
+- Add OpenSees convergence-test integration, failed-step trial-state recovery,
+  solver statistics and safe analysis/domain recreation for the KINSOL and
+  trust-region algorithms.
+- Include nodal mass, damping and modal-damping tangent contributions in
+  trust-region Jacobian products. Modal damping uses an exact low-rank
+  representation, avoiding expansion into a separate dense matrix.
 - Add unified Polyscope rendering and model-label display.
 - Add MVLEM response post-processing and visualization.
 - Add optimized Polyscope response animation.
