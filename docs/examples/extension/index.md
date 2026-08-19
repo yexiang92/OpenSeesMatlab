@@ -21,3 +21,7 @@ OpenSeesMatlab extends a range of functionalities, including *numerical substruc
 - [<span style="color:var(--md-accent-fg-color)">**Strongly nonlinear snap\-through example for adaptiveAnalyze**</span>](./adaptiveAnalyze/extension_adaptiveAnalyze_static.md)
 - [<span style="color:var(--md-accent-fg-color)">**Strongly nonlinear dynamic demonstration of adaptiveAnalyze**</span>](./adaptiveAnalyze/extension_adaptiveAnalyze_dynamic.md)
 
+## Nonlinear iterative algorithm
+
+- [<span style="color:var(--md-accent-fg-color)">**KINSOL benchmark: nonlinear steel frame**</span>](./algorithm/extension_KINSOL_steel_frame_benchmark.md)
+
