@@ -44,6 +44,7 @@ tasks = [
     "extension", "material",       "extension_MatlabUniaxialMaterial_nonlinear";
     "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_static";
     "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_dynamic";
+    "extension", "algorithm", "extension_KINSOL_steel_frame_benchmark";
 ];
 
 rootDir = "../docs/examples";
@@ -641,6 +642,8 @@ function titleStr = localSubgroupTitle(category, subgroup)
                     titleStr = "Connecting MATLAB's custom materials to the OpenSees domain";
                 case "adaptiveAnalyze"
                     titleStr = "Adaptive Analysis";
+                case "algorithm"
+                    titleStr = "Nonlinear iterative algorithm";
                 otherwise
                     titleStr = localPrettyTitle(subgroup);
             end

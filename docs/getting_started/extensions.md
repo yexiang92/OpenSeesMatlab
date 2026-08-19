@@ -10,6 +10,7 @@ commands, but they are implemented and maintained by OpenSeesMatlab.
 | Run a component or condensed model in a MATLAB function | `matlabSubstructure` |
 | Define a path-dependent uniaxial material in MATLAB | MATLAB uniaxial material |
 | Solve a large sparse system on an NVIDIA GPU | `CuDSS` |
+| Add line-search Newton, adaptive tangent refresh, or Anderson-Picard iteration | `KINSOL` |
 
 Use an extension only where it solves a specific problem. An ordinary OpenSees
 command is still the clearest choice for the rest of the model.
@@ -57,6 +58,17 @@ when the OpenSees equation graph permits it.
 
 CPU solvers remain available without CUDA or cuDSS. The GPU runtime is loaded
 only when a cuDSS system is explicitly selected.
+
+## SUNDIALS KINSOL nonlinear solver
+
+The optional KINSOL backend replaces the nonlinear `algorithm` while retaining
+the current OpenSees integrator, Domain state handling, and `LinearSOE`. Newton,
+Newton line search, adaptive or modified tangent refresh, and
+Anderson-accelerated Picard iteration are available. Penalty constraint
+handlers automatically use step-based final validation because penalty forces
+can make the total residual norm unsuitable as a convergence measure.
+
+[Read the KINSOL configuration and convergence guide](extensions/kinsol_solver.md){ .md-button .md-button--primary }
 
 ## Extension examples
 
