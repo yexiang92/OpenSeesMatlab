@@ -19,6 +19,10 @@ dist/
 *.mpco
 .DS_Store
 
+*.mp4
+*.gif
+*.ini
+
 output_data/
 .openseesmatlab.output/
 paraview_output/
