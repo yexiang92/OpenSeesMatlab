@@ -46,6 +46,7 @@ tasks = [
     "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_static";
     "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_dynamic";
     "extension", "algorithm", "extension_KINSOL_steel_frame_benchmark";
+    "extension", "algorithm", "extension_TrustRegion_steel_frame_benchmark";
 ];
 
 rootDir = "../docs/examples";

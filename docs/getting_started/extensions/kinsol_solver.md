@@ -419,3 +419,56 @@ options or replacing the algorithm.
 | Tangent factorization dominates and nonlinearity is moderate | Picard with Anderson |
 | Penalty constraints distort the force norm | Step validation and solution scaling |
 | Snap-through or snap-back | Change the OpenSees integrator or continuation method; algorithm replacement alone is insufficient |
+
+## Performance guidance
+
+Use native OpenSees Newton as the timing and response baseline. KINSOL adds
+nonlinear-solver control and trial-state synchronization, so it is most useful
+when it saves tangent formations, factorizations, failed steps, or manual retry
+logic. It is not expected to outperform a reliably converging full Newton
+method on every model.
+
+Recommended tuning order:
+
+1. Start with `-strategy lineSearch -jacobian adaptive`
+2. Keep the selected OpenSees `system` appropriate for the matrix size and hardware
+3. Inspect tangent, linear-solve, residual, and backtrack statistics
+4. Add solution or residual scaling when equation magnitudes differ substantially
+5. Try modified Jacobian only when tangent formation/factorization dominates
+6. Use Picard and Anderson only when the OpenSees update defines a useful Picard map
+
+Exact Jacobian refresh is the reference configuration:
+
+```matlab
+ops.algorithm("KINSOL", ...
+    "-strategy", "newton", ...
+    "-jacobian", "exact");
+```
+
+It provides the closest comparison with OpenSees Newton but may form and
+factor the tangent more often than necessary. Adaptive refresh can reduce that
+cost when the tangent remains useful for several iterations. Modified refresh
+can save still more factorizations, but stale tangents may increase residual
+evaluations or cause line-search failures.
+
+Line search trades additional residual evaluations for a larger convergence
+region. It is beneficial when full Newton steps overshoot; it is overhead when
+full steps are consistently accepted. A high `lineSearchBacktracks` count
+usually indicates a poor local model, an excessive analysis increment, or
+inadequate scaling.
+
+KINSOL always delegates linear solves to the active OpenSees `LinearSOE`.
+Changing from UmfPack to Mumps or CuDSS therefore changes the dominant linear
+algebra cost without changing KINSOL. The bridge reuses its right-hand-side
+workspace, and KINSOL resources are retained until the equation count,
+integrator, or linked system changes.
+
+Final validation may require one additional OpenSees residual formation. Keep
+it enabled for production analysis, particularly with path-dependent models.
+Select the validation rule to match the constraint handler rather than
+disabling validation only to improve a small benchmark.
+
+For meaningful timings, warm up MATLAB and the linear solver, exclude model
+construction, repeat runs, and compare median time together with
+`tangentEvaluations`, `linearSolves`, `residualEvaluations`, backtracks,
+validation status, and response error.

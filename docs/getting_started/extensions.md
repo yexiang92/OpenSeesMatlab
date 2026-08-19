@@ -11,6 +11,7 @@ commands, but they are implemented and maintained by OpenSeesMatlab.
 | Define a path-dependent uniaxial material in MATLAB | MATLAB uniaxial material |
 | Solve a large sparse system on an NVIDIA GPU | `CuDSS` |
 | Add line-search Newton, adaptive tangent refresh, or Anderson-Picard iteration | `KINSOL` |
+| Globalize Newton steps with a native Cauchy or dogleg trust region | `TrustRegion` |
 
 Use an extension only where it solves a specific problem. An ordinary OpenSees
 command is still the clearest choice for the rest of the model.
@@ -69,6 +70,18 @@ handlers automatically use step-based final validation because penalty forces
 can make the total residual norm unsuitable as a convergence measure.
 
 [Read the KINSOL configuration and convergence guide](extensions/kinsol_solver.md){ .md-button .md-button--primary }
+
+## Native trust-region nonlinear algorithm
+
+`TrustRegion` is an OpenSeesMatlab algorithm extension with Newton, Cauchy,
+and dogleg subproblems. Its algorithmic structure references Trilinos NOX's
+BSD-licensed trust-region implementation but does not link to or depend on
+NOX. Newton equations continue to use the selected OpenSees `system`; a sparse
+tangent snapshot is used only for the Jacobian-vector products required by
+Cauchy and dogleg. Accepted steps use the normal OpenSees convergence test and
+Domain commit/revert lifecycle.
+
+[Read the trust-region algorithm guide](extensions/trust_region_solver.md){ .md-button .md-button--primary }
 
 ## Extension examples
 
