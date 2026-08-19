@@ -7,6 +7,7 @@ These examples demonstrate how to use the encapsulated OpenSees module for model
 - [<span style="color:var(--md-accent-fg-color)">**Nonlinear Truss Pushover Analysis**</span>](./structural/structural_nonlinear_truss.md)
 - [<span style="color:var(--md-accent-fg-color)">**2D Reinforced Concrete Frame Pushover Analysis**</span>](./structural/structural_steel_frame2d.md)
 - [<span style="color:var(--md-accent-fg-color)">**Use parfor for parallelism**</span>](./structural/structural_parfor_truss.md)
+- [<span style="color:var(--md-accent-fg-color)">**Force\-controlled cyclic analysis of the TUB MVLEM\_3D wall**</span>](./structural/structural_mvlem3d_force_controlled.md)
 
 ## Earthquake Examples
 

@@ -21,6 +21,7 @@ tasks = [
     "opscmds",  "structural",  "structural_nonlinear_truss";
     "opscmds",  "structural",  "structural_steel_frame2d";
     "opscmds",  "structural",  "structural_parfor_truss";
+    "opscmds",  "structural",  "structural_mvlem3d_force_controlled";
     "opscmds",  "earthquake",  "earthquake_NLSMRF";
     "opscmds",  "earthquake",  "earthquake_frame3D_transient";
     "opscmds",  "earthquake",  "earthquake_RC_FRAME_EQ1";
