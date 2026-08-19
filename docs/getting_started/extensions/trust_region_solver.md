@@ -211,19 +211,19 @@ Cauchy and dogleg. The effective tangent has the familiar form
 J_{\mathrm{eff}}=c_1K+c_2C+c_3M
 \]
 
-!!! warning "Modal damping matrix limitation"
-    OpenSees adds its modal damping matrix directly to `LinearSOE` inside
-    `TransientIntegrator::formTangent()`. That contribution is not exposed as
-    a `DOF_Group` or `FE_Element` tangent and is therefore not present in the
-    trust-region sparse snapshot.
+OpenSees modal damping is also included. Its contribution is represented in
+low-rank form from the active modal damping factors, eigenvalues, equation-space
+mode shapes, and `IncrementalIntegrator::doMv()` mass products
 
-    Trust-region Newton remains complete because its direction is solved using
-    the OpenSees `LinearSOE` and its predicted linear residual follows directly
-    from \(Jp_N=B\). With modal damping enabled, Cauchy and dogleg still have
-    incomplete snapshot `J*v` and `J^T*v` operations. Until a portable access
-    path is implemented, use `TrustRegion -subproblem newton` or a native
-    OpenSees Newton-family algorithm for modal-damping analyses, or use Rayleigh
-    damping when Cauchy/dogleg behavior is required.
+\[
+C_m=\sum_i 2\xi_i\omega_i(M\phi_i)(M\phi_i)^T
+\]
+
+The applicable transient tangent coefficient is applied to each term. This is
+the same expression assembled by OpenSees, but it avoids expanding the modal
+matrix into the sparse snapshot. Consequently Newton, Cauchy, and dogleg all
+include modal damping in their Jacobian actions. `modalDampingQ` intentionally
+does not contribute a tangent in OpenSees and is treated the same way here.
 
 ## Scaling and method selection
 
@@ -351,6 +351,7 @@ The statistics structure contains:
 | `jacobianProducts` | Snapshot `J*v` products |
 | `transposeJacobianProducts` | Snapshot `J^T*v` products |
 | `snapshotNonzeros`, `snapshotBytes` | Sparse snapshot size estimate |
+| `modalDampingRank` | Number of active low-rank modal tangent terms |
 | `finalResidualNorm`, `finalStepNorm` | Final norms |
 | `finalRadius`, `finalImprovementRatio` | Final trust-region state |
 | `returnCode` | Numeric result code |
