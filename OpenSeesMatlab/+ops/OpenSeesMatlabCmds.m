@@ -1662,8 +1662,7 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %   auto|none|jacobi|ssor|ilu0, '-relativeTolerance',
             %   '-absoluteTolerance', '-maxIter', '-maxDim', '-maxRestarts', and
             %   '-gramSchmidt' modified|classical. '-tolerance' remains an alias
-            %   for '-relativeTolerance'. '-backend' accepts auto|native|mkl;
-            %   '-mklThreshold' sets the automatic MKL crossover size.
+            %   for '-relativeTolerance'.
             arguments
                 obj
                 systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
