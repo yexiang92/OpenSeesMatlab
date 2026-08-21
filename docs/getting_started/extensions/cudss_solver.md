@@ -21,9 +21,8 @@ To use cuDSS, the user computer needs:
     - [CUDA](https://developer.nvidia.com/cuda-toolkit-archive) 12 or CUDA 13 runtime and cuBLAS libraries;
     - NVIDIA [cuDSS](https://developer.nvidia.com/cudss) **0.8** built for the same CUDA major version; and
 
-Users do not need Visual Studio, CMake, `nvcc`, or MATLAB Parallel Computing
-Toolbox. A newer supported NVIDIA GPU is allowed; the MEX is not tied to the GPU
-used when it was compiled.
+Download and install matching CUDA and cuDSS versions, and note their
+installation directories for the configuration below.
 
 ## Configure the cuDSS runtime
 
@@ -131,6 +130,9 @@ All options below are passed through `ops.system` to the cuDSS extension.
 | `-device auto\|index` | `auto` | Select one zero-based GPU index. |
 | `-devices "i,j,..."` | disabled | Enable single-node multi-GPU execution on at least two GPUs. |
 | `-cpuThreshold equations` | `0` | Use Eigen SparseLU at or below this equation count; zero disables CPU crossover. |
+| `-reuseFactorization` | on | Reuse an existing numerical factorization when the newly assembled matrix is exactly unchanged. |
+| `-noReuseFactorization` | off | Force numerical refactorization after OpenSees forms the tangent; useful for controlled benchmarks. |
+| `-indexBits auto\|32\|64` | `auto` | Select CSR index width. Automatic mode uses 32-bit indices when the matrix fits and otherwise uses 64-bit indices. |
 | `-reorder default\|btf\|colamd\|amd\|nd\|none` | `default` | Select the symbolic reordering algorithm. |
 | `-factorization default\|multiblock\|general` | `default` | Select the numerical factorization algorithm. |
 | `-pivot auto\|none\|globalCol\|globalRow\|diagonal\|local` | `auto` | Select numerical pivoting. Valid combinations depend on matrix type and reordering. |
@@ -165,10 +167,13 @@ rejected by cuDSS rather than silently changed.
 
 ## Performance behavior
 
-The implementation uses 64-bit CSR indices, precomputed constant-time assembly
-lookups, asynchronous transfers on a dedicated stream, symbolic-analysis reuse,
-and refactorization when the sparsity pattern is unchanged. If refactorization
-fails, it retries a complete numerical factorization.
+The implementation automatically selects 32-bit or 64-bit CSR indices, caches
+the element-equation to CSR assembly mapping, uses asynchronous transfers on a
+dedicated stream, reuses symbolic analysis, and uses refactorization when the
+sparsity pattern is unchanged. If refactorization fails, it retries a complete
+numerical factorization. When the assembled matrix is exactly unchanged, the
+default `-reuseFactorization` behavior skips its upload and numerical
+factorization and performs only the new right-hand-side solve.
 
 Small systems can be faster on the CPU because GPU launch and transfer overhead
 dominates. Tune `-cpuThreshold` with the actual model and hardware; values around
@@ -211,6 +216,60 @@ ops.system("CuDSS", CuDSSOptions{:});
 Do not copy `-cpuThreshold`, reordering, or pivot values blindly. The best
 choice depends on equation count, sparsity pattern, GPU, and how often the
 tangent matrix changes.
+
+## Improving nonlinear analysis performance
+
+Start with the general solver and the standard Newton algorithm. This is the
+safest choice for nonlinear static and dynamic analysis:
+
+```matlab
+ops.system("CuDSS");
+ops.test("NormDispIncr", 1.0e-8, 30);
+ops.algorithm("Newton");
+```
+
+For static analysis, add the required load-control integrator. For dynamic
+analysis, use the selected transient integrator as usual:
+
+```matlab
+% Static
+ops.integrator("LoadControl", 0.01);
+ops.analysis("Static");
+
+% Dynamic
+ops.integrator("Newmark", 0.5, 0.25);
+ops.analysis("Transient");
+```
+
+Newton updates and refactorizes the tangent during nonlinear iteration. For a
+large model, try `ModifiedNewton` or `KrylovNewton` if the tangent can remain
+useful for several iterations:
+
+```matlab
+ops.algorithm("ModifiedNewton");
+% or
+ops.algorithm("KrylovNewton", "-maxDim", 10);
+```
+
+These methods may reduce factorization time, but they can require more
+iterations. Use Newton again if convergence becomes slow or unreliable. Strong
+plasticity, stiffness degradation, contact, snap-through, and changing time
+steps generally reduce the opportunity to reuse a factorization.
+
+CuDSS automatically reuses an unchanged matrix. This is especially effective
+for linear dynamics and for repeated solves with a fixed tangent. Nonlinear
+materials and geometric nonlinearity remain fully active; when the tangent
+changes, CuDSS refactorizes it automatically.
+
+Measure the complete analysis rather than a single solve. The first solve is
+normally slower because it initializes the GPU and performs symbolic analysis
+and factorization. Compare total time, convergence, and final response with a
+trusted CPU solver such as UmfPack. Disable reuse only when measuring raw
+factorization performance:
+
+```matlab
+ops.system("CuDSS", "-noReuseFactorization");
+```
 
 The C++ extension additionally supports multiple dense right-hand sides through
 `SOE::solveMultiple`. The standard OpenSees `LinearSOE` analysis path continues
