@@ -1617,7 +1617,9 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % ----------
             % systemType : str
             %   The system type. CuDSS, CuDSSGeneral, CuDSSSymmetric, and
-            %   CuDSSSPD use the optional NVIDIA GPU extension.
+            %   CuDSSSPD use the optional NVIDIA GPU extension. SUNDIALS exposes
+            %   the bundled CPU linear solvers: dense, band, pcg, spbcgs,
+            %   spfgmr, spgmr, and sptfqmr.
             % systemArgs : varargin
             %   Additional arguments for the system. CuDSS accepts:
             %
@@ -1630,6 +1632,9 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %
             %   Numerical and performance controls:
             %     '-cpuThreshold', equations  CPU SparseLU below this size (0)
+            %     '-reuseFactorization'       reuse bitwise-identical tangents (default)
+            %     '-noReuseFactorization'     force numerical refactorization
+            %     '-indexBits', auto|32|64    CSR index width (default auto)
             %     '-reorder', default|btf|colamd|amd|nd|none
             %     '-factorization', default|multiblock|general
             %     '-pivot', auto|none|globalCol|globalRow|diagonal|local
@@ -1651,18 +1656,28 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %   Options are forwarded unchanged to the cuDSS extension. Disable
             %   diagnostics, verbose output, estimates, and deterministic mode
             %   for representative performance timing.
+            %
+            %   SUNDIALS accepts '-type' dense|band|pcg|spbcgs|spfgmr|spgmr|
+            %   sptfqmr. Iterative types accept '-preconditioner'
+            %   auto|none|jacobi|ssor|ilu0, '-relativeTolerance',
+            %   '-absoluteTolerance', '-maxIter', '-maxDim', '-maxRestarts', and
+            %   '-gramSchmidt' modified|classical. '-tolerance' remains an alias
+            %   for '-relativeTolerance'. '-backend' accepts auto|native|mkl;
+            %   '-mklThreshold' sets the automatic MKL crossover size.
             arguments
                 obj
                 systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
                  "ProfileSPD", "ParallelProfileSPD", "PFEM", "SparseGeneral", "SuperLU", "SparseGEN", ...
                  "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack", ...
-                 "CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"])}
+                 "CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD", ...
+                 "SUNDIALS", "Sundials", "sundials"])}
             end
             arguments (Repeating)
                 systemArgs
             end
 
-            if any(strcmp(string(systemType), ["CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"]))
+            if any(strcmp(string(systemType), ["CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"])) || ...
+                    strcmpi(string(systemType), "SUNDIALS")
                 [varargout{1:nargout}] = obj.mexHandle('extensionSystem', systemType, systemArgs{:});
             else
                 [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
