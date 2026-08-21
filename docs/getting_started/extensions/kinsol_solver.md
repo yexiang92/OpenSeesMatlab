@@ -54,19 +54,17 @@ ops.system("UmfPack");
 ops.test("NormUnbalance", 1.0e-8, 40, 0);
 
 ops.algorithm("KINSOL", ...
-    "-strategy", "lineSearch", ...
-    "-jacobian", "adaptive", ...
-    "-fnormTol", 1.0e-8, ...
-    "-maxIter", 40);
+    "-method", "lineSearch", ...
+    "-tol", 1.0e-8);
 
 ops.integrator("LoadControl", 0.02);
 ops.analysis("Static");
 ok = ops.analyze(50);
 ```
 
-The `ops.test` object is retained for compatibility if the analysis later
-switches back to a native OpenSees algorithm. **It does not drive KINSOL's
-nonlinear iterations.**
+The `ops.test` object supplies the default iteration limit. It is also retained
+for compatibility if the analysis later switches back to a native OpenSees
+algorithm. It does not create a second iteration loop around KINSOL.
 
 For transient analysis, only the integrator and analysis type change:
 
@@ -82,11 +80,28 @@ revert remain the responsibility of the surrounding OpenSees analysis.
 ## Command syntax
 
 The shortest form selects Newton line search, adaptive tangent refresh, and
-automatic final validation:
+KINSOL's own convergence test:
 
 ```matlab
 ops.algorithm("KINSOL");
 ```
+
+For most models, select one method and one tolerance:
+
+```matlab
+ops.algorithm("KINSOL", "-method", "newton",    "-tol", 1.0e-8);
+ops.algorithm("KINSOL", "-method", "lineSearch", "-tol", 1.0e-8);
+ops.algorithm("KINSOL", "-method", "modified",  "-tol", 1.0e-8);
+ops.algorithm("KINSOL", "-method", "picard",    "-tol", 1.0e-8);
+```
+
+The presets mean exact-Jacobian Newton, adaptive-Jacobian Newton line search,
+modified Newton, and damped Picard with Anderson acceleration respectively.
+`-tol` sets the KINSOL function-norm tolerance. The maximum iteration count inherits the active
+`ops.test`; specify `-maxIter` only when KINSOL needs a different limit.
+
+The options below remain available for advanced tuning and override preset
+values regardless of argument order.
 
 Options are passed as ordinary OpenSees-style name/value arguments:
 
@@ -94,8 +109,8 @@ Options are passed as ordinary OpenSees-style name/value arguments:
 ops.algorithm("KINSOL", ...
     "-strategy", "lineSearch", ...
     "-jacobian", "adaptive", ...
-    "-fnormTol", 1.0e-8, ...
-    "-stepTol", 1.0e-12, ...
+    "-funcNormTol", 1.0e-8, ...
+    "-scaledStepTol", 1.0e-12, ...
     "-maxIter", 40);
 ```
 
@@ -103,16 +118,20 @@ ops.algorithm("KINSOL", ...
 
 | Option | Default | Meaning |
 |---|---:|---|
-| `-strategy newton\|lineSearch\|picard` | `lineSearch` | Nonlinear iteration strategy |
+| `-method newton\|lineSearch\|modified\|picard` | none | Recommended preset selecting a strategy and tangent policy |
+| `-tol value` | none | Set the KINSOL function-norm tolerance |
+| `-strategy none\|lineSearch\|picard` | `lineSearch` | Native KINSOL strategy; `KIN_NONE`, `KIN_LINESEARCH`, and `KIN_PICARD` are also accepted |
 | `-jacobian exact\|modified\|adaptive` | `adaptive` | OpenSees tangent refresh policy |
-| `-maxIter n` | `30` | Maximum KINSOL nonlinear iterations per analysis step |
-| `-fnormTol value` | `1e-8` | KINSOL scaled function-norm tolerance |
-| `-stepTol value` | `1e-12` | KINSOL scaled step-length tolerance |
+| `-maxIter n` | active `test` limit | Maximum KINSOL nonlinear iterations per analysis step |
+| `-testMode KINSOL\|OpenSees\|Hybrid` | `KINSOL` | KINSOL-only, final `NormUnbalance` test, or KINSOL plus final validation |
+| `-funcNormTol value` | `1e-8` | KINSOL scaled function-norm tolerance; `-fnormTol` is an alias |
+| `-scaledStepTol value` | `1e-12` | KINSOL scaled step-length tolerance; `-stepTol` is an alias |
+| `-acceptStepTol on\|off` | `off` | Treat `KIN_STEP_LT_STPTOL` as an accepted approximate result |
 | `-maxNewtonStep value` | KINSOL default | Maximum scaled Newton step; `0` leaves the KINSOL default |
 | `-maxBetaFailures n` | `10` | Maximum line-search beta-condition failures |
-| `-validation residual\|step\|either\|both\|none` | automatic | Final OpenSees acceptance rule; `Penalty` selects `step`, other handlers select `residual` |
-| `-validationResidualTol value` | `fnormTol` | Tolerance for the re-formed, unscaled OpenSees residual |
-| `-validationStepTol value` | `stepTol` | Tolerance for final KINSOL scaled step validation |
+| `-validation residual\|step\|either\|both\|none` | handler-dependent | Final acceptance rule used only with `-testMode Hybrid` |
+| `-validationResidualTol value` | `funcNormTol` | Hybrid tolerance for the re-formed, unscaled OpenSees residual |
+| `-validationStepTol value` | `scaledStepTol` | Hybrid tolerance for final KINSOL scaled-step validation |
 | `-maxSetupCalls n` | `10` | Maximum nonlinear iterations between full tangent setups in adaptive mode |
 | `-maxSubSetupCalls n` | `5` | Maximum iterations between residual-monitoring sub-setups |
 | `-residualMonitor on\|off` | `on` | Enable KINSOL residual monitoring for tangent refresh |
@@ -134,8 +153,11 @@ ops.algorithm("KINSOL", ...
 | `-printStats` | off | Print a final statistics summary |
 
 `exact` overrides `-maxSetupCalls` to one. `modified` retains the tangent for
-the current solve and disables residual-monitor-triggered refresh. Anderson
-depth must be smaller than `maxIter`.
+the current solve and disables residual-monitor-triggered refresh. When
+`-maxIter` is omitted, KINSOL inherits
+`ConvergenceTest::getMaxNumTests()`. Anderson depth must be smaller than an
+explicit `maxIter`; KINSOL also validates its workspace when the equation size
+is known.
 
 ## Nonlinear strategies
 
@@ -216,20 +238,52 @@ solve calls the currently linked `LinearSOE::solve()`.
 
 ## Convergence and final validation
 
-KINSOL is the only nonlinear iteration controller. OpenSeesMatlab does not run
-an OpenSees `ConvergenceTest` loop around KINSOL and does not call
-`ConvergenceTest::test()` once after KINSOL returns. OpenSees displacement and
-energy tests depend on iteration state that is not equivalent to KINSOL's
-line-search state.
+KINSOL is always the only nonlinear iteration controller. By default, the
+OpenSees `test` supplies only the maximum iteration count; its norm and
+tolerance are not applied. KINSOL decides convergence from its own stopping
+tests. `-testMode` optionally changes how the final result is accepted, but
+never creates a second nonlinear iteration loop:
 
-KINSOL has two principal stopping measures:
+| Test mode | Behavior |
+|---|---|
+| `KINSOL` | Default; accept `KIN_SUCCESS` or `KIN_INITIAL_GUESS_OK` |
+| `OpenSees` | After KINSOL stops, call the active `NormUnbalance` test once on the re-formed final residual |
+| `Hybrid` | Require an admissible KINSOL termination and the selected final validation |
+
+For example, the tolerance in this test is unused by the default KINSOL mode,
+while `40` becomes the default KINSOL iteration limit:
 
 ```matlab
-"-fnormTol", 1.0e-8, ...  % scaled function norm
-"-stepTol", 1.0e-12       % scaled step length
+ops.test("NormUnbalance", 1.0e-6, 40);
+ops.algorithm("KINSOL", "-method", "lineSearch", ...
+    "-funcNormTol", 1.0e-8);
 ```
 
-After KINSOL stops, OpenSeesMatlab can independently validate the final state:
+`OpenSees` mode is an advanced final acceptance option and intentionally
+supports `NormUnbalance` only. OpenSees
+`NormDispIncr` and `EnergyIncr` require the last accepted nonlinear increment,
+which KINSOL does not expose. Selecting either test with
+`-testMode OpenSees` therefore fails explicitly instead of evaluating a
+different quantity under the OpenSees test name. Use `Hybrid` with `step`,
+`residual`, `either`, or `both` validation instead.
+
+KINSOL has two principal stopping measures, matching
+`KINSetFuncNormTol` and `KINSetScaledStepTol`:
+
+```matlab
+"-funcNormTol", 1.0e-8, ...   % scaled function norm
+"-scaledStepTol", 1.0e-12     % scaled step length
+```
+
+Meeting the function-norm tolerance returns `KIN_SUCCESS` and is accepted.
+Meeting only the scaled-step tolerance returns `KIN_STEP_LT_STPTOL`: the
+iteration can no longer make a significant move, but the nonlinear equations
+may still have a material residual. It is rejected by default. Use
+`-acceptStepTol on` only when an approximate or stagnated solution is acceptable
+and verify the reported residual separately.
+
+With `-testMode Hybrid`, OpenSeesMatlab can independently validate the final
+state after KINSOL stops:
 
 | Validation | Acceptance rule |
 |---|---|
@@ -241,6 +295,7 @@ After KINSOL stops, OpenSeesMatlab can independently validate the final state:
 
 ```matlab
 ops.algorithm("KINSOL", ...
+    "-testMode", "Hybrid", ...
     "-validation", "residual", ...
     "-validationResidualTol", 1.0e-8, ...
     "-validationStepTol", 1.0e-12);
@@ -259,16 +314,20 @@ longer provide a useful physical force norm.
 ```matlab
 ops.constraints("Penalty", 1.0e16, 1.0e16);
 ops.algorithm("KINSOL", ...
-    "-strategy", "lineSearch", ...
-    "-stepTol", 1.0e-10);
+    "-method", "lineSearch", ...
+    "-funcNormTol", 1.0e-8);
 ```
 
-When the active handler is `Penalty` and `-validation` is omitted,
-OpenSeesMatlab automatically selects step validation. An explicit choice always
-wins:
+For strongly heterogeneous penalty equations, provide a problem-specific
+equation-wise `-residualScale` vector. A single global scale generally cannot
+distinguish physical equilibrium equations from penalty equations.
+
+If Hybrid validation is explicitly enabled, an active `Penalty` handler selects
+step validation when `-validation` is omitted. An explicit choice always wins:
 
 ```matlab
 ops.algorithm("KINSOL", ...
+    "-testMode", "Hybrid", ...
     "-validation", "step", ...
     "-validationStepTol", 1.0e-10);
 ```
@@ -366,6 +425,7 @@ Important fields include:
 | Field | Meaning |
 |---|---|
 | `nonlinearIterations` | KINSOL nonlinear iterations |
+| `iterationLimit` | Effective explicit or inherited nonlinear iteration limit |
 | `residualEvaluations` | residual callback evaluations |
 | `tangentEvaluations` | OpenSees tangent formations |
 | `linearSetupCalls` | SUNLinearSolver setup calls |
@@ -377,6 +437,8 @@ Important fields include:
 | `finalStepNorm` | KINSOL scaled step length |
 | `validationPassed` | final acceptance status |
 | `validationMode` | `0=residual`, `1=step`, `2=either`, `3=both`, `4=none` |
+| `testMode` | `0=KINSOL`, `1=OpenSees`, `2=Hybrid` |
+| `openSeesTestResult` | Final `NormUnbalance` result in OpenSees mode; otherwise `-1` |
 | `returnCode` | numeric KINSOL return code |
 
 ## Domain changes and failed steps
@@ -463,10 +525,10 @@ algebra cost without changing KINSOL. The bridge reuses its right-hand-side
 workspace, and KINSOL resources are retained until the equation count,
 integrator, or linked system changes.
 
-Final validation may require one additional OpenSees residual formation. Keep
-it enabled for production analysis, particularly with path-dependent models.
-Select the validation rule to match the constraint handler rather than
-disabling validation only to improve a small benchmark.
+The default KINSOL mode avoids an additional final OpenSees acceptance test.
+Enable `Hybrid` only when an independent final check is required, then select
+the validation rule to match the constraint handler. Hybrid residual validation
+may require one additional OpenSees residual formation.
 
 For meaningful timings, warm up MATLAB and the linear solver, exclude model
 construction, repeat runs, and compare median time together with
