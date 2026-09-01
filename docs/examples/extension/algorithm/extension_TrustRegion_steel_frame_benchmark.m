@@ -1,16 +1,18 @@
-%% *Trust-region benchmark: nonlinear steel frame*
-% 
-
-% This example compares the native OpenSees Newton and KrylovNewton
-% algorithms with the Newton, Cauchy, and dogleg variants of the
-% OpenSeesMatlab trust-region extension. Every case rebuilds the same
-% two-story steel frame. The model includes fiber sections, Steel02 material,
-% P-Delta columns, sustained gravity loading, and low post-yield hardening.
+%% *Nonlinear iterative algorithm: Trust-region Newton benchmark*
 %
-% The reported wall time covers only the pushover or transient solution.
-% Model construction and gravity analysis are excluded. Newton is used as the
-% response reference; small differences can still arise from different
-% nonlinear paths and stopping criteria.
+%
+% This example compares the native OpenSees Newton and Krylov-Newton algorithms
+% with the Newton, Cauchy, and dogleg variants of the OpenSeesMatlab trust-region
+% extension. Every case rebuilds the same two-story steel frame. The model includes
+% fiber sections, Steel02 material, P-Delta columns, sustained gravity loading,
+% and low post-yield hardening.
+%
+% The reported wall time covers only the pushover or transient solution. Model
+% construction and gravity analysis are excluded. Newton is used as the response
+% reference; small differences can still arise from different nonlinear paths
+% and stopping criteria.
+%
+%
 
 clearvars; clc; close all;
 
@@ -21,7 +23,9 @@ solverCases = localSolverCases();
 caseNames = string({solverCases.name});
 style = localPlotStyle(numel(solverCases));
 
-%% Pushover analysis
+% Pushover analysis
+%
+
 push.targetRoofDrift = 0.08;
 push.numSteps = 160;
 push.tolerance = 1.0e-7;
@@ -35,8 +39,9 @@ end
 pushTable = localResultTable(caseNames, pushover, pushover(1), ...
     push.numSteps, 'pushover');
 pushTable
+% Pushover response and accuracy
+%
 
-%% Pushover response and accuracy
 localPublicationFigure('Trust-region steel-frame pushover', [25, 8.5]);
 tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 
@@ -69,15 +74,17 @@ end
 xlabel('Roof drift ratio (%)'); ylabel('|V - V_{Newton}| (kN)');
 title('Difference from OpenSees Newton');
 legend('Location', 'best'); localFormatAxes(gca);
+% Pushover convergence
+%
 
-%% Pushover convergence
 % OpenSees algorithms report testIter/testNorms. Trust-region cases report
 % accepted nonlinear iterations and final residual norm through
 % trustRegionStats. Both values refer to the completed analysis step.
 localPlotConvergence(caseNames, pushover, 'Roof drift ratio (%)', 100, ...
     'Pushover convergence', style);
+% Dynamic excitation
+%
 
-%% Dynamic excitation
 dynamic.dt = 0.01;
 dynamic.duration = 8.0;
 dynamic.tolerance = 1.0e-7;
@@ -97,8 +104,9 @@ plot(dynamic.time, dynamic.acceleration/9.81, '-', ...
     'Color', [0.1, 0.1, 0.1], 'LineWidth', style.lineWidth);
 grid on; box on; xlabel('Time (s)'); ylabel('Ground acceleration (g)');
 title('Synthetic benchmark motion'); localFormatAxes(gca);
+% Transient analysis
+%
 
-%% Transient analysis
 transient = repmat(localEmptyResult(), numel(solverCases), 1);
 for i = 1:numel(solverCases)
     fprintf('Transient: %s\n', solverCases(i).name);
@@ -107,8 +115,9 @@ end
 dynamicTable = localResultTable(caseNames, transient, transient(1), ...
     numel(dynamic.time)-1, 'transient');
 dynamicTable
+% Transient response and accuracy
+%
 
-%% Transient response and accuracy
 localPublicationFigure('Trust-region steel-frame transient response', [25, 14]);
 tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
 
@@ -142,12 +151,14 @@ end
 xlabel('Time (s)'); ylabel('|u - u_{Newton}| (m)');
 title('Difference from OpenSees Newton');
 legend('Location', 'best'); localFormatAxes(gca);
+% Transient convergence
+%
 
-%% Transient convergence
 localPlotConvergence(caseNames, transient, 'Time (s)', 1, ...
     'Transient convergence', style);
+% Timing and completion summary
+%
 
-%% Timing and completion summary
 localPublicationFigure('Trust-region benchmark summary', [25, 9]);
 tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 
@@ -168,8 +179,9 @@ b(2).FaceColor = [0.90, 0.62, 0.00];
 ylim([0, 1.05]); grid on; box on; ylabel('Completed fraction');
 title('Analysis completion'); legend('Pushover', 'Transient', ...
     'Location', 'best'); xtickangle(25); localFormatAxes(gca);
+% Discussion
+%
 
-%% Discussion
 % Newton is normally the least expensive method when its full step remains in
 % the local convergence region. KrylovNewton can reduce tangent formations but
 % is not globally convergent. Trust-region Newton limits the same OpenSees
@@ -183,8 +195,9 @@ title('Analysis completion'); legend('Pushover', 'Transient', ...
 
 localPrintConclusion(pushTable, dynamicTable);
 ops.wipe();
+% Local functions
+%
 
-%% Local functions
 function cases = localSolverCases()
 cases = struct('name', {...
     'OpenSees Newton', 'OpenSees KrylovNewton', ...
@@ -368,7 +381,7 @@ end
 end
 
 function localTrustRegion(ops, subproblem, settings)
-ops.call('algorithm', 'TrustRegion', '-subproblem', subproblem, ...
+ops.algorithm('TrustRegion', '-subproblem', subproblem, ...
     '-ratio', 'quadratic', '-initialRadius', 0.02, ...
     '-minRadius', 1.0e-12, '-maxRadius', 2.0, ...
     '-maxIter', settings.maxIterations, '-maxReject', 20);

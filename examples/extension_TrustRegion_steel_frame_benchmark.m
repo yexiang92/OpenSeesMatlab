@@ -75,7 +75,7 @@ legend('Location', 'best'); localFormatAxes(gca);
 %% Pushover convergence
 % OpenSees algorithms report testIter/testNorms. Trust-region cases report
 % accepted nonlinear iterations and final residual norm through
-% trustRegionStats. Both values refer to the completed analysis step.
+% algorithm('TrustRegion', '-info'). Both values refer to the completed analysis step.
 localPlotConvergence(caseNames, pushover, 'Roof drift ratio (%)', 100, ...
     'Pushover convergence', style);
 
@@ -361,7 +361,13 @@ switch solverCase.kind
     case 'trNewton'
         localTrustRegion(ops, 'newton', settings);
     case 'trCauchy'
-        localTrustRegion(ops, 'cauchy', settings);
+        % A pure Cauchy step is intentionally conservative and generally
+        % needs more iterations than Newton-based variants.
+        cauchySettings = settings;
+        cauchySettings.maxIterations = max(400, settings.maxIterations);
+        ops.test('NormUnbalance', cauchySettings.tolerance, ...
+            cauchySettings.maxIterations, 0);
+        localTrustRegion(ops, 'cauchy', cauchySettings);
     case 'trDogleg'
         localTrustRegion(ops, 'dogleg', settings);
     otherwise
@@ -370,15 +376,20 @@ end
 end
 
 function localTrustRegion(ops, subproblem, settings)
+maximumTangentAge = 2;
+if strcmp(subproblem, 'cauchy')
+    maximumTangentAge = 0;
+end
 ops.call('algorithm', 'TrustRegion', '-subproblem', subproblem, ...
     '-ratio', 'quadratic', '-initialRadius', 0.02, ...
     '-minRadius', 1.0e-12, '-maxRadius', 2.0, ...
-    '-maxIter', settings.maxIterations, '-maxReject', 20);
+    '-maxIter', settings.maxIterations, '-maxReject', 20, ...
+    '-maxTangentAge', maximumTangentAge, '-collectStats');
 end
 
 function [iterations, residualNorm] = localReadConvergence(ops, solverKind)
 if startsWith(solverKind, 'tr')
-    statistics = ops.call('trustRegionStats');
+    statistics = ops.call('algorithm', 'TrustRegion', '-info');
     iterations = statistics.nonlinearIterations;
     residualNorm = statistics.finalResidualNorm;
 else
@@ -393,9 +404,9 @@ function [iterations, reason] = localFailureDetails(ops, solverKind, code)
 iterations = 0;
 reason = "ANALYZE_" + string(code);
 if startsWith(solverKind, 'tr')
-    statistics = ops.call('trustRegionStats');
+    statistics = ops.call('algorithm', 'TrustRegion', '-info');
     iterations = statistics.nonlinearIterations;
-    reason = string(ops.call('trustRegionReturnReason'));
+    reason = string(statistics.returnReason);
 end
 end
 
@@ -405,6 +416,7 @@ success = false(n,1); totalIter = zeros(n,1); meanIter = nan(n,1);
 maxIter = nan(n,1); maxNorm = nan(n,1); maxError = nan(n,1);
 relativeL2 = nan(n,1); peakResponse = nan(n,1);
 returnReason = strings(n,1);
+message = strings(n,1);
 for i = 1:n
     elapsed(i) = results(i).elapsed; completed(i) = results(i).completedSteps;
     success(i) = results(i).success;
@@ -416,6 +428,7 @@ for i = 1:n
             [], 'omitnan');
     end
     returnReason(i) = results(i).returnReason;
+    message(i) = results(i).message;
     if ~isempty(results(i).y), peakResponse(i) = max(abs(results(i).y)); end
     [~, difference, referenceValues] = localCurveError(reference, results(i));
     if ~isempty(difference)
@@ -426,11 +439,11 @@ end
 completedFraction = completed/expected;
 output = table(names(:), success, completed, completedFraction, elapsed, ...
     totalIter, meanIter, maxIter, maxNorm, peakResponse, maxError, relativeL2, ...
-    returnReason, ...
+    returnReason, message, ...
     'VariableNames', {'Solver','Success','CompletedSteps','CompletedFraction', ...
     'Time_s','TotalIterations','MeanIterations','MaxIterations', ...
     'MaxFinalNorm','PeakResponse','MaxAbsoluteError','RelativeL2Error', ...
-    'ReturnReason'});
+    'ReturnReason','Message'});
 output.Properties.Description = type + " benchmark";
 end
 

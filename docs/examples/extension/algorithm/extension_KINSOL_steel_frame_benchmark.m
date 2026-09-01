@@ -1,28 +1,28 @@
 %% *Nonlinear iterative algorithm: KINSOL package benchmark*
-% 
-% 
-% This example compares OpenSees Newton and KrylovNewton with the Newton, line-search, 
-% modified-Jacobian, and Anderson-accelerated Picard options in KINSOL. The same 
-% two-story steel frame is rebuilt before every run. Low post-yield hardening, 
-% sustained gravity load, P-Delta columns, an 8% pushover target, and a strong 
+%
+%
+% This example compares OpenSees Newton and KrylovNewton with the Newton, line-search,
+% modified-Jacobian, and Anderson-accelerated Picard options in KINSOL. The same
+% two-story steel frame is rebuilt before every run. Low post-yield hardening,
+% sustained gravity load, P-Delta columns, an 8% pushover target, and a strong
 % cyclic input make this a deliberately nonlinear case.
-% 
-% *KINSOL* is a solver for nonlinear algebraic systems. See <https://computing.llnl.gov/projects/sundials/kinsol 
+%
+% *KINSOL* is a solver for nonlinear algebraic systems. See <https://computing.llnl.gov/projects/sundials/kinsol
 % KINSOL | Computing>.
-% 
-% The reported wall time includes only the pushover or transient solution. Model 
-% generation and gravity analysis are excluded. Timing results depend on the selected 
-% OpenSees system, processor, and MATLAB session; response errors are generally 
-% more portable than small timing differences. KINSOL controls the nonlinear iterations. 
-% A direct final OpenSees residual check, rather than ConvergenceTest::test(), 
-% provides an independent acceptance check; accuracy is also compared against 
+%
+% The reported wall time includes only the pushover or transient solution. Model
+% generation and gravity analysis are excluded. Timing results depend on the selected
+% OpenSees system, processor, and MATLAB session; response errors are generally
+% more portable than small timing differences. KINSOL controls the nonlinear iterations.
+% A direct final OpenSees residual check, rather than ConvergenceTest::test(),
+% provides an independent acceptance check; accuracy is also compared against
 % the OpenSees Newton response.
-% 
-% 
-% 
-% 
-% 
-% 
+%
+%
+%
+%
+%
+%
 
 clear; clc; close all;
 
@@ -30,14 +30,14 @@ clear; clc; close all;
 opsMat = OpenSeesMatlab();
 
 ops = opsMat.opensees;
-%% 
-% 
+%%
+%
 
 solverCases = localSolverCases();
 caseNames = string({solverCases.name});
 plotStyle = localPlotStyle(numel(solverCases));
 % Pushover settings
-% 
+%
 
 push.targetRoofDrift = 0.08;
 push.numSteps = 160;
@@ -52,7 +52,7 @@ end
 pushTable = localPushoverTable(caseNames, pushover);
 pushTable
 % Pushover response and error
-% 
+%
 
 localPublicationFigure('KINSOL steel-frame pushover', [25, 8.5]);
 tiledlayout(1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
@@ -97,7 +97,7 @@ title('Difference from OpenSees Newton');
 legend('Location', 'best');
 localFormatAxes(gca);
 % Pushover convergence history
-% 
+%
 
 % OpenSees curves use testIter/testNorms. KINSOL curves use
 % nonlinearIterations/finalResidualNorm from kinsolStats. Both describe the
@@ -107,7 +107,7 @@ localFormatAxes(gca);
 localPlotConvergence(caseNames, pushover, 'Roof drift ratio (%)', 100, ...
     'Pushover convergence', plotStyle);
 % Ground motion used by every transient run
-% 
+%
 
 % A deterministic, modulated broadband record keeps the example
 % self-contained. Replace acceleration with a recorded motion when assessing a
@@ -135,7 +135,7 @@ xlabel('Time (s)'); ylabel('Ground acceleration (g)');
 title('Synthetic benchmark motion');
 localFormatAxes(gca);
 % Nonlinear transient analysis
-% 
+%
 
 transient = repmat(localEmptyResult(), numel(solverCases), 1);
 for i = 1:numel(solverCases)
@@ -146,7 +146,7 @@ end
 dynamicTable = localDynamicTable(caseNames, transient);
 dynamicTable
 % Dynamic response and error
-% 
+%
 
 localPublicationFigure('KINSOL steel-frame transient response', [25, 14]);
 tiledlayout(2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
@@ -189,7 +189,7 @@ title('Difference from OpenSees Newton');
 legend('Location', 'best');
 localFormatAxes(gca);
 % Transient convergence history
-% 
+%
 
 % A residual above fnormTol can still accompany KIN_STEP_LT_STPTOL. The
 % response-error plots should therefore be considered together with the norm
@@ -198,7 +198,7 @@ localFormatAxes(gca);
 localPlotConvergence(caseNames, transient, 'Time (s)', 1.0, ...
     'Transient convergence', plotStyle);
 % Runtime and completion summary
-% 
+%
 
 
 localPublicationFigure('KINSOL benchmark summary', [25, 9]);
@@ -228,7 +228,7 @@ legend('Pushover', 'Transient', 'Location', 'best');
 xtickangle(25);
 localFormatAxes(gca);
 % Conclusions and discussion
-% 
+%
 
 successfulPush = find(pushTable.Success & isfinite(pushTable.Time_s));
 successfulDynamic = find(dynamicTable.Success & isfinite(dynamicTable.Time_s));
@@ -248,38 +248,38 @@ fprintf('Largest completed pushover relative error: %.3e.\n', ...
     max(pushTable.RelativeL2Error(pushTable.Success), [], 'omitnan'));
 fprintf('Largest completed transient relative error: %.3e.\n', ...
     max(dynamicTable.RelativeL2Error(dynamicTable.Success), [], 'omitnan'));
-%% 
-% Newton is used as the numerical reference, not as an exact solution. Curves 
-% that agree within the convergence tolerance confirm that the nonlinear backend 
-% is solving the same OpenSees equilibrium equations. KrylovNewton and KINSOL 
-% modified/Picard variants may reduce tangent factorizations, but they can require 
-% more nonlinear iterations when yielding spreads through the frame. 
-% 
-% KINSOL line search is usually the safer KINSOL choice when a full Newton step 
-% crosses a sharp stiffness transition. Picard with Anderson is most attractive 
-% when factorization dominates cost and the nonlinearity is moderate; failure 
-% to complete this benchmark is useful evidence that it is not appropriate for 
-% the selected load level. Iteration totals are useful for diagnosing difficult 
-% portions of the record, but wall time also depends on how often a tangent is 
-% formed and factorized. Consequently, fewer nonlinear iterations do not necessarily 
-% imply a faster analysis. OpenSees and KINSOL norms are reported from their native 
-% convergence mechanisms and should be compared by trend and tolerance scale, 
+%%
+% Newton is used as the numerical reference, not as an exact solution. Curves
+% that agree within the convergence tolerance confirm that the nonlinear backend
+% is solving the same OpenSees equilibrium equations. KrylovNewton and KINSOL
+% modified/Picard variants may reduce tangent factorizations, but they can require
+% more nonlinear iterations when yielding spreads through the frame.
+%
+% KINSOL line search is usually the safer KINSOL choice when a full Newton step
+% crosses a sharp stiffness transition. Picard with Anderson is most attractive
+% when factorization dominates cost and the nonlinearity is moderate; failure
+% to complete this benchmark is useful evidence that it is not appropriate for
+% the selected load level. Iteration totals are useful for diagnosing difficult
+% portions of the record, but wall time also depends on how often a tangent is
+% formed and factorized. Consequently, fewer nonlinear iterations do not necessarily
+% imply a faster analysis. OpenSees and KINSOL norms are reported from their native
+% convergence mechanisms and should be compared by trend and tolerance scale,
 % not assumed to be identical internal quantities.
-% 
-% 
-% 
-% Small timing differences should not be over-interpreted. Repeat the study 
-% on the target machine, use the intended sparse system (UmfPack, MUMPS, or CuDSS), 
-% and increase the model size before drawing performance conclusions. For snap-through 
-% or snap-back behavior, change the integrator or continuation strategy; changing 
-% only the nonlinear algorithm does not resolve an unsuitable equilibrium-path 
+%
+%
+%
+% Small timing differences should not be over-interpreted. Repeat the study
+% on the target machine, use the intended sparse system (UmfPack, MUMPS, or CuDSS),
+% and increase the model size before drawing performance conclusions. For snap-through
+% or snap-back behavior, change the integrator or continuation strategy; changing
+% only the nonlinear algorithm does not resolve an unsuitable equilibrium-path
 % parameterization.
-% 
-% 
+%
+%
 
 ops.wipe();
 % Local functions
-% 
+%
 
 
 function cases = localSolverCases()
@@ -486,20 +486,30 @@ function localConfigureAnalysis(ops, solverCase, settings, analysisType)
     switch solverCase.kind
         case 'newton'
             ops.algorithm('Newton');
+
         case 'krylov'
             ops.algorithm('KrylovNewton', '-maxDim', 10);
+
         case 'kinNewton'
-            ops.call('algorithm', 'KINSOL', '-method', 'newton', ...
-                '-tol', settings.tolerance);
+            ops.call('algorithm', 'KINSOL', ...
+                '-method', 'newton', ...
+                '-funcNormTol', settings.tolerance);
+
         case 'kinLineSearch'
-            ops.call('algorithm', 'KINSOL', '-method', 'lineSearch', ...
-                '-tol', settings.tolerance);
+            ops.call('algorithm', 'KINSOL', ...
+                '-method', 'lineSearch', ...
+                '-funcNormTol', settings.tolerance);
+
         case 'kinModified'
-            ops.call('algorithm', 'KINSOL', '-method', 'modified', ...
-                '-tol', settings.tolerance);
+            ops.call('algorithm', 'KINSOL', ...
+                '-method', 'modified', ...
+                '-funcNormTol', settings.tolerance);
+
         case 'kinPicard'
-            ops.call('algorithm', 'KINSOL', '-method', 'picard', ...
-                '-tol', settings.tolerance);
+            ops.call('algorithm', 'KINSOL', ...
+                '-method', 'picard', ...
+                '-funcNormTol', settings.tolerance);
+
         otherwise
             error('Unknown solver case: %s', solverCase.kind);
     end

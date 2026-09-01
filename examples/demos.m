@@ -15,7 +15,7 @@ tasks = [
     "post", "preprocess",    "post_Gmsh2OPS_solid";
     "post", "section",       "post_plot_fiber_section";
     "post", "section",       "post_section_mesh";
-    "post", "analysis",      "post_Smart_Analysis";
+    % "post", "analysis",      "post_Smart_Analysis";
     "post", "analysis",      "post_mphi_analysis";
 
     "opscmds",  "structural",  "structural_nonlinear_truss";
