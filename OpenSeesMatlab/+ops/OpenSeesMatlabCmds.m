@@ -39,7 +39,8 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %     Name of the OpenSees MATLAB MEX module. Default is 'OpenSeesMATLAB'.
             %
             % mexDir : string or char, optional
-            %     Directory containing the MEX module. Default is 'derived/'.
+            %     Directory containing the MEX module. By default the matching
+            %     platform directory under +ops/+core/derived is selected.
             %
             % Note
             % ----
@@ -48,13 +49,13 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %
             % Example
             % -------
-            %       opsmat = OpenSeesMatlab(mexName='OpenSeesMATLAB', mexDir='derived/');
+            %       opsmat = OpenSeesMatlab(mexName='OpenSeesMATLAB');
             %       ops = opsmat.opensees;
 
             arguments
                 parentObj (1,1) OpenSeesMatlab
                 mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
-                mexDir {mustBeTextScalar} = 'derived/'
+                mexDir {mustBeTextScalar} = ''
             end
             obj@ops.OpenSeesMatlabBase(mexName, mexDir);
             obj.parent = parentObj;
@@ -1619,7 +1620,9 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %   The system type. CuDSS, CuDSSGeneral, CuDSSSymmetric, and
             %   CuDSSSPD use the optional NVIDIA GPU extension. SUNDIALS exposes
             %   the bundled CPU linear solvers: dense, band, pcg, spbcgs,
-            %   spfgmr, spgmr, and sptfqmr.
+            %   spfgmr, spgmr, and sptfqmr. Native and extension types are
+            %   forwarded identically; the shared C++ dispatcher selects the
+            %   extension factory or delegates to upstream OpenSees.
             % systemArgs : varargin
             %   Additional arguments for the system. CuDSS accepts:
             %
@@ -1665,22 +1668,13 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %   for '-relativeTolerance'.
             arguments
                 obj
-                systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
-                 "ProfileSPD", "ParallelProfileSPD", "PFEM", "SparseGeneral", "SuperLU", "SparseGEN", ...
-                 "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack", ...
-                 "CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD", ...
-                 "SUNDIALS", "Sundials", "sundials"])}
+                systemType {mustBeTextScalar}
             end
             arguments (Repeating)
                 systemArgs
             end
 
-            if any(strcmp(string(systemType), ["CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"])) || ...
-                    strcmpi(string(systemType), "SUNDIALS")
-                [varargout{1:nargout}] = obj.mexHandle('extensionSystem', systemType, systemArgs{:});
-            else
-                [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
-            end
+            [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
         end
 
         function varargout = test(obj, testType, testArgs)
@@ -1723,17 +1717,18 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % algoType : char | string
-            %   Algorithm type.
+            %   Algorithm type. Native and extension types are dispatched in
+            %   the shared C++ layer.
             % algoArgs : varargin
-            %   Additional arguments for the algorithm.
+            %   Additional arguments for the algorithm. After a TrustRegion or
+            %   KINSOL solve, pass '-info' to return one structure containing
+            %   the latest statistics and returnReason:
+            %
+            %       info = ops.algorithm("TrustRegion", "-info");
+            %       info = ops.algorithm("KINSOL", "-info");
             arguments
                 obj
-                algoType {mustBeTextScalar, mustBeMember(algoType, ...
-                         ["Linear", "Newton", "ModifiedNewton", ...
-                          "KrylovNewton", "RaphsonNewton", "MillerNewton", ...
-                          "SecantNewton", "PeriodicNewton", "ExpressNewton", ...
-                          "Broyden", "BFGS", "NewtonLineSearch", "KINSOL", ...
-                          "TrustRegion", "TrustRegionNewton"])}
+                algoType {mustBeTextScalar}
             end
             arguments (Repeating)
                 algoArgs
