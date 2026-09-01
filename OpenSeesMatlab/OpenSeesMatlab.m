@@ -109,7 +109,8 @@ classdef OpenSeesMatlab < handle
             % mexDir : string or char, optional
             %     Directory containing the OpenSees MATLAB MEX module. Relative
             %     paths are resolved by OpenSeesMatlabBase relative to this class
-            %     location when possible. Default is 'derived/'.
+            %     location when supplied. By default the current platform is
+            %     selected under +ops/+core/derived.
             %
             % Example
             % -------
@@ -118,11 +119,11 @@ classdef OpenSeesMatlab < handle
             %
             %       opsmatCustom = OpenSeesMatlab( ...
             %           mexName="OpenSeesMATLAB", ...
-            %           mexDir="derived/");
+            %           mexDir="D:/custom/opensees");
 
             arguments
                 options.mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
-                options.mexDir {mustBeTextScalar} = 'derived/'
+                options.mexDir {mustBeTextScalar} = ''
             end
 
             obj.opensees = ops.OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
