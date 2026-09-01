@@ -1,9 +1,24 @@
 function installOpenSeesMatlab(toolboxFile)
-%INSTALL_OPENSEESMATLAB Uninstall old version and install new version.
+%INSTALLOPENSEESMATLAB Install the toolbox package for this platform.
 
     if nargin < 1
-        toolboxFile = "OpenSeesMatlab.mltbx";
+        platformTag = string(computer("arch"));
+        if ~any(platformTag == ["win64", "maca64"])
+            error("OpenSeesMatlab:UnsupportedPlatform", ...
+                "Only Windows x86-64 and macOS Apple silicon are supported.");
+        end
+
+        candidates = dir("OpenSeesMatlab-*-" + platformTag + ".mltbx");
+        if numel(candidates) ~= 1
+            error("OpenSeesMatlab:ToolboxPackageNotFound", ...
+                "Expected exactly one OpenSeesMatlab-*-%s.mltbx file in %s.", ...
+                platformTag, pwd);
+        end
+        toolboxFile = fullfile(candidates(1).folder, candidates(1).name);
     end
+
+    toolboxFile = string(toolboxFile);
+    assert(isfile(toolboxFile), "Toolbox package does not exist: %s", toolboxFile);
 
     tbxs = matlab.addons.toolbox.installedToolboxes;
 
@@ -17,7 +32,7 @@ function installOpenSeesMatlab(toolboxFile)
         end
     end
 
-    fprintf("Installing new toolbox from: %s\n", toolboxFile);
+    fprintf("Installing toolbox from: %s\n", toolboxFile);
     info = matlab.addons.toolbox.installToolbox(toolboxFile, true);
 
     fprintf("Installed toolbox: %s %s\n", info.Name, info.Version);

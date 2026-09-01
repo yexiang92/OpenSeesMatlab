@@ -1,55 +1,148 @@
-All OpenSees commands use the same input format as ``OpenSees`` and ``OpenSeesPy``. 
-For example:
+# OpenSees command interface
+
+`ops.OpenSeesMatlabCmds` is the MATLAB-facing command interface. Commands use
+the same argument order as OpenSees and OpenSeesPy:
 
 ```matlab
-opsMat = OpenSeesMatlab();  % Get Instance
-ops = opsmat.opensees;  % Get the OpenSees command interface
+opsMat = OpenSeesMatlab();
+ops = opsMat.opensees;
 
 ops.wipe();
-ops.model('basic', '-ndm', 2, '-ndf', 3);
-...
+ops.model("basic", "-ndm", 2, "-ndf", 3);
 ops.node(1, 0.0, 0.0);
 ops.node(2, 5.0, 0.0);
 ops.fix(1, 1, 1, 1);
 ops.element(...);
 ```
 
-For details, please refer to their official documentation, You can call it in the same way.
+See the [OpenSeesPy documentation](https://openseespydoc.readthedocs.io/en/latest/index.html),
+[OpenSees documentation](https://opensees.github.io/OpenSeesDocumentation/),
+and [OpenSees command manual](https://opensees.berkeley.edu/wiki/index.php/OpenSees_User)
+for command-specific arguments.
 
-[OpenSeesPy](https://openseespydoc.readthedocs.io/en/latest/index.html)
+## Command coverage
 
-[OpenSees](https://opensees.github.io/OpenSeesDocumentation/)
+This page lists all 245 methods currently exposed by `OpenSeesMatlabCmds`:
 
-[OpenSees Command Manual](https://opensees.berkeley.edu/wiki/index.php/OpenSees_User)
+- 232 upstream OpenSees commands;
+- 4 shared OpenSeesBindings commands: `adaptiveAnalyze`, `FEMDataRecorder`,
+  `getDomainGeoTag`, and `updateMaterials`;
+- 9 MATLAB-specific commands: `suppressPrint`, `matlabversion`, `readFEMData`,
+  `writeFEMDataPVD`, `matlabSubstructure`, `registerMatlabSubstructure`,
+  `unregisterMatlabSubstructure`, `clearMatlabSubstructures`, and
+  `hasMatlabSubstructure`.
 
-📌 A few notes:
+### Shared command methods
 
-- ✨ Both ``char`` and ``string`` inputs are supported. However, using ``char`` is recommended.
-- ✨ Most commands accept **scalar arguments only** and do not support passing
-    a `numeric array` directly. Please pass scalar arguments one by one.
-  
-    To unpack a `cell` array, use `{:}` expansion:
-    
-        ops.node(1, coords{:});         % coords is a cell array
-    
-    To unpack a numeric array, convert to cell first:
+| Command | Command | Command | Command |
+| --- | --- | --- | --- |
+| `accelCPU` | `adaptiveAnalyze` | `addToParameter` | `algorithm` |
+| `analysis` | `analyze` | `barrier` | `basicDeformation` |
+| `basicForce` | `basicStiffness` | `Bcast` | `beamIntegration` |
+| `block2D` | `block3D` | `build` | `cbdiDisplacement` |
+| `classType` | `computeGradients` | `constraints` | `convertBinaryToText` |
+| `convertTextToBinary` | `correlate` | `damping` | `database` |
+| `defaultUnits` | `domainChange` | `domainCommitTag` | `eigen` |
+| `eleDynamicalForce` | `eleForce` | `eleLoad` | `element` |
+| `eleNodes` | `eleResponse` | `eleType` | `equalDOF` |
+| `equalDOF_Mixed` | `equationConstraint` | `fiber` | `FEMDataRecorder` |
+| `filter` | `findCurvatures` | `findDesignPoint` | `fix` |
+| `fixX` | `fixY` | `fixZ` | `frictionModel` |
+| `functionEvaluator` | `geomTransf` | `getCDF` | `getConstrainedDOFs` |
+| `getConstrainedNodes` | `getCrdTransfTags` | `getDampTangent` | `getDomainGeoTag` |
+| `getEleClassTags` | `getEleLoadClassTags` | `getEleLoadData` | `getEleLoadTags` |
+| `getEleTags` | `getFixedDOFs` | `getFixedNodes` | `getInverseCDF` |
+| `getLoadFactor` | `getLSFTags` | `getMean` | `getNDF` |
+| `getNDM` | `getNodeLoadData` | `getNodeLoadTags` | `getNodeTags` |
+| `getNodeTemperature` | `getNP` | `getNumElements` | `getNumThreads` |
+| `getParamTags` | `getParamValue` | `getPatterns` | `getPDF` |
+| `getPID` | `getRetainedDOFs` | `getRetainedNodes` | `getRVParamTag` |
+| `getRVTags` | `getRVValue` | `getStdv` | `getStrain` |
+| `getStress` | `getTangent` | `getTime` | `gradientEvaluator` |
+| `gradPerformanceFunction` | `groundMotion` | `hystereticBackbone` | `IGA` |
+| `imposedMotion` | `imposedSupportMotion` | `initialize` | `InitialStateAnalysis` |
+| `integrator` | `layer` | `limitCurve` | `load` |
+| `loadConst` | `logFile` | `mass` | `meritFunctionCheck` |
+| `mesh` | `metaData` | `modalDamping` | `modalDampingQ` |
+| `modalProperties` | `model` | `modulatingFunction` | `nDMaterial` |
+| `NDTest` | `node` | `nodeAccel` | `nodeBounds` |
+| `nodeCoord` | `nodeDisp` | `nodeDOFs` | `nodeEigenvector` |
+| `nodeMass` | `nodePressure` | `nodeReaction` | `nodeResponse` |
+| `nodeUnbalance` | `nodeVel` | `numberer` | `numFact` |
+| `numIter` | `parameter` | `partition` | `patch` |
+| `pattern` | `performanceFunction` | `pressureConstraint` | `printA` |
+| `printB` | `printGID` | `printModel` | `printX` |
+| `probabilityTransformation` | `randomNumberGenerator` | `randomVariable` | `rayleigh` |
+| `reactions` | `record` | `recorder` | `recv` |
+| `region` | `reliabilityConvergenceCheck` | `remesh` | `remove` |
+| `reset` | `responseSpectrumAnalysis` | `restore` | `rigidDiaphragm` |
+| `rigidLink` | `rootFinding` | `runFORMAnalysis` | `runFOSMAnalysis` |
+| `runImportanceSamplingAnalysis` | `runSORMAnalysis` | `save` | `sdfResponse` |
+| `searchDirection` | `searchPeerNGA` | `section` | `sectionDeformation` |
+| `sectionDisplacement` | `sectionFlexibility` | `sectionForce` | `sectionLocation` |
+| `sectionResponseType` | `sectionStiffness` | `sectionTag` | `sectionWeight` |
+| `send` | `sensitivityAlgorithm` | `sensLambda` | `sensNodeAccel` |
+| `sensNodeDisp` | `sensNodePressure` | `sensNodeVel` | `sensSectionForce` |
+| `setCreep` | `setElementRayleighDampingFactors` | `setElementRayleighFactors` | `setMaxOpenFiles` |
+| `setNodeAccel` | `setNodeCoord` | `setNodeDisp` | `setNodePressure` |
+| `setNodeTemperature` | `setNodeVel` | `setNumThreads` | `setParameter` |
+| `setPrecision` | `setStartNodeTag` | `setStrain` | `setTime` |
+| `ShallowFoundationGen` | `solveCPU` | `sp` | `spectrum` |
+| `start` | `startPoint` | `stepSizeRule` | `stiffnessDegradation` |
+| `stop` | `strengthControl` | `strengthDegradation` | `stripXML` |
+| `system` | `systemSize` | `test` | `testIter` |
+| `testNorm` | `testNorms` | `testUniaxialMaterial` | `timeSeries` |
+| `totalCPU` | `transformUtoX` | `uniaxialMaterial` | `updateMaterials` |
+| `unloadingRule` | `updateElementDomain` | `updateMaterialStage` | `updateParameter` |
+| `version` | `wipe` | `wipeAnalysis` | `wipeReliability` |
 
-        coords = num2cell(coords);
-        ops.node(1, coords{:});
-    
-    The following commands are exceptions and **do support** `numeric array`
-    and `cell` array inputs, which are flattened automatically (Since OpenSeesMatlab v3.8.0.1):
+### MATLAB-specific command methods
 
-    `node`, `element`, `eleLoad`, `geomTransf`, `uniaxialMaterial`,
-    `nDMaterial`, `equalDOF`, `equationConstraint`, `rigidDiaphragm`,
-    `rigidLink`, `fix`, `fixX`, `fixY`, `fixZ`, `section`, `fiber`,
-    `layer`, `patch`, `load`, `mass`, `rayleigh`, `ShallowFoundationGen`,
-    `block2D`, `block3D`, `setNodeDisp`, `setNodeVel`, `setNodeAccel`,
-    `frictionModel`, `region`, `setElementRayleighDampingFactors`,
-    `setElementRayleighFactors`, `recorder` , and `timeSeries` (`Path` type only: numeric array accepted for `-values` and `-time` )
+| Command | Purpose |
+| --- | --- |
+| `suppressPrint` | Enable or suppress native OpenSees console output. |
+| `matlabversion` | Return the MATLAB binding version. |
+| `readFEMData` | Read HDF5 FEMData into MATLAB structures. |
+| `writeFEMDataPVD` | Export FEMData visualization files. |
+| `matlabSubstructure` | Create a MATLAB callback substructure element. |
+| `registerMatlabSubstructure` | Register substructure callback state. |
+| `unregisterMatlabSubstructure` | Remove one registered substructure callback. |
+| `clearMatlabSubstructures` | Remove all registered substructure callbacks. |
+| `hasMatlabSubstructure` | Test whether a substructure callback is registered. |
 
-- ✨ Commands with return values will return MATLAB data. If a command has no return value, an empty array ``[]`` will be returned.
-- ✨ The additional post-processing provided by OpenSeesMatlab may be slow or buggy. If you think so, you can use only the OpenSees command interface and use ``recorder`` or other output commands to post-process the analysis results.
+Solver and algorithm extensions use the normal command families rather than
+additional top-level commands:
+
+```matlab
+ops.system("CuDSS");
+ops.system("SUNDIALS", "-type", "dense");
+ops.algorithm("TrustRegion");
+ops.algorithm("KINSOL");
+
+trustInfo = ops.algorithm("TrustRegion", "-info");
+kinsolInfo = ops.algorithm("KINSOL", "-info");
+```
+
+Native and extension types are forwarded identically. The shared C++ layer
+selects an extension factory when the type is registered locally and otherwise
+delegates the call to upstream OpenSees.
+
+## Argument and return conventions
+
+- Both `char` and `string` inputs are supported.
+- Commands without a return value return `[]`.
+- Scalar arguments can always be passed individually.
+- The following commands also accept numeric arrays and cell arrays, which are
+  flattened automatically: `node`, `element`, `eleLoad`, `geomTransf`,
+  `uniaxialMaterial`, `nDMaterial`, `equalDOF`, `equationConstraint`,
+  `rigidDiaphragm`, `rigidLink`, `fix`, `fixX`, `fixY`, `fixZ`, `section`,
+  `fiber`, `layer`, `patch`, `load`, `mass`, `rayleigh`,
+  `ShallowFoundationGen`, `block2D`, `block3D`, `setNodeDisp`, `setNodeVel`,
+  `setNodeAccel`, `frictionModel`, `region`,
+  `setElementRayleighDampingFactors`, `setElementRayleighFactors`, `recorder`,
+  and `timeSeries` (`Path` values and times).
+
+## Complete command reference
 
 ::: ops.OpenSeesMatlabCmds
     handler: matlab
@@ -66,108 +159,248 @@ For details, please refer to their official documentation, You can call it in th
         namespaces: false
       docstring_section_style: list
       members:
-        - wipe
-        - model
-        - node
+        - accelCPU
+        - adaptiveAnalyze
+        - addToParameter
+        - algorithm
+        - analysis
+        - analyze
+        - barrier
+        - basicDeformation
+        - basicForce
+        - basicStiffness
+        - Bcast
+        - beamIntegration
+        - block2D
+        - block3D
+        - build
+        - cbdiDisplacement
+        - classType
+        - computeGradients
+        - constraints
+        - convertBinaryToText
+        - convertTextToBinary
+        - correlate
+        - damping
+        - database
+        - defaultUnits
+        - domainChange
+        - domainCommitTag
+        - eigen
+        - eleDynamicalForce
+        - eleForce
+        - eleLoad
         - element
+        - eleNodes
+        - eleResponse
+        - eleType
+        - equalDOF
+        - equalDOF_Mixed
+        - equationConstraint
+        - fiber
+        - FEMDataRecorder
+        - filter
+        - findCurvatures
+        - findDesignPoint
         - fix
         - fixX
         - fixY
         - fixZ
-        - equalDOF
-        - equalDOF_Mixed
-        - rigidLink
-        - rigidDiaphragm
-        - timeSeries
-        - pattern
-        - load
-        - eleLoad
-        - loadConst
-        - sp
-        - groundMotion
-        - imposedMotion
-        - mass
-        - region
-        - parameter
-        - addToParameter
-        - updateParameter
-        - setParameter
+        - frictionModel
+        - functionEvaluator
+        - geomTransf
+        - getCDF
+        - getConstrainedDOFs
+        - getConstrainedNodes
+        - getCrdTransfTags
+        - getDampTangent
+        - getDomainGeoTag
+        - getEleClassTags
+        - getEleLoadClassTags
+        - getEleLoadData
+        - getEleLoadTags
+        - getEleTags
+        - getFixedDOFs
+        - getFixedNodes
+        - getInverseCDF
+        - getLoadFactor
+        - getLSFTags
+        - getMean
+        - getNDF
+        - getNDM
+        - getNodeLoadData
+        - getNodeLoadTags
+        - getNodeTags
+        - getNodeTemperature
+        - getNP
+        - getNumElements
+        - getNumThreads
         - getParamTags
         - getParamValue
-        - rayleigh
-        - modalDamping
-        - damping
-        - block2D
-        - block3D
-        - beamIntegration
-        - uniaxialMaterial
-        - nDMaterial
-        - section
-        - fiber
-        - patch
-        - layer
-        - frictionModel
-        - geomTransf
-        - remove
-        - setCreep
-        - constraints
-        - numberer
-        - system
-        - test
-        - algorithm
-        - integrator
-        - analysis
-        - analyze
-        - adaptiveAnalyze
-        - eigen
-        - modalProperties
-        - responseSpectrumAnalysis
-        - wipeAnalysis
-        - record
-        - recorder
-        - nodeDisp
-        - nodeVel
-        - nodeAccel
-        - nodeCoord
-        - nodeBounds
-        - nodeEigenvector
-        - nodeDOFs
-        - nodeMass
-        - nodePressure
-        - nodeReaction
-        - reactions
-        - nodeResponse
-        - nodeUnbalance
-        - basicDeformation
-        - basicForce
-        - basicStiffness
-        - eleDynamicalForce
-        - eleForce
-        - eleNodes
-        - eleResponse
-        - getEleTags
-        - getNodeTags
-        - getLoadFactor
-        - getTime
-        - setTime
-        - sectionForce
-        - sectionDeformation
-        - sectionStiffness
-        - sectionFlexibility
-        - sectionLocation
-        - sectionWeight
-        - systemSize
-        - numIter
-        - testIter
-        - testNorm
-        - testUniaxialMaterial
-        - setStrain
+        - getPatterns
+        - getPDF
+        - getPID
+        - getRetainedDOFs
+        - getRetainedNodes
+        - getRVParamTag
+        - getRVTags
+        - getRVValue
+        - getStdv
         - getStrain
         - getStress
         - getTangent
-        - getDampTangent
+        - getTime
+        - gradientEvaluator
+        - gradPerformanceFunction
+        - groundMotion
+        - hystereticBackbone
+        - IGA
+        - imposedMotion
+        - imposedSupportMotion
+        - initialize
+        - InitialStateAnalysis
+        - integrator
+        - layer
+        - limitCurve
+        - load
+        - loadConst
+        - logFile
+        - mass
+        - meritFunctionCheck
+        - mesh
+        - metaData
+        - modalDamping
+        - modalDampingQ
+        - modalProperties
+        - model
+        - modulatingFunction
+        - nDMaterial
+        - NDTest
+        - node
+        - nodeAccel
+        - nodeBounds
+        - nodeCoord
+        - nodeDisp
+        - nodeDOFs
+        - nodeEigenvector
+        - nodeMass
+        - nodePressure
+        - nodeReaction
+        - nodeResponse
+        - nodeUnbalance
+        - nodeVel
+        - numberer
+        - numFact
+        - numIter
+        - parameter
+        - partition
+        - patch
+        - pattern
+        - performanceFunction
+        - pressureConstraint
+        - printA
+        - printB
+        - printGID
+        - printModel
+        - printX
+        - probabilityTransformation
+        - randomNumberGenerator
+        - randomVariable
+        - rayleigh
+        - reactions
+        - record
+        - recorder
+        - recv
+        - region
+        - reliabilityConvergenceCheck
+        - remesh
+        - remove
         - reset
+        - responseSpectrumAnalysis
+        - restore
+        - rigidDiaphragm
+        - rigidLink
+        - rootFinding
+        - runFORMAnalysis
+        - runFOSMAnalysis
+        - runImportanceSamplingAnalysis
+        - runSORMAnalysis
+        - save
+        - sdfResponse
+        - searchDirection
+        - searchPeerNGA
+        - section
+        - sectionDeformation
+        - sectionDisplacement
+        - sectionFlexibility
+        - sectionForce
+        - sectionLocation
+        - sectionResponseType
+        - sectionStiffness
+        - sectionTag
+        - sectionWeight
+        - send
+        - sensitivityAlgorithm
+        - sensLambda
+        - sensNodeAccel
+        - sensNodeDisp
+        - sensNodePressure
+        - sensNodeVel
+        - sensSectionForce
+        - setCreep
+        - setElementRayleighDampingFactors
+        - setElementRayleighFactors
+        - setMaxOpenFiles
+        - setNodeAccel
+        - setNodeCoord
+        - setNodeDisp
+        - setNodePressure
+        - setNodeTemperature
+        - setNodeVel
+        - setNumThreads
+        - setParameter
+        - setPrecision
+        - setStartNodeTag
+        - setStrain
+        - setTime
+        - ShallowFoundationGen
+        - solveCPU
+        - sp
+        - spectrum
+        - start
+        - startPoint
+        - stepSizeRule
+        - stiffnessDegradation
+        - stop
+        - strengthControl
+        - strengthDegradation
+        - stripXML
+        - system
+        - systemSize
+        - test
+        - testIter
+        - testNorm
+        - testNorms
+        - testUniaxialMaterial
+        - timeSeries
+        - totalCPU
+        - transformUtoX
+        - uniaxialMaterial
+        - updateMaterials
+        - unloadingRule
+        - updateElementDomain
+        - updateMaterialStage
+        - updateParameter
+        - version
+        - wipe
+        - wipeAnalysis
+        - wipeReliability
+        - suppressPrint
+        - matlabversion
+        - readFEMData
+        - writeFEMDataPVD
         - matlabSubstructure
-        - hasMatlabSubstructure
+        - registerMatlabSubstructure
         - unregisterMatlabSubstructure
         - clearMatlabSubstructures
+        - hasMatlabSubstructure

@@ -27,8 +27,12 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
 
 ## Installation
 
-1. Go to the [release directory](https://github.com/yexiang92/OpenSeesMatlab/releases) or [gitee 发行版](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases) and choose the version you want. Download it.
-2. Open this release directory in MATLAB, then install the toolbox package by running:
+1. Open [GitHub Releases](https://github.com/yexiang92/OpenSeesMatlab/releases) or [Gitee Releases](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases), then download only the package for your computer:
+
+   - Windows x86-64: `OpenSeesMatlab-<version>-win64.mltbx`
+   - macOS Apple silicon: `OpenSeesMatlab-<version>-maca64.mltbx`
+
+2. Put the downloaded `.mltbx` and `installOpenSeesMatlab.m` in one directory, open that directory in MATLAB, and run:
 
    ```matlab
    installOpenSeesMatlab
@@ -48,6 +52,32 @@ After installation, explore and run example models in the `examples/` directory
 
 The generated scripts and illustrated walkthroughs are also available in the
 [online examples](https://openseesmatlab.readthedocs.io/en/latest/examples/).
+
+### Building release toolboxes
+
+The OpenSees native binaries are built in the OpenSeesBindings repository.
+The Polyscope MEX binary is built in the polyscope-matlab repository. Before
+creating a release, place the current platform files in these locations:
+
+```text
+OpenSeesMatlab/+ops/derived/OpenSeesMATLAB.<mexext>
+OpenSeesMatlab/+plotter/+polyscope/vendor/+polyscope/private/polyscope_mex.<mexext>
+```
+
+Keep any required runtime DLLs or dylibs beside the MEX module that uses them.
+Then run `publish.m` once with Windows MATLAB and once with native
+Apple-silicon MATLAB. The output files are:
+
+```text
+release/<version>/OpenSeesMatlab-<version>-win64.mltbx
+release/<version>/OpenSeesMatlab-<version>-maca64.mltbx
+```
+
+Upload the two `.mltbx` files and `installOpenSeesMatlab.m` as separate assets
+of the same GitHub or Gitee release. The script reads the version from the MEX
+module, preserves the toolbox identifier, records the correct supported
+platform, verifies both native modules, and excludes linker products and
+binaries for other systems.
 
 ## Quick Start
 
@@ -105,9 +135,10 @@ solvers remain available without them.
 
 ## Requirements
 
-MATLAB R2023a or later
+- Windows x86-64: MATLAB R2023a or later
+- macOS Apple silicon: native MATLAB R2023b or later
 
-Windows operating system (currently only supported on Windows)
+Intel-based macOS and Linux MATLAB are not currently distributed.
 
 ## License
 
