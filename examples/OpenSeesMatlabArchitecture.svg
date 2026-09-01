@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080">
+  <defs>
+    <style>
+      .title { font: 700 34px Arial, sans-serif; fill: #172033; }
+      .layer { font: 700 25px Arial, sans-serif; fill: #172033; }
+      .head { font: 700 22px Arial, sans-serif; fill: #172033; }
+      .body { font: 18px Arial, sans-serif; fill: #344054; }
+      .small { font: 16px Arial, sans-serif; fill: #475467; }
+      .tag { font: 700 16px Arial, sans-serif; fill: #ffffff; letter-spacing: .4px; }
+      .box { stroke-width: 2.2; rx: 14; ry: 14; }
+      .arrow { fill: none; stroke: #475467; stroke-width: 3; marker-end: url(#arrow); }
+      .arrowBlue { fill: none; stroke: #2374ab; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .arrowGreen { fill: none; stroke: #38845b; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .dash { fill: none; stroke: #667085; stroke-width: 2.5; stroke-dasharray: 10 8; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 Z" fill="#475467"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 Z" fill="#2374ab"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 Z" fill="#38845b"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#101828" flood-opacity=".12"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="1080" fill="#ffffff"/>
+  <text x="800" y="52" text-anchor="middle" class="title">OpenSeesMatlab software architecture</text>
+
+  <!-- MATLAB toolbox -->
+  <rect x="180" y="88" width="1240" height="190" class="box" fill="#eaf3fb" stroke="#2374ab" filter="url(#shadow)"/>
+  <rect x="180" y="88" width="218" height="42" rx="12" fill="#2374ab"/>
+  <text x="289" y="116" text-anchor="middle" class="tag">MATLAB TOOLBOX</text>
+  <text x="800" y="145" text-anchor="middle" class="layer">Object-oriented user interface and numerical workflow</text>
+  <g>
+    <rect x="225" y="175" width="190" height="66" class="box" fill="#ffffff" stroke="#74a9cf"/>
+    <rect x="435" y="175" width="190" height="66" class="box" fill="#ffffff" stroke="#74a9cf"/>
+    <rect x="645" y="175" width="190" height="66" class="box" fill="#ffffff" stroke="#74a9cf"/>
+    <rect x="855" y="175" width="190" height="66" class="box" fill="#ffffff" stroke="#74a9cf"/>
+    <rect x="1065" y="175" width="190" height="66" class="box" fill="#ffffff" stroke="#74a9cf"/>
+    <text x="320" y="202" text-anchor="middle" class="head">opensees</text><text x="320" y="226" text-anchor="middle" class="small">native commands</text>
+    <text x="530" y="202" text-anchor="middle" class="head">pre</text><text x="530" y="226" text-anchor="middle" class="small">model preparation</text>
+    <text x="740" y="202" text-anchor="middle" class="head">anlys</text><text x="740" y="226" text-anchor="middle" class="small">analysis control</text>
+    <text x="950" y="202" text-anchor="middle" class="head">post</text><text x="950" y="226" text-anchor="middle" class="small">response processing</text>
+    <text x="1160" y="202" text-anchor="middle" class="head">vis / utils</text><text x="1160" y="226" text-anchor="middle" class="small">visualization and tools</text>
+  </g>
+
+  <!-- MEX interface -->
+  <rect x="260" y="340" width="1080" height="172" class="box" fill="#f2ecfb" stroke="#7856a8" filter="url(#shadow)"/>
+  <rect x="260" y="340" width="190" height="42" rx="12" fill="#7856a8"/>
+  <text x="355" y="368" text-anchor="middle" class="tag">NATIVE MEX</text>
+  <text x="800" y="397" text-anchor="middle" class="layer">OpenSeesMATLAB in-process interface</text>
+  <text x="800" y="430" text-anchor="middle" class="body">command dispatch  •  MATLAB/OpenSees type conversion  •  lifetime management  •  output redirection</text>
+  <g>
+    <rect x="330" y="452" width="210" height="40" rx="9" fill="#ffffff" stroke="#a88dcc"/>
+    <rect x="570" y="452" width="210" height="40" rx="9" fill="#ffffff" stroke="#a88dcc"/>
+    <rect x="810" y="452" width="210" height="40" rx="9" fill="#ffffff" stroke="#a88dcc"/>
+    <rect x="1050" y="452" width="210" height="40" rx="9" fill="#ffffff" stroke="#a88dcc"/>
+    <text x="435" y="478" text-anchor="middle" class="small">MatlabEntry</text>
+    <text x="675" y="478" text-anchor="middle" class="small">MatlabModule</text>
+    <text x="915" y="478" text-anchor="middle" class="small">MatlabWrapper</text>
+    <text x="1155" y="478" text-anchor="middle" class="small">MatlabStream</text>
+  </g>
+
+  <!-- Backends -->
+  <rect x="115" y="590" width="650" height="270" class="box" fill="#eaf7ef" stroke="#38845b" filter="url(#shadow)"/>
+  <rect x="115" y="590" width="226" height="42" rx="12" fill="#38845b"/>
+  <text x="228" y="618" text-anchor="middle" class="tag">UPSTREAM LIBRARY</text>
+  <text x="440" y="668" text-anchor="middle" class="layer">OpenSees computational kernel</text>
+  <text x="440" y="708" text-anchor="middle" class="body">Domain and persistent finite-element state</text>
+  <text x="440" y="744" text-anchor="middle" class="body">Elements • materials • constraints • loads</text>
+  <text x="440" y="780" text-anchor="middle" class="body">Integrators • algorithms • equation systems</text>
+  <rect x="215" y="807" width="450" height="34" rx="9" fill="#ffffff" stroke="#78ad8c"/>
+  <text x="440" y="830" text-anchor="middle" class="small">Selectable and version-pinned OpenSees source tree</text>
+
+  <rect x="835" y="590" width="650" height="270" class="box" fill="#fff3e6" stroke="#d97706" filter="url(#shadow)"/>
+  <rect x="835" y="590" width="252" height="42" rx="12" fill="#d97706"/>
+  <text x="961" y="618" text-anchor="middle" class="tag">INDEPENDENT EXTENSIONS</text>
+  <text x="1160" y="668" text-anchor="middle" class="layer">OpenSeesMatlab extension registry</text>
+  <text x="1160" y="708" text-anchor="middle" class="body">OPS-compatible commands and MATLAB-aware meta commands</text>
+  <text x="1160" y="744" text-anchor="middle" class="body">cuDSS / SUNDIALS systems • nonlinear algorithms</text>
+  <text x="1160" y="780" text-anchor="middle" class="body">adaptive analysis • FEMData • MatlabSubstructure</text>
+  <rect x="935" y="807" width="450" height="34" rx="9" fill="#ffffff" stroke="#e3a54c"/>
+  <text x="1160" y="830" text-anchor="middle" class="small">Developed without modifying upstream implementations</text>
+
+  <!-- Data/output layer -->
+  <rect x="355" y="937" width="890" height="105" class="box" fill="#f4f6f8" stroke="#667085" filter="url(#shadow)"/>
+  <text x="800" y="976" text-anchor="middle" class="layer">Responses and persistent data</text>
+  <text x="800" y="1011" text-anchor="middle" class="body">direct MATLAB return  •  FEMData/HDF5 database  •  PVD/VTK export  •  MATLAB/Polyscope visualization</text>
+
+  <!-- Connections -->
+  <path d="M800 278 L800 332" class="arrowBlue"/>
+  <text x="823" y="315" class="small">commands / arrays</text>
+  <path d="M690 340 L690 286" class="arrowBlue"/>
+  <text x="515" y="315" class="small">responses / status</text>
+  <path d="M600 512 L500 580" class="arrowGreen"/>
+  <path d="M1000 512 L1100 580" class="arrow" style="stroke:#d97706; marker-end:url(#arrow)"/>
+  <path d="M765 725 L825 725" stroke="#475467" stroke-width="3" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="795" y="704" text-anchor="middle" class="small">shared</text>
+  <text x="795" y="749" text-anchor="middle" class="small">interfaces</text>
+  <path d="M440 860 L620 927" class="arrow"/>
+  <path d="M1160 860 L980 927" class="arrow"/>
+
+  <!-- Upstream update route -->
+  <path d="M40 805 L40 625 L104 625" class="dash"/>
+  <text x="26" y="718" transform="rotate(-90 26 718)" text-anchor="middle" class="head">Upstream OpenSees updates</text>
+  <text x="52" y="845" class="small">update revision</text>
+  <text x="52" y="869" class="small">rebuild and test</text>
+</svg>

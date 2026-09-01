@@ -1,0 +1,48 @@
+% Requires \usepackage{svg}. Inkscape must be available when LaTeX converts
+% the SVG files, or the SVG files may be exported to PDF before submission.
+
+% Place this figure after the paragraph that introduces the four-layer
+% architecture and before the detailed description of the individual layers.
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.99\textwidth]{OpenSeesMatlabArchitecture.svg}
+    \caption{Software architecture of OpenSeesMatlab. The native MEX interface
+    connects the object-oriented MATLAB toolbox to both the upstream OpenSees
+    kernel and independently registered OpenSeesMatlab extensions. The selected
+    OpenSees source revision can be updated without moving project-specific
+    extensions into the upstream source tree.}
+    \label{fig:opensees_matlab_architecture}
+\end{figure}
+
+Figure~\ref{fig:opensees_matlab_architecture} separates the software according
+to ownership and responsibility. The green block contains the upstream
+OpenSees computational kernel. It stores the finite-element domain and
+provides the established elements, materials, analysis objects, and equation
+systems. The orange block contains functions developed specifically for
+OpenSeesMatlab. These functions use OpenSees interfaces but are registered and
+built independently of the upstream implementations. The MEX layer forms the
+stable boundary between these native components and the MATLAB toolbox. This
+separation allows the OpenSees revision to be advanced and retested while the
+MATLAB interface and local extensions remain organized outside the upstream
+source tree.
+
+% Place this figure in the subsection describing native command execution,
+% immediately after the numbered command sequence.
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.99\textwidth]{OpenSeesMatlabCommandDataFlow.svg}
+    \caption{Command and response flow during an OpenSeesMatlab call. MATLAB
+    inputs are converted to the native OpenSees argument protocol, the selected
+    command operates on the persistent OpenSees domain, and the resulting
+    responses are returned as MATLAB data or stored through the structured
+    recorder workflow.}
+    \label{fig:opensees_matlab_command_flow}
+\end{figure}
+
+As shown in Figure~\ref{fig:opensees_matlab_command_flow}, the model is not
+reconstructed for each command. The MEX interface binds the arguments only for
+the duration of the current call, whereas the OpenSees domain remains in
+memory. MATLAB may therefore inspect a completed step and use the returned
+response to determine the next command. This feedback path supports adaptive
+analysis, parameter updating, optimization, hybrid simulation, and other
+procedures that require repeated interaction with the finite-element model.
