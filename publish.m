@@ -93,11 +93,14 @@ targetOutputDir = fullfile(targetExamplesDir, "output_data");
 ensureDir(targetExamplesDir);
 ensureDir(targetOutputDir);
 
-mlxFiles = dir(fullfile(srcExamplesDir, "*.mlx"));
-for i = 1:numel(mlxFiles)
-    sourceFile = fullfile(mlxFiles(i).folder, mlxFiles(i).name);
-    [~, baseName] = fileparts(mlxFiles(i).name);
-    export(sourceFile, fullfile(targetExamplesDir, baseName + ".m"));
+exampleFiles = dir(fullfile(srcExamplesDir, "*.m"));
+exampleFiles = exampleFiles(arrayfun(@(file) isPlainTextLiveCodeFile( ...
+    fullfile(file.folder, file.name)), exampleFiles));
+for i = 1:numel(exampleFiles)
+    sourceFile = fullfile(exampleFiles(i).folder, exampleFiles(i).name);
+    [~, baseName] = fileparts(exampleFiles(i).name);
+    export(sourceFile, fullfile(targetExamplesDir, baseName + ".m"), ...
+        Format="m");
 end
 
 if isfolder(srcUtilsDir)
@@ -184,6 +187,10 @@ function ensureDir(folderPath)
     if ~isfolder(folderPath)
         mkdir(folderPath);
     end
+end
+
+function tf = isPlainTextLiveCodeFile(filePath)
+    tf = contains(fileread(filePath), "%[appendix]");
 end
 
 function nCopied = copyFolderExcludeExt(srcDir, dstDir, excludedExts)

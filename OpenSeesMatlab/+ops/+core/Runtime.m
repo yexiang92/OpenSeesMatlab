@@ -30,7 +30,7 @@ classdef Runtime < handle
                 error("ops:NativeLibraryNotFound", ...
                     ["ops.core.Runtime could not locate %s for %s. " ...
                      "Pass its directory to ops.core.Runtime or set " ...
-                     "OPENSEES_NEXUS_MATLAB_DIR."], ...
+                     "OPENSEES_MATLAB_DIR."], ...
                     obj.MexName, ops.core.Runtime.platformKey());
             end
         end
@@ -51,19 +51,38 @@ classdef Runtime < handle
 
     methods (Access = private)
         function directory = resolveNativeDirectory(obj, requested)
-            candidates = strings(0, 1);
+            roots = strings(0, 1);
             if nargin >= 2 && strlength(string(requested)) > 0
-                candidates(end + 1) = string(requested);
+                roots(end + 1) = string(requested);
             end
 
+            configured = string(getenv("OPENSEES_MATLAB_DIR"));
+            if strlength(configured) > 0
+                roots(end + 1) = configured;
+            end
+
+            % Backward compatibility with packages released before the
+            % environment variable was given its language-specific name.
             configured = string(getenv("OPENSEES_NEXUS_MATLAB_DIR"));
             if strlength(configured) > 0
-                candidates(end + 1) = configured;
+                roots(end + 1) = configured;
             end
 
+            % The normal distribution layout is resolved relative to this
+            % file, so the toolbox can be installed at any location.
             coreRoot = fileparts(mfilename("fullpath"));
-            candidates(end + 1) = fullfile(coreRoot, "derived", ...
-                ops.core.Runtime.platformKey());
+            roots(end + 1) = string(coreRoot);
+
+            platform = ops.core.Runtime.platformKey();
+            candidates = strings(0, 1);
+            for index = 1:numel(roots)
+                root = roots(index);
+                % Accept a +core/package root, a derived root, or the native
+                % platform directory itself.
+                candidates(end + 1) = fullfile(root, "derived", platform);
+                candidates(end + 1) = fullfile(root, platform);
+                candidates(end + 1) = root;
+            end
 
             extension = string(mexext);
             for index = 1:numel(candidates)
