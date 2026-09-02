@@ -49,7 +49,9 @@ tasks = [
     "extension", "algorithm", "extension_TrustRegion_steel_frame_benchmark";
 ];
 
-rootDir = "../docs/examples";
+examplesDir = string(fileparts(mfilename("fullpath")));
+projectDir = string(fileparts(examplesDir));
+rootDir = fullfile(projectDir, "docs", "examples");
 forceRebuild = false;
 % Set false to export examples serially without starting a parallel pool.
 useParallel = false;
@@ -61,7 +63,7 @@ end
 % =========================================================================
 % Copy utils folder
 % =========================================================================
-srcUtilsDir = "utils";
+srcUtilsDir = fullfile(examplesDir, "utils");
 dstUtilsDir = fullfile(rootDir, "utils");
 
 if exist(srcUtilsDir, "dir")
@@ -94,9 +96,9 @@ for i = 1:size(tasks, 1)
 end
 
 % =========================================================================
-% Export .mlx files to Markdown
+% Export plain-text Live Code .m files to Markdown
 % =========================================================================
-localExportTasks(tasks, rootDir, forceRebuild, useParallel);
+localExportTasks(tasks, examplesDir, rootDir, forceRebuild, useParallel);
 
 % =========================================================================
 % Generate index.md for each category
@@ -213,19 +215,19 @@ end
 % =========================================================================
 % Helper functions
 % =========================================================================
-function localExportTasks(tasks, rootDir, forceRebuild, useParallel)
+function localExportTasks(tasks, examplesDir, rootDir, forceRebuild, useParallel)
     if useParallel
         parfor i = 1:size(tasks, 1)
-            localExportTask(tasks(i, :), rootDir, forceRebuild);
+            localExportTask(tasks(i, :), examplesDir, rootDir, forceRebuild);
         end
     else
         for i = 1:size(tasks, 1)
-            localExportTask(tasks(i, :), rootDir, forceRebuild);
+            localExportTask(tasks(i, :), examplesDir, rootDir, forceRebuild);
         end
     end
 end
 
-function localExportTask(task, rootDir, forceRebuild)
+function localExportTask(task, examplesDir, rootDir, forceRebuild)
     category = task(1);
     subgroup = task(2);
     name = task(3);
@@ -236,16 +238,20 @@ function localExportTask(task, rootDir, forceRebuild)
         outDir = fullfile(rootDir, category);
     end
 
-    mlxFile = name + ".mlx";
+    liveCodeFile = fullfile(examplesDir, name + ".m");
     outFile = fullfile(outDir, name + ".md");
     mFile = fullfile(outDir, name + ".m");
 
-    if localNeedExport(mlxFile, outFile, forceRebuild)
-        export(mlxFile, outFile, ...
+    if ~isfolder(outDir)
+        mkdir(outDir);
+    end
+
+    if localNeedExport(liveCodeFile, outFile, forceRebuild)
+        export(liveCodeFile, outFile, ...
             Format="markdown", ...
             EmbedImages=true, ...
             AcceptHTML=true);
-        fprintf("Exported: %s -> %s\n", mlxFile, outFile);
+        fprintf("Exported: %s -> %s\n", liveCodeFile, outFile);
     else
         fprintf("Updated : %s\n", outFile);
     end
@@ -253,9 +259,9 @@ function localExportTask(task, rootDir, forceRebuild)
     % Export a plain MATLAB script beside the Markdown file. Check it
     % independently so an existing/up-to-date Markdown file does not prevent
     % a missing or stale .m download from being generated.
-    if localNeedExport(mlxFile, mFile, forceRebuild)
-        export(mlxFile, mFile, Format="m");
-        fprintf("Exported: %s -> %s\n", mlxFile, mFile);
+    if localNeedExport(liveCodeFile, mFile, forceRebuild)
+        export(liveCodeFile, mFile, Format="m");
+        fprintf("Exported: %s -> %s\n", liveCodeFile, mFile);
     end
 
     % The exporter may already be up to date while the post-processing rules
@@ -264,23 +270,23 @@ function localExportTask(task, rootDir, forceRebuild)
     localPostProcessMarkdown(outFile, name + ".m");
 end
 
-function tf = localNeedExport(mlxFile, mdFile, forceRebuild)
+function tf = localNeedExport(liveCodeFile, outputFile, forceRebuild)
     if forceRebuild
         tf = true;
         return;
     end
 
-    if ~exist(mlxFile, "file")
-        error("Source mlx file does not exist: %s", mlxFile);
+    if ~exist(liveCodeFile, "file")
+        error("Source Live Code file does not exist: %s", liveCodeFile);
     end
 
-    if ~exist(mdFile, "file")
+    if ~exist(outputFile, "file")
         tf = true;
         return;
     end
 
-    srcInfo = dir(mlxFile);
-    dstInfo = dir(mdFile);
+    srcInfo = dir(liveCodeFile);
+    dstInfo = dir(outputFile);
 
     tf = srcInfo.datenum > dstInfo.datenum;
 end
