@@ -3,9 +3,19 @@
 
 # <span style="color:var(--md-accent-fg-color)">**Use parfor for parallelism**</span>
 
-This live script is written as a guided walkthrough for a structural\-analysis example. It walks from model definition to analysis setup and then to response checks or plots. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
+Independent truss analyses are assigned to separate MATLAB workers. Each iteration must create and destroy its own OpenSees context; model state cannot be shared between workers.
 
-[<u>`Parallel Computing Toolbox`</u>](<matlab:matlab.internal.addons.launchers.showExplorer('ErrorRecovery', 'identifier', 'DM', 'focused', 'gcp');>)<u>` is needed.`</u>
+[`Parallel Computing Toolbox`](<matlab:matlab.internal.addons.launchers.showExplorer('ErrorRecovery', 'identifier', 'DM', 'focused', 'gcp');>) <u>`is needed.`</u>
+
+The parameter grid varies yield stress and hardening ratio. A serial run is performed first, followed by the identical `parfor` run; compare both results before interpreting the reported speedup.
+
+## Serial and parallel parameter sweep
+
+Each case returns its parameters, complete pushover history, extrema, success flag, and error message. The serial and parallel containers have the same layout, which makes result comparison independent of execution order.
+
+## Interpreting speedup
+
+Worker startup and model construction dominate small studies. Parallel execution becomes useful only when the per\-case analysis cost is large enough to outweigh that overhead; numerical results should match the serial run first.
 
 ```matlab
 demo_pushover_parfor_alpha_sy();
@@ -368,9 +378,6 @@ function results = preallocateResults(nCases)
     );
 end
 
-```
-
-```matlab
 function out = runSinglePushoverCase(caseRow)
 %RUNSINGLEPUSHOVERCASE Run one pushover analysis for one parameter set.
 
@@ -463,4 +470,9 @@ function out = runSinglePushoverCase(caseRow)
         out.errorMessage = string(ME.message);
     end
 end
+
 ```
+
+## Result checks
+
+Serial and parallel cases with the same parameters must produce identical success flags, extrema, and response histories. Report speedup only after this numerical equivalence has been established.

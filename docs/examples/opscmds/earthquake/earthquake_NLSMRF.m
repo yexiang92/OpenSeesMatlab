@@ -1,4 +1,8 @@
 %% *Nonlinear seismic response of a moment resisting frame*
+% This model follows the full seismic-analysis sequence for a nonlinear moment 
+% frame: fiber-section members, a leaning column for gravity effects, modal damping, 
+% gravity loading, and direct integration of the earthquake response.
+% 
 % Original examples file: <https://github.com/AmirHosseinNamadchi/OpenSeesPy-Examples/blob/master/NLSMRF.ipynb 
 % OpenSeesPy-Examples/NLSMRF.ipynb at master · AmirHosseinNamadchi/OpenSeesPy-Examples>
 % 
@@ -13,8 +17,6 @@
 % system associated with the MRF is modeled using a lean-on column composed of 
 % linear elastic beam-column elements with 2nd Order $P-\Delta$ effects <https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.5153 
 % [1]>.
-% 
-% 
 % 
 % 
 
@@ -36,7 +38,7 @@ inch = 0.0254*m;         % inch
 kg = KN*(sec^2)/m;       % derived mass unit
 g  = 9.81*(m/sec^2);     % gravitational acceleration
 % Earthquake record
-% [RSN960_NORTHR_LOS270.AT2](../../utils/RSN960_NORTHR_LOS270.AT2) 
+% [RSN960_NORTHR_LOS270.AT2](../../utils/RSN960_NORTHR_LOS270.AT2)
 
 %% ------------------------------------------------------------------------
 %  Earthquake record
@@ -242,9 +244,6 @@ ops.element('elasticBeamColumn', nel + 1, 100, 101, ...
     leaning_col.A, E_0, leaning_col.I1, 2);
 ops.element('elasticBeamColumn', nel + 2, 101, 102, ...
     leaning_col.A, E_0, leaning_col.I1, 2);
-%% 
-% 
-
 opsvis.plotModel();
 % Rayleigh damping
 
@@ -339,3 +338,8 @@ set(gca, 'FontName', 'Times New Roman', 'FontSize', 12);
 title('Roof horizontal displacement response', 'FontName', 'Times New Roman', 'FontSize', 13);
 % Uncomment the following line if you want to clear the OpenSees domain at end.
 % ops.wipe();
+
+% Reading the response
+% Roof drift should start from the gravity-equilibrated configuration and remain 
+% synchronized with the input record. Large isolated jumps warrant a check of 
+% convergence, record scaling, and the damping coefficients.

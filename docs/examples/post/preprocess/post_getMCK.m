@@ -1,9 +1,8 @@
 %% *Quickly apply gravity loads and obtain mass and stiffness matrices*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% A structural model is brought to its gravity equilibrium state before the 
+% assembled mass, damping, and tangent-stiffness matrices are requested. The matrix 
+% dimensions and equation ordering should be checked before using them outside 
+% OpenSees.
 % 
 % *This demonstrates how to quickly create gravity loads based on the mass matrix.*
 % 
@@ -15,8 +14,6 @@ clc; clear;
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 % FE Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 ops.wipe()
 ops.model("basic", "-ndm", 2, "-ndf", 3)
@@ -55,7 +52,7 @@ ops.element("elasticBeamColumn", 1, 1, 3, Area, E_mod, Iz, 1, "-mass", 1.0)
 ops.element("elasticBeamColumn", 2, 2, 5, Area, E_mod, Iz, 1, "-mass", 1.0)
 ops.element("elasticBeamColumn", 3, 4, 6, Area, E_mod, Iz, 1, "-mass", 1.0)
 % Apply the gravity load
-% The opstool utility provides a function ``pre.createGravityLoad`` to quickly 
+% The opstool utility provides a function |pre.createGravityLoad| to quickly 
 % apply gravity loads. *This function internally retrieves all masses in the model, 
 % including those defined at nodes, in elements, and in materials.* You only need 
 % to provide the multiplier (gravitational acceleration) and the direction of 
@@ -65,9 +62,6 @@ ops.timeSeries("Constant", 1)  % Define a constant time series, tag = 1
 ops.pattern("Plain", 1, 1)  % Define a load pattern, tag = 1
 node_loads = opsMAT.pre.createGravityLoad(direction="Y", factor=-9.81);  % Create gravity loads in the pattern tag=1
 display(node_loads);
-%% 
-% 
-
 figure;
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.loads.showNodal = true;
@@ -77,8 +71,8 @@ opsMAT.vis.plotModel(opts=opts);
 % commands. The way you specify the mass when modeling is arbitrary. opstool can 
 % help you do all the internal conversions!
 % Get Model Mass
-% ``pre.getNodeMass`` returns a dictionary containing all masses defined in 
-% the model, both at nodes and elements.
+% |pre.getNodeMass| returns a dictionary containing all masses defined in the 
+% model, both at nodes and elements.
 
 node_mass = opsMAT.pre.getNodeMass();
 
@@ -144,3 +138,9 @@ title('Stiffness Matrix Visualization');
 % It can be observed that the constrained degrees of freedom are eliminated 
 % from the system matrix (only nodes 4 and 6 are retained), thus reducing the 
 % dimension of the system matrix.
+
+
+% Checking assembled matrices
+% Matrix sizes must match the active equation count. Check expected symmetry 
+% and sparsity, and remember that the tangent stiffness depends on the current 
+% committed model state.

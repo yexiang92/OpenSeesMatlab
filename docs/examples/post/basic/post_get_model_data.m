@@ -1,15 +1,10 @@
 %% *Retrieval Model and Eigenvalue Analysis Data*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% The analysis itself is intentionally simple. The purpose is to inspect how 
+% OpenSeesMatlab returns node, element, modal, and eigenvector data in forms suitable 
+% for later MATLAB processing.
 
 clc; clear; close all;
 % Model Data
-% First, instantiate the OpenSeesMatlab interface class. This class provides 
-% native OpenSees commands, as well as additional visualization, pre/post-processing, 
-% and utility methods.
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
@@ -96,8 +91,6 @@ while ~isempty(stack)
     end
 end
 %% 
-% 
-% 
 % Let's look at the period of each mode.
 
 S.ModalProps.raw.eigenPeriod
@@ -110,5 +103,8 @@ S.ModalProps.raw.partiMassRatiosCumuMZ
 S.ModalProps.raw.partiMassRatiosCumuRMX
 S.ModalProps.raw.partiMassRatiosCumuRMY
 S.ModalProps.raw.partiMassRatiosCumuRMZ
-%% 
-%
+
+% Checking returned data
+% Verify tag ordering and array dimensions before indexing returned model data. 
+% Eigenvectors are organized by node, degree of freedom, and mode; a plotted mode 
+% shape is a useful ordering check.

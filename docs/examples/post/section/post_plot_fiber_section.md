@@ -3,19 +3,14 @@
 
 # <span style="color:var(--md-accent-fg-color)">**Plot steel and reinforced concrete fiber sections**</span>
 
-This live script is written as a guided walkthrough for a post\-processing workflow. It focuses on retrieving, organizing, and visualizing model or response data after an OpenSees analysis. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
+Section geometry is built with the same patches and layers used by OpenSees, then plotted before analysis. This makes misplaced fibers, cover dimensions, and reinforcement layouts easier to catch.
 
-**This function is primarily used to check section definitions.**
-
-**This demo see also [opsvis](https://opsvis.readthedocs.io/en/latest/ex\_plot\_fiber\_section.html)**
+The plotting utility is intended for checking section definitions before they are assigned to elements. A related example is available in [opsvis](https://opsvis.readthedocs.io/en/latest/ex_plot_fiber_section.html).
 
 ```matlab
 clc; clear;
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-```
-
-```matlab
 ops.wipe();
 ops.model('basic', '-ndm', 2, '-ndf', 3);   % 2D frame
 
@@ -27,13 +22,17 @@ ops.uniaxialMaterial('Elastic', 4, 1)
 ops.uniaxialMaterial('Elastic', 5, 1)
 ```
 
-You need to set it to true to record fiber cross\-section information.
+## Enable section\-geometry recording
+
+Geometry recording must be enabled before issuing `section`, `patch`, and `layer` commands. It records geometry only; the OpenSees material and section definitions are unchanged.
 
 ```matlab
 opsMAT.pre.setSectionGeometryRecorder(true)
 ```
 
-Then use the section\-related commands normally:
+## Define three section geometries
+
+The examples cover a rotated polygonal steel shape, a rectangular reinforced\-concrete section, and a circular reinforced section. Material properties are intentionally elastic because only geometry is being checked.
 
 ```matlab
 
@@ -148,6 +147,10 @@ ops.layer('circ', 4, 6, As9, ...
     0.0, 0.0, rbar3, a_beg2, a_end2);
 ```
 
+## Inspect the generated fibers
+
+Check patch boundaries, fiber density, material colors, cover thickness, and reinforcement locations. Disable recording afterward to avoid retaining geometry when it is no longer needed.
+
 ```matlab
 opsMAT.pre.plotSection(1);
 ```
@@ -168,4 +171,9 @@ opsMAT.pre.plotSection(3);
 
 ```matlab
 opsMAT.pre.setSectionGeometryRecorder(false)  % off
+
 ```
+
+## Section checks
+
+A valid plot should reproduce the intended total dimensions, cover, bar count, and material regions. Geometry inspection is most useful before the section is embedded in a nonlinear member model.

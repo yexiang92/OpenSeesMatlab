@@ -1,16 +1,13 @@
 %% *3D Nonlinear beam-column elements Gravity load analysis followed by transient analysis*
-% This live script is written as a guided walkthrough for a dynamic earthquake-analysis 
-% workflow. It builds the model, applies loading and ground motion records, runs 
-% the analysis, and reviews the response. Read the text cells first, then run 
-% each code cell in order so that the variables, model state, and recorded results 
-% are available for the later sections.
+% A three-dimensional reinforced-concrete frame is first equilibrated under 
+% gravity and then subjected to a recorded ground motion. The example shows how 
+% to preserve the gravity state while replacing the static analysis objects with 
+% a transient analysis.
 
 clc; clear;
 opsMat = OpenSeesMatlab();
 ops = opsMat.opensees;
-% Model 
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
+% Model
 
 ops.wipe();
 
@@ -71,11 +68,6 @@ ops.rigidDiaphragm(3, 19, 15, 16, 17, 18);
 ops.fix(9, 0, 0, 1, 1, 1, 0);
 ops.fix(14, 0, 0, 1, 1, 1, 0);
 ops.fix(19, 0, 0, 1, 1, 1, 0);
-%% 
-% 
-% 
-% 
-
 fc = 4.0;
 Ec = 57000.0 * sqrt(fc * 1000.0) / 1000.0;
 % Core concrete (confined);
@@ -101,9 +93,6 @@ colSec = 1;
 % Call the RCsection procedure to generate the column section
 %                        id  h  b cover core cover steel nBars barArea nfCoreY nfCoreZ nfCoverY nfCoverZ GJ
 RCsection(ops, colSec, h, h, 2.5, 1, 2, 3, 3, 0.79, 8, 8, 10, 10, GJ);
-%% 
-% 
-
 PDelta = "OFF";
 % PDelta = "ON";
 
@@ -183,15 +172,9 @@ ops.recorder('Element', '-file', fullfile(DataDir, 'Beam1forceAndDeformation.out
 %     "-E", "force", "section.force", "section.deformation",
 %     "section.fiber.stress");
 % Plot Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opsMat.vis.plotModel();
-%% 
-% 
 % Gravity analysis
-% This section applies the actions on the model. The load pattern and scaling 
-% determine what response the analysis will try to reproduce.
 
 % Gravity load applied at each corner node
 % 10% of column capacity
@@ -220,7 +203,7 @@ for i = [5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17, 18]
     ops.load(i, 0.0, 0.0, -p, 0.0, 0.0, 0.0);
 end
 %% 
-% [tabasFN.txt](../../utils/tabasFN.txt)   
+% [tabasFN.txt](../../utils/tabasFN.txt)
 % 
 % [tabasFP.txt](../../utils/tabasFP.txt)
 
@@ -243,11 +226,6 @@ ops.timeSeries("Path", 3, "-filePath", "utils/tabasFP.txt", "-dt", dt, "-factor"
 %                         tag dir         accel series args
 ops.pattern("UniformExcitation", 2, 1, "-accel", 2);
 ops.pattern("UniformExcitation", 3, 2, "-accel", 3);
-%% 
-% 
-% 
-% 
-
 % create the system of equation
 ops.system("UmfPack");
 % create the DOF numberer
@@ -266,18 +244,11 @@ ops.analysis("Transient");
 ops.analyze(npts, dt);
 % ops.wipe();
 fprintf("Analysis Done!")
-%% 
-% 
 % Plot results
-% This section collects the quantities of interest from the analysis. The recorded 
-% data are used later for plotting, verification, or post-processing.
 
 Node18Disp = load(fullfile(DataDir, "Node18Disp.out"));
 Node1React = load(fullfile(DataDir, "Node1React.out"));
 Beam1forceAndDeformation = load(fullfile(DataDir, "Beam1forceAndDeformation.out"));
-%% 
-% 
-
 figure;
 plot(Node18Disp(:,1), Node18Disp(:,3), 'LineWidth', 1.5);
 grid on;
@@ -296,11 +267,10 @@ grid on;
 xlabel('curvature (1/inch)');
 ylabel('Force (kip * inch)');
 title('Element 1 section 1 deformation-force');
-%% 
-% 
-% RCSection Function 
-% This section defines the material or section properties. These choices control 
-% stiffness, strength, and the nonlinear behavior observed later.
+% RCSection Function
+% |RCSection| assembles confined core concrete, unconfined cover concrete, and 
+% reinforcing bars into one fiber section. Keep its local axes consistent with 
+% the member transformation used above.
 
 function RCsection(ops, id, h, b, cover, coreID, coverID, steelID, ...
     numBars, barArea, nfCoreY, nfCoreZ, nfCoverY, nfCoverZ, GJ)
@@ -376,11 +346,9 @@ function RCsection(ops, id, h, b, cover, coreID, coverID, steelID, ...
         (-coreY + spacingY), -coreZ);
 
 end
-%% 
-% 
-% 
-% 
-% 
-% 
-% 
-%
+
+% Reading the response
+% Check that gravity converges before the record begins, then inspect roof displacement, 
+% support reaction, and section response on the same time axis. A nonzero initial 
+% transient response usually indicates that the gravity state was not preserved 
+% correctly.

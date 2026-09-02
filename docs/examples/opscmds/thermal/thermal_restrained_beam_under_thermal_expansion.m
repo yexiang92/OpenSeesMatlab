@@ -1,17 +1,14 @@
 %% *Restrained beam under thermal expansion*
-% This live script is written as a guided walkthrough for a thermal-loading 
-% example. It shows how restrained thermal expansion is represented and how the 
-% resulting forces and deformations are interpreted. Read the text cells first, 
-% then run each code cell in order so that the variables, model state, and recorded 
-% results are available for the later sections.
-% 
-% 
+% A temperature increase produces free thermal strain, but the end restraints 
+% prevent the beam from expanding. The resulting axial force provides a direct 
+% check on the thermal material and loading definitions.
+% Build the restrained thermal beam
+% Two thermal beam-column elements meet at the free axial degree of freedom 
+% of node 3. Both outer nodes are fixed, so the middle-node displacement reveals 
+% how the one-sided thermal load is transferred through the assembly.
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-%% 
-% 
-
 ops.wipe()
 ops.model('basic', '-ndm', 2, '-ndf', 3);
 % nodes
@@ -51,6 +48,11 @@ ops.element('dispBeamColumnThermal', 2, 3, 2, transfTag, biTag);
 tsTag = 1;
 ops.timeSeries('Linear', tsTag);
 
+% Apply the temperature profile
+% The thermal load is uniform through the section depth and is applied only 
+% to element 1. The linear time series scales the prescribed 1000-degree target 
+% over 100 load steps.
+
 % load pattern
 patternTag = 1;
 maxtemp = 1000.0;
@@ -67,6 +69,11 @@ ops.test('NormDispIncr', 1.0e-6, 100);
 ops.algorithm('Newton');
 ops.integrator('LoadControl', incrtemp);
 ops.analysis('Static');
+
+% Trace temperature and displacement
+% Domain load factor is converted to temperature for the horizontal axis. If 
+% a step fails, the stored arrays are trimmed so the plot contains only converged 
+% states.
 
 % run analysis
 nstep = 100;
@@ -87,12 +94,14 @@ for i = 1:nstep
     temp(i + 1) = ops.getLoadFactor(patternTag) * maxtemp;
     disp(i + 1) = ops.nodeDisp(3, 1);
 end
-%% 
-% 
-
 % plot
 figure;
 plot(temp, disp, '-o');
 xlabel('Temperature');
 ylabel('Nodal displacement');
 grid on;
+
+% Reading the thermal response
+% The temperature axis follows the load factor, while node 3 displacement reflects 
+% compatibility between the heated and unheated elements. Reactions are required 
+% if the restraint force itself is the quantity of interest.

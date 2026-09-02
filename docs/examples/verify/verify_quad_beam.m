@@ -1,9 +1,7 @@
 %% *Laterally loaded tapered support structure (Quad plane element)*
-% This live script is written as a guided walkthrough for a verification benchmark. 
-% It compares a known structural response with the result produced by the OpenSeesMatlab 
-% workflow. Read the text cells first, then run each code cell in order so that 
-% the variables, model state, and recorded results are available for the later 
-% sections.
+% A tapered cantilever is modeled with plane-stress quadrilateral elements and 
+% checked against the published benchmark. Mesh density and the locations used 
+% to extract displacement and stress are part of the verification.
 % 
 % *See* <https://examples.mapdl.docs.pyansys.com/verif-manual/vm-005-laterally_loaded_tapered_support_structure.html#laterally-loaded-tapered-support-structure 
 % Laterally loaded tapered support structure — PyMAPDL Examples>
@@ -16,8 +14,6 @@ clear; clc;
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 % FE Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 
 %% Clean model
@@ -89,8 +85,6 @@ ops.timeSeries('Linear', 1);
 ops.pattern('Plain', 1, 1);
 ops.load(1, 0.0, -4000.0);
 % Plot Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.nodes.showLabels = false;
@@ -98,11 +92,7 @@ opts.elements.showLabels = false;
 opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 grid off
-%% 
-% 
 %% Analysis setup
-% This section configures and runs the analysis. The solver, constraints, convergence 
-% test, and step size should be read together because they control numerical robustness.
 
 Nsteps = 2;
 ops.constraints('Plain');
@@ -112,21 +102,12 @@ ops.test('NormDispIncr', 1.0e-12, 50);
 ops.algorithm('Newton');
 ops.integrator('LoadControl', 1.0 / Nsteps);
 ops.analysis('Static');
-%% 
-% 
-
 ODB = opsMAT.post.createODB("myODB", projectGaussToNodes="extrapolate");  % create ODB
 ok = ops.analyze(Nsteps);
 % ODB.close();
 % Post-processing
-% The following commands carry out this step of the workflow. Run this cell 
-% after the previous sections so the required variables and model state already 
-% exist.
 
 nodeResp = opsMAT.post.getNodalResponse("myODB");
-%% 
-% 
-
 opts = opsMAT.vis.defaultPlotNodalResponseOptions;
 opts.fixed.show = true;
 opts.surf.showEdges = false;
@@ -142,9 +123,6 @@ opsMAT.vis.plotContinuumResponse(planeResp, ...
 axis equal
 grid off
 title("Von Mises Stress");
-%% 
-% 
-
 vm = planeResp.StressMeasureAtNode.vonMises;  % Von Mises
 sxx = planeResp.StressAtNode.sxx;   % sxx
 
@@ -172,9 +150,6 @@ sxxFixed = sxx(:, fixedIdx);  % nStep * 1
 vmMid = vm(:, midIdx);  % nStep * 1
 mid_stress_osp = max(vmMid);
 fixed_end_stress_osp = max(sxxFixed);
-%% 
-% 
-
 %% Reference values from ANSYS example
 target_mid = 8333.0;  % theory value
 target_end = 7407.0;
@@ -182,9 +157,9 @@ target_end = 7407.0;
 mapdl182_mid = 8163.66;  % only 6 elements
 mapdl182_end = 7151.10;
 %% 
-% Comparing the results, note that ANSYS only used 7 elements, so the results 
-% will be somewhat worse. However, if OpenSees also uses 7 elements, the results 
-% are surprisingly poor!
+% The published ANSYS model uses only seven elements. Results from such a coarse 
+% mesh should be interpreted as a discretization study: compare the refined solution 
+% and monitor convergence rather than expecting element-by-element agreement.
 
 fprintf([ ...
     '\n' ...
@@ -203,5 +178,8 @@ function nodeId = localFindNearestNode(coords, pt)
     d2 = (coords(:,1) - pt(1)).^2 + (coords(:,2) - pt(2)).^2;
     [~, nodeId] = min(d2);
 end
-%% 
-%
+
+% Acceptance check
+% Track displacement and stress at the stated locations as the mesh is refined. 
+% The benchmark is satisfied by convergence toward the reference response, not 
+% by matching a coarse model element for element.

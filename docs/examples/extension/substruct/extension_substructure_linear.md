@@ -3,7 +3,9 @@
 
 # <span style="color:var(--md-accent-fg-color)">**Linear MATLAB Substructure: Static Analysis and Verification**</span>
 
-This example demonstrates the complete workflow for a MATLAB\-backed OpenSees substructure.
+A two\-node spring is deliberately used so that every callback quantity can be checked by hand. The example establishes the interface ordering, resisting\-force sign convention, and tangent matrix before nonlinear substructures are attempted.
+
+Responsibility is divided explicitly between OpenSees and the MATLAB callback:
 
 **OpenSees owns:**
 
@@ -53,11 +55,12 @@ the expected internal resisting force is:
 
   [\-P;  P]
 
-```matlab
-clc; clear; close all;
-```
+## Define the spring and callback state
+
+`K0` follows the interface order stated above. `initialState` is passed to every trial evaluation through the committed\-state mechanism, even though this linear spring does not need evolving history variables.
 
 ```matlab
+clc; clear; close all;
 k = 1000.0;
 P = 1.0;
 
@@ -70,6 +73,13 @@ K0 = k * [
 % Every trial evaluation receives the last state committed by OpenSees.
 initialState = struct("K", K0);
 
+```
+
+## Create the OpenSees model and interface
+
+Both interface nodes must exist before `matlabSubstructure` is created. Each row of `interfacePairs` fixes the ordering used by trial vectors, resisting force, and all callback matrices.
+
+```matlab
 %% Create the OpenSees command interface
 
 opsMAT = OpenSeesMatlab();
@@ -100,9 +110,6 @@ ops.wipe();
 % If an error stops the script, this guard removes the active Element before
 % clearing its MATLAB callback record.
 cleanupGuard = onCleanup(@() cleanupLinearSubstructure(ops));
-```
-
-```matlab
 %% Create the OpenSees model and interface nodes
 % The model and every node referenced by interfacePairs must exist before
 % matlabSubstructure is called.
@@ -114,9 +121,6 @@ ops.node(2, 1.0);
 
 % Fix the only DOF of node 1.
 ops.fix(1, 1);
-```
-
-```matlab
 %% Define the interface DOFs
 % Every row of interfacePairs is:
 %
@@ -138,6 +142,13 @@ interfacePairs = [
     2 1
 ];
 
+```
+
+## Register the MATLAB substructure
+
+With `tangentMode="matlab"`, OpenSees uses the tangent returned by the callback. `tangentMode="initial"` would keep `K0` throughout the analysis.
+
+```matlab
 %% Create the MATLAB-backed substructure Element
 
 eleTag = 1001;
@@ -155,9 +166,6 @@ ops.matlabSubstructure( ...
 %   "initial" - always use the initial stiffness K0
 %
 % "matlab" is appropriate when the callback supplies the current tangent.
-```
-
-```matlab
 %% Apply the external load
 
 ops.timeSeries("Linear", 1);
@@ -166,6 +174,13 @@ ops.pattern("Plain", 1, 1);
 % Apply P to the only DOF of node 2.
 ops.load(2, P);
 
+```
+
+## Solve one static load step
+
+The callback element participates in the ordinary OpenSees equation assembly. Newton may evaluate it several times during the step, so callback trials must not modify committed history.
+
+```matlab
 %% Configure the static analysis
 % matlabSubstructure behaves as an OpenSees Element. It does not select the
 % constraint handler, equation numberer, solver, algorithm, or integrator.
@@ -190,9 +205,6 @@ ok = ops.analyze(1);
 if ok ~= 0
     error("Linear substructure analysis failed with code %d.", ok);
 end
-```
-
-```matlab
 %% Read the numerical response
 % eleResponse reads data already stored by the C++ Element. These queries do
 % not invoke the MATLAB callback again.
@@ -213,9 +225,6 @@ initialStiffnessFlat = ops.eleResponse( ...
 
 interfaceDefinition = ops.eleResponse( ...
     eleTag, "interfacePairs");
-```
-
-```matlab
 %% Convert flattened matrices
 % The current MATLAB wrapper can return an OpenSees matrix as a flattened
 % row vector. Convert it back to an N-by-N MATLAB matrix.
@@ -228,6 +237,10 @@ tangent = reshape( ...
 initialStiffness = reshape( ...
     initialStiffnessFlat, nInterface, nInterface).';
 ```
+
+## Verify displacement, force, and tangent
+
+The numerical checks compare all interface quantities, not only the free\-node displacement. This catches reversed interface ordering and incorrect force signs that a displacement\-only check can miss.
 
 ```matlab
 %% Calculate the analytical solution
@@ -245,9 +258,6 @@ forceExpected = [
 ];
 
 tangentExpected = K0;
-```
-
-```matlab
 %% Verify displacement, force, and tangent stiffness
 
 displacementError = abs(u2 - uExpected);
@@ -280,9 +290,6 @@ assert(tangentError < tolerance, ...
 
 assert(initialStiffnessError < tolerance, ...
     "Initial stiffness verification failed.");
-```
-
-```matlab
 %% Display the verification results
 
 verification = table( ...
@@ -485,9 +492,6 @@ ops.clearMatlabSubstructures();
 
 % The explicit cleanup succeeded, so remove the automatic cleanup guard.
 clear cleanupGuard
-```
-
-```matlab
 %% MATLAB callback used by the Element
 % The callback signature is:
 %
@@ -579,4 +583,9 @@ function cleanupLinearSubstructure(ops)
     catch
     end
 end
+
 ```
+
+## Verification summary
+
+Free\-node displacement, interface force, tangent, initial stiffness, and interface definition are all checked against closed\-form values. Passing only the displacement check is not sufficient to validate a substructure interface.

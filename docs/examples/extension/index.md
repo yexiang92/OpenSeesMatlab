@@ -23,6 +23,6 @@ OpenSeesMatlab extends a range of functionalities, including *numerical substruc
 
 ## Nonlinear iterative algorithm
 
-- [<span style="color:var(--md-accent-fg-color)">**Nonlinear iterative algorithm: KINSOL package benchmark**</span>](./algorithm/extension_KINSOL_steel_frame_benchmark.md)
-- [<span style="color:var(--md-accent-fg-color)">**Nonlinear iterative algorithm: Trust\-region Newton benchmark**</span>](./algorithm/extension_TrustRegion_steel_frame_benchmark.md)
+- [<span style="color:var(--md-accent-fg-color)">**KINSOL Methods for a Strongly Nonlinear Truss**</span>](./algorithm/extension_KINSOL_steel_frame_benchmark.md)
+- [<span style="color:var(--md-accent-fg-color)">**Trust\-region Methods for a Strongly Nonlinear Truss**</span>](./algorithm/extension_TrustRegion_steel_frame_benchmark.md)
 

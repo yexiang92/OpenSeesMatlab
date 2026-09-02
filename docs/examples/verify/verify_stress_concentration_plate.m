@@ -1,9 +1,7 @@
 %% *Stress Concentration in Plate with Circular Hole*
-% This live script is written as a guided walkthrough for a verification benchmark. 
-% It compares a known structural response with the result produced by the OpenSeesMatlab 
-% workflow. Read the text cells first, then run each code cell in order so that 
-% the variables, model state, and recorded results are available for the later 
-% sections.
+% A quarter-symmetry plane-stress model resolves the stress increase around 
+% a circular hole. The peak circumferential stress is compared with the finite-width 
+% plate solution rather than the infinite-plate value alone.
 % 
 % Perform a 2-D plane-stress elasticity analysis.
 % 
@@ -20,9 +18,6 @@
 % See matlab PDE toolbox examples: <https://www.mathworks.com/help/pde/ug/stress-concentration-in-plate-with-circular-hole.html 
 % Stress Concentration in Plate with Circular Hole - MATLAB & Simulink>
 % Partial Differential Equation Toolbox Solving
-% The following commands carry out this step of the workflow. Run this cell 
-% after the previous sections so the required variables and model state already 
-% exist.
 
 clc; clear; close all;
 
@@ -32,7 +27,7 @@ totalLength = 4*totalWidth;
 
 R1 = [3 4 -totalLength  totalLength ...
            totalLength -totalLength ...
-          -totalWidth -totalWidth totalWidth totalWidth]'; 
+          -totalWidth -totalWidth totalWidth totalWidth]';
 C1 = [1 0 0 radius 0 0 0 0 0 0]';
 
 gdm = [R1 C1];
@@ -64,9 +59,6 @@ model.VertexBC(1) = vertexBC(YDisplacement=0);
 model = generateMesh(model,Hmax=radius/6, GeometricOrder="linear");
 figure
 pdemesh(model)
-%% 
-% 
-
 R = solve(model);
 maxUxPDE = max(R.Displacement.ux);
 maxVonMisesStressPDE = max(R.VonMisesStress);
@@ -82,9 +74,6 @@ pdeplot(R.Mesh,XYData=R.Stress.sxx, ...
         ColorMap="jet")
 axis equal
 title("Normal Stress Along x-Direction")
-%% 
-% 
-
 figure
 pdeplot(R.Mesh,XYData=R.VonMisesStress, ...
         ColorMap="jet")
@@ -217,9 +206,6 @@ for i = 1:nNode
         ops.load(i, fx, fy);
     end
 end
-%% 
-% 
-
 %% ------------------------------------------------------------------------
 % 9) Static analysis
 %% ------------------------------------------------------------------------
@@ -239,9 +225,6 @@ ODB.close();  % close when you want to stop recorder
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.loads.showNodal=true;
 opsMAT.vis.plotModel(opts=opts);
-%% 
-% 
-
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 ux = nodeResp.disp.ux;
 maxUx = max(ux(:));
@@ -259,9 +242,6 @@ opsMAT.vis.plotNodalResponse(nodeResp, respType="disp", stepIdx="absMax", respCo
 colormap("jet")
 axis off
 title("Displacement Along x-Direction")
-%% 
-% 
-
 planeResp = opsMAT.post.getElementResponse("myODB", eleType="Plane");
 sxx = planeResp.StressAtNode.sxx;
 maxSxx = max(sxx(:));
@@ -293,9 +273,9 @@ axis equal
 title("Von Mises Stress")
 colormap("jet")
 opsMAT.vis.plotContinuumResponseGUI(planeResp);
-%% 
-% 
-
 opsMAT.vis.polyscope.plotContinuumResponse(planeResp);
-%% 
-%
+
+% Acceptance check
+% Compute the concentration factor from the peak stress and the nominal far-field 
+% stress. Refine the mesh around the hole and check convergence before comparing 
+% with the finite-width analytical value.

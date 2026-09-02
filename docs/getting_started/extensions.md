@@ -16,6 +16,25 @@ commands, but they are implemented and maintained by OpenSeesMatlab.
 Use an extension only where it solves a specific problem. An ordinary OpenSees
 command is still the clearest choice for the rest of the model.
 
+## Canonical names and compatibility aliases
+
+The documentation uses one canonical spelling for each public feature. A few
+older spellings remain accepted so existing models continue to run:
+
+| Canonical form | Compatibility form | Note |
+|---|---|---|
+| `algorithm("TrustRegion", ...)` | `TrustRegionNewton` | The alias does not select the Newton subproblem; use `-subproblem`. |
+| `algorithm("KINSOL", "-testMode", "Hybrid")` | `Validated` | Both select hybrid final validation. |
+| `-funcNormTol` | `-fnormTol` | KINSOL function-norm tolerance. |
+| `-scaledStepTol` | `-stepTol` | KINSOL scaled-step tolerance. |
+| `-incrementConstraints` | `-constraints` | KINSOL correction constraints. |
+| `system("CuDSS", ...)` | `CuDSSGeneral` | Both select the general sparse cuDSS system. |
+
+The raw MEX dispatcher also recognizes internal callback command names used by
+older builds. They are implementation details, not additional MATLAB APIs.
+Use `ops.matlabSubstructure(...)` and
+`ops.uniaxialMaterial("MatlabUniaxialMaterial", ...)` in user code.
+
 ## Adaptive analysis recovery
 
 [`adaptiveAnalyze`][ops.OpenSeesMatlabCmds.adaptiveAnalyze] is a replacement

@@ -3,17 +3,14 @@
 
 # <span style="color:var(--md-accent-fg-color)">**Fiber section mesh generation**</span>
 
-This live script is written as a guided walkthrough for a post\-processing workflow. It focuses on retrieving, organizing, and visualizing model or response data after an OpenSees analysis. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
+The section\-meshing utilities turn geometric regions and reinforcement definitions into OpenSees fibers. The plots should be inspected for area, centroid, material tags, and mesh density before the section is assigned to an element.
 
 **Here we demonstrate how to generate fiber cross sections using Matlab and OpenSees.**
 
- **The** [Partial Differential Equation Toolbox \- MATLAB](https://www.mathworks.com/products/pde.html) **is required.**
+**The** [Partial Differential Equation Toolbox \- MATLAB](https://www.mathworks.com/products/pde.html) **is required.**
 
 ```matlab
 clear; clc;
-```
-
-```matlab
 opsmat = OpenSeesMatlab();
 ops    = opsmat.opensees;
 fs     = opsmat.pre.fiberSectionMesh;
@@ -34,9 +31,9 @@ FiberSectionMesh with properties:
 </div>
 </div>
 
-##  `EXAMPLE 1 —` Steel section
+## `EXAMPLE 1 —` Steel section
 
-This section defines the material or section properties. These choices control stiffness, strength, and the nonlinear behavior observed later.
+The material tags assigned here are carried into the generated fiber commands. Check the plotted regions and bar locations before using the section in a member model.
 
 ```matlab
 ops.wipe();
@@ -121,7 +118,7 @@ opsmat.pre.setSectionGeometryRecorder(false);
 
 ## `EXAMPLE 2 — RC box section`
 
- `Matlab's geometric functions:` [Polygonal Shapes \- MATLAB & Simulink](https://www.mathworks.com/help/matlab/elementary-polygons.html)
+`Matlab's geometric functions:` [Polygonal Shapes \- MATLAB & Simulink](https://www.mathworks.com/help/matlab/elementary-polygons.html)
 
 ```matlab
 %% --- Materials ---
@@ -242,9 +239,6 @@ rebars(1).name   = 'HRB400 D25';
 rebars(1).matTag = 4;
 rebars(1).coords = allBarCoords;
 rebars(1).area   = pi * rebarR^2;
-```
-
-```matlab
 %% --- Construct, mesh, inspect ---
 sec2 = fs.new(parts, rebars=rebars, secTag=2);
 sec2.mesh();
@@ -310,4 +304,9 @@ opsmat.pre.plotSection(2);
 
 ```matlab
 opsmat.pre.setSectionGeometryRecorder(false);
+
 ```
+
+## Mesh checks
+
+Compare fiber area and centroid with the source geometry, then inspect material tags and reinforcement locations. Increase mesh density only where the expected strain gradient requires it.

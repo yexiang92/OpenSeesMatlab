@@ -135,6 +135,8 @@ All options below are passed through `ops.system` to the cuDSS extension.
 | `-indexBits auto\|32\|64` | `auto` | Select CSR index width. Automatic mode uses 32-bit indices when the matrix fits and otherwise uses 64-bit indices. |
 | `-reorder default\|btf\|colamd\|amd\|nd\|none` | `default` | Select the symbolic reordering algorithm. |
 | `-factorization default\|multiblock\|general` | `default` | Select the numerical factorization algorithm. |
+| `-ndLevels count` | cuDSS default | Set the nested-dissection level count; the value must be positive. |
+| `-ndUbFactor percent` | cuDSS default | Set nested-dissection partition imbalance from `0` through `100`. |
 | `-pivot auto\|none\|globalCol\|globalRow\|diagonal\|local` | `auto` | Select numerical pivoting. Valid combinations depend on matrix type and reordering. |
 | `-pivotThreshold value` | cuDSS default | Set the pivot acceptance threshold. |
 | `-pivotEpsilon value` | cuDSS default | Set the static-pivot replacement epsilon. |
@@ -147,8 +149,10 @@ All options below are passed through `ops.system` to the cuDSS extension.
 | `-hybridExecute` | off | Enable hybrid host/device execution. |
 | `-hostThreads count` | cuDSS default | Set the host thread count for hybrid or MT execution. |
 | `-threadingLayer library` | unset | Load a cuDSS-compatible threading backend, such as VCOMP on Windows. |
+| `-matrixMemory auto\|host\|device` | `auto` | Place CSR input arrays in host or device memory; automatic mode uses host CSR when supported. |
 | `-schurSize equations` | disabled | Use the final N equations as a Schur set; currently requires `CuDSSSymmetric` or `CuDSSSPD`. |
 | `-diagnostics` | off | Synchronize and query errors after each phase; debugging only. |
+| `-profile` | off | Print phase timings; profiling adds synchronization overhead and is intended for diagnostics. |
 | `-verbose` | off | Print runtime, device, and transfer details. |
 
 For example, a performance-oriented symmetric-indefinite configuration is:
@@ -174,6 +178,12 @@ sparsity pattern is unchanged. If refactorization fails, it retries a complete
 numerical factorization. When the assembled matrix is exactly unchanged, the
 default `-reuseFactorization` behavior skips its upload and numerical
 factorization and performs only the new right-hand-side solve.
+
+Element tangents are assembled in OpenSees' column-major storage order, with a
+branch-free path for elements whose equations are all active. For an ordinary
+non-Schur solve, numerical factorization and solution are submitted in one
+cuDSS phase call. `-profile` and `-diagnostics` deliberately keep the phases
+separate so their timings and failures remain distinguishable.
 
 Small systems can be faster on the CPU because GPU launch and transfer overhead
 dominates. Tune `-cpuThreshold` with the actual model and hardware; values around
@@ -321,6 +331,10 @@ The following variants are available:
 For strongly nonlinear earthquake analysis, start with `CuDSS`. A tangent
 matrix may become indefinite even if the initial elastic stiffness is positive
 definite.
+
+`CuDSSGeneral` is the compatibility name for the same general-matrix
+implementation selected by `CuDSS`. Prefer the shorter `CuDSS` name unless a
+matrix-type comparison benefits from spelling out all variants.
 
 ## CPU fallback
 

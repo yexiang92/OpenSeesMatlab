@@ -1,17 +1,17 @@
 %% *Two storey steel moment frame with W-sections for displacement-controlled sensitivity analysis*
-% This live script is written as a guided walkthrough for a sensitivity-analysis 
-% example. It shows how design parameters are connected to response quantities 
-% so that gradients can be evaluated. Read the text cells first, then run each 
-% code cell in order so that the variables, model state, and recorded results 
-% are available for the later sections.
+% Selected material and section quantities are declared as parameters, and OpenSees 
+% differentiates the displacement-controlled frame response with respect to them. 
+% Compare each reported gradient with the parameter and response quantity that 
+% define it.
+% Build the frame and register parameters
+% Parameter tags 1–3 refer to column elastic modulus, yield stress, and hardening 
+% ratio. |addToParameter| assigns one parameter to all four columns so the derivative 
+% represents a coordinated model change.
 
 clc; clear;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-%% 
-% 
-
 inch = 1.0;
 kip = 1.0;
 ft = 12 * inch;
@@ -78,12 +78,10 @@ end
 
 figure;
 opsMAT.vis.plotModel();
-%% 
-% 
-% 
-% 
-% 
-% 
+% Gravity and sensitivity pushover
+% Gravity is completed and held constant before lateral loads are applied. |sensitivityAlgorithm("-computeAtEachStep")| 
+% evaluates direct-differentiation gradients along the displacement-controlled 
+% path.
 
 run_gravity_analysis(10, ops);
 
@@ -93,10 +91,11 @@ ops.load(5, 2/3, 0.0, 0.0);
 max_disp = 20 * inch;
 paramTags = ops.getParamTags();
 pushover_output = run_sensitivity_pushover_analysis(5, [1, 2], 1, (1/25) * inch, max_disp, paramTags, false, ops);
-%% 
-% 
-% 
-% 
+% Interpret the gradients
+% The upper plots place a first-order response band around the base pushover 
+% curve. The lower plots show the scaled derivative itself; its sign indicates 
+% whether increasing the parameter raises or lowers base shear at a fixed roof 
+% displacement.
 
 figure;
 rows = numel(paramTags) * 2;
@@ -146,8 +145,9 @@ for s = 1:rows
 end
 
 set(gcf, 'Position', [100, 100, 900, 1200]);
-%% 
-% 
+% Analysis helpers
+% The helper functions keep gravity setup, convergence recovery, response collection, 
+% and plot formatting separate from the parameter definitions above.
 
 function run_gravity_analysis(steps, ops)
     ops.wipeAnalysis();
@@ -262,3 +262,8 @@ function plot_params(max_disp)
     ax.LineWidth = 0.75;
     ax.TickDir = 'in';
 end
+
+% Reading sensitivity curves
+% The derivative sign and magnitude change along the nonlinear path. Scaled 
+% derivative plots show the first-order effect of a parameter-sized perturbation 
+% and should be interpreted locally, not as a second full pushover solution.

@@ -1,4 +1,8 @@
 %% *Force-controlled cyclic analysis of the TUB MVLEM_3D wall*
+% The TUB wall specimen is represented by an |MVLEM_3D| element and subjected 
+% to a multidirectional cyclic force history. The response database is used to 
+% connect global wall hysteresis with nodal and element-level quantities.
+% 
 % See <https://kkolozvari.github.io/MVLEM-3D/ MVLEM-3D | 3-D element for flexure-dominated 
 % RC walls> for more details.
 % 
@@ -6,44 +10,25 @@
 % 
 % *Figure 1: MVLEM_3D element formulation*
 % 
-% The MVLEM_3D model (Figure 1a) is a three-dimenaional four-node element with 
-% 24 DOFs for nonlinear analysis of flexure-controlled non-rectangular reinforced 
-% concrete walls subjected to multidirectional loading. The model is an extension 
-% of the two-dimensional, two-node Multiple-Vertical-Line-Element-Model (<https://opensees.berkeley.edu/wiki/index.php/MVLEM_-_Multiple-Vertical-Line-Element-Model_for_RC_Walls 
-% MVLEM>). The baseline MVLEM, which is essentially a line element for rectangular 
-% walls subjected to in-plane loading, is extended to a three-dimensional model 
-% formulation by: 1) applying geometric transformation of the element in-plane 
-% degrees of freedom that convert it into a four-node element formulation (Figure 
-% 1b), as well as by incorporating linear elastic out-of-plane behavior based 
-% on the Kirchhoff plate theory (Figure 1c). The in-plane and the out-of-plane 
-% element behaviors are uncoupled in the present model.
+% |MVLEM_3D| is a four-node, 24-DOF extension of the two-node <https://opensees.berkeley.edu/wiki/index.php/MVLEM_-_Multiple-Vertical-Line-Element-Model_for_RC_Walls 
+% MVLEM wall model>. A geometric transformation maps the in-plane wall response 
+% to four nodes, and an uncoupled Kirchhoff plate formulation supplies elastic 
+% out-of-plane behavior.
 % 
-% 
-% 
-% Specimen TUB (Beyer et al. 2008) is analyzed using the MVLEM_3D. Figure 2a 
-% shows the photo of the test specimen and the multidirectional displacement pattern 
-% applied at the top of the wall, while Figure 2b-c show the MVLEM_3D model of 
-% specimen TUB. *To access example files click on “View on Github” at the top 
-% of the page.*
+% Specimen TUB (Beyer et al. 2008) is represented by the MVLEM_3D idealization 
+% shown below. The prescribed multidirectional loading is applied at the wall 
+% top, and the computed hysteresis is examined together with element and nodal 
+% responses.
 % 
 % 
 % 
 % *Figure 2: MVLEM_3D model of specimen TUB*
-% 
-% 
-% 
-% 
-% 
-% 
 
 clear; clc; close all;
 runAnalysis = true;
 maxSequences = 124;
 showResponseViewer = true;
 odbTag = "MVLEM3DForceControl";
-%% 
-% 
-
 opsmat = OpenSeesMatlab();
 ops = opsmat.opensees;
 
@@ -230,7 +215,6 @@ end
 ops.loadConst('-time', 0.0);
 
 % Lateral force history
-% 
 
 % Each row is one force increment [Fx, Fy].
 forceHistory = [
@@ -313,7 +297,6 @@ end
 %% 
 % 
 % Load-displacement hysteresis from the ODB
-% 
 
 historyResp = opsmat.post.transformResponseStruct(nodeResp);
 sequence = odbSequenceIndex(historyResp.time);
@@ -515,3 +498,9 @@ ylabel(ax, yLabel);
 title(ax, plotTitle);
 axis(ax, 'padded');
 end
+
+
+% Reading wall response
+% Use the global force-displacement loop to identify stiffness loss and energy 
+% dissipation, then relate changes to nodal and element histories in the ODB. 
+% Check both loading directions in a multidirectional cycle.

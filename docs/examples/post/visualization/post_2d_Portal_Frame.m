@@ -1,21 +1,14 @@
 %% *Static analysis and visualization of 2D Portal Frame*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% This portal frame is small enough to inspect node tags, element axes, reactions, 
+% and section forces directly. It serves as a practical introduction to the plotting 
+% and response-query tools after a static analysis.
 % 
 % *See the original example in [opsvis](https://opsvis.readthedocs.io/en/latest/ex_2d_portal_frame.html).*
 
 clc; clear; close all;
-%% 
-% First, instantiate the class and obtain the OpenSees interface.
-
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 % Model construction and load application
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 ops.wipe();
 ops.model('basic', '-ndm', 2, '-ndf', 3);
@@ -58,13 +51,7 @@ ops.timeSeries('Linear', 1);
 ops.pattern('Plain', 1, 1);
 ops.load(2, Px, 0.0, 0.0);
 ops.eleLoad('-ele', 3, '-type', '-beamUniform', Wy, Wx);
-%% 
-% 
-
 modelData = opsMAT.post.getModelData();
-%% 
-% 
-
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.loads.showNodal = true;
 opts.loads.showElement = true;
@@ -72,8 +59,6 @@ opts.loads.scale = 1.2;
 opsMAT.vis.plotModel(opts=opts);
 opsMAT.vis.plotModelGUI();
 % Static analysis
-% This section configures and runs the analysis. The solver, constraints, convergence 
-% test, and step size should be read together because they control numerical robustness.
 
 ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=11);
 Nsteps = 10;
@@ -84,38 +69,24 @@ ops.test('NormDispIncr', 1.0e-6, 6, 2);
 ops.algorithm('Linear');
 ops.integrator('LoadControl', 1 / Nsteps);
 ops.analysis('Static');
-%% 
-% 
-
 ops.analyze(Nsteps);
 % Results visualization
-% This section collects the quantities of interest from the analysis. The recorded 
-% data are used later for plotting, verification, or post-processing.
 
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 
 opsMAT.vis.plotNodalResponse(nodeResp, stepIdx="absMax");
 grid off
-%% 
-% 
-
 eleResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
 
 opsMAT.vis.plotFrameResponse(eleResp, ...
     stepIdx="absMax", respType="sectionForces", respComponent="MZ");
 grid off
-%% 
-% 
-
 opts = opsMAT.vis.defaultPlotFrameResponseOptions;
 opts.style = "wireframe";
 opsMAT.vis.plotFrameResponse(eleResp, ...
     stepIdx="absMax", respType="sectionForces", respComponent="Mz",...
     opts=opts);
 grid off
-%% 
-% 
-
 opts.color.useColormap = false;
 opsMAT.vis.plotFrameResponse(eleResp, ...
     stepIdx="absMax", respType="sectionForces", respComponent="N",...
@@ -129,17 +100,11 @@ opsMAT.vis.plotFrameResponse(eleResp, ...
     stepIdx="absMax", respType="basicForces", respComponent="MZ",...
     opts=opts);
 grid off
-%% 
-% 
-% 
-% 
-
 opsMAT.vis.plotFrameResponse(eleResp, ...
     stepIdx="absMax", respType="localForces", respComponent="FY",...
     opts=opts);
 grid off
 % Visualization based on Matlab GUI
-% 
 
 opsMAT.vis.plotModelGUI();
 %% 
@@ -164,4 +129,10 @@ opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
 
 opsMAT.vis.polyscope.plotFrameResponse(eleResp);
 %% 
-%
+% 
+
+
+% Checks after analysis
+% Reaction sums should balance the applied loads. Deformed shape, local axes, 
+% and section-force diagrams should be inspected together so component signs are 
+% interpreted in the correct element coordinate system.
