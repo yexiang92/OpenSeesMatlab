@@ -1,5 +1,7 @@
 %% *Two-story steel MRF in OpenSeesMatlab style*
-% 
+% The same two-story steel frame is used for modal, pushover, and time-history 
+% analyses. Keeping the model fixed while changing the analysis procedure makes 
+% the role of each analysis type easier to see.
 % 
 % Converted from an OpenSeesPy notebook <https://github.com/AmirHosseinNamadchi/OpenSeesPy-Examples/blob/master/Two%20Story%20Steel%20MRF%20(FGU).ipynb 
 % OpenSeesPy-Examples/Two Story Steel MRF (FGU).ipynb at master · AmirHosseinNamadchi/OpenSeesPy-Examples>
@@ -14,17 +16,10 @@
 % 
 % * gravity, modal, pushover, and time-history analyses.
 % 
-% 
-% 
 % The ground-motion file: [acc_1.txt](../../utils/acc_1.txt).
 % 
-% 
-% 
-% In this notebook, a 2 story steel moment resisting frame is modeled. This 
-% is an OpenSeesPy simulation of TCL version of the model, presented by <https://www.ucl.ac.uk/epicentre/fernando-gutierrez-urzua 
-% _Fernando Gutiérrez Urzúa_> in his <https://www.youtube.com/user/lfgurzua YouTube 
-% channel>. Some minor modifications are made by me in the python version. According 
-% to his, modeling assumptions are:
+% The model follows the Tcl example presented by <https://www.ucl.ac.uk/epicentre/fernando-gutierrez-urzua 
+% Fernando Gutiérrez Urzúa>, with the following idealizations:
 %% 
 % * Columns are modeled as distributed plasticity elements
 % * Beams are modeled as concentrated plasticity elements
@@ -43,10 +38,9 @@
 % * |reset_analysis|: _Resets the analysis by setting time to 0,removing the 
 % recorders and wiping the analysis._
 %% 
-% Please note that some functions use data obtained by running other functions. 
-% For example, in order to run Pushover analysis, some components of eigenvectors 
-% are needed that is obtained via |run_modal| function. It's highly recommended 
-% to watch Dr. Fernando Gutiérrez Urzúa videos for better understanding.
+% Run the selected analyses in order. The pushover load shape uses modal data 
+% produced by |run_modal|, and the dynamic analysis assumes that gravity has already 
+% been completed and held constant.
 % 
 % 
 
@@ -55,16 +49,10 @@ clear; clc; close all;
 opsMAT = OpenSeesMatlab;
 ops = opsMAT.opensees;
 opsvis = opsMAT.vis;
-%% 
-% 
-
 outputDir = fullfile(pwd, 'output_data/FGU_2SSMRF_files');
 if ~exist(outputDir, 'dir')
     mkdir(outputDir);
 end
-%% 
-% 
-
 data = build_model(ops, outputDir);
 opsvis.polyscope.plotModel();
 %% 
@@ -653,3 +641,10 @@ function plot_time_history(outputDir)
         warning('Story displacement output file not found. Skipping story-displacement plot.');
     end
 end
+
+
+% Reading the analyses
+% Mode shapes describe the elastic dynamic characteristics, the pushover curve 
+% shows nonlinear lateral capacity, and the time history gives record-specific 
+% demand. These outputs answer different questions and should not be treated as 
+% interchangeable.

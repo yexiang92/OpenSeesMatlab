@@ -33,8 +33,9 @@ ops.analysis("Static");
 code = ops.analyze(100);
 ```
 
-`TrustRegionNewton` is accepted as an alias, although the selected subproblem
-is still controlled by `-subproblem`.
+`TrustRegionNewton` remains a compatibility alias. It does not force the
+Newton subproblem: `-subproblem` still selects `newton`, `cauchy`, or `dogleg`.
+Use the canonical `TrustRegion` name in new scripts.
 
 Changing only the linear system changes the solver used for every Newton
 equation:
@@ -146,19 +147,22 @@ accepted OpenSees trial state and are never committed.
 |---|---:|---|
 | `-subproblem newton\|cauchy\|dogleg` | `dogleg` | Trust-region subproblem |
 | `-ratio quadratic\|aredPred` | `quadratic` | Actual/predicted reduction definition |
-| `-initialRadius value` | `1.0` | Initial radius |
+| `-initialRadius value` | `5.0` | Initial radius |
 | `-minRadius value` | `1e-12` | Minimum radius before failure |
 | `-maxRadius value` | `1e10` | Maximum radius |
-| `-minRatio value` | `1e-4` | Minimum ratio for accepting a trial step |
-| `-contractRatio value` | `0.1` | Ratio below which the radius contracts |
+| `-minRatio value` | `1e-3` | Minimum ratio for accepting a trial step |
+| `-contractRatio value` | `0.25` | Ratio below which the radius contracts |
 | `-expandRatio value` | `0.75` | Ratio above which a boundary step may expand the radius |
 | `-contractFactor value` | `0.25` | Radius contraction multiplier |
-| `-expandFactor value` | `4.0` | Radius expansion multiplier |
+| `-expandFactor value` | `2.0` | Radius expansion multiplier |
 | `-maxIter n` | inherited from `test` | Maximum accepted nonlinear iterations per analysis step |
+| `-maxTangentAge n` | `2` | Reuse an accepted tangent for at most this many nonlinear iterations; `0` forms the current tangent every iteration |
+| `-maxDoglegIter n` | `1` | Use dogleg for at most this many iterations before switching to radial Newton; `0` disables the switch |
 | `-maxReject n` | `20` | Maximum rejected trials for one tangent/model |
-| `-recoveryStep value` | `0` | Fraction of the Newton step used after rejection exhaustion; zero fails safely |
+| `-recoveryStep value` | `1.0` | Fraction of the Newton step used after rejection exhaustion; `0` fails without a recovery step |
 | `-verbosity 0\|1\|2` | `0` | Diagnostic output level |
-| `-printStats` | off | Print final statistics |
+| `-collectStats` | off | Collect detailed counters for `algorithm("TrustRegion", "-info")` without printing them |
+| `-printStats` | off | Collect and print final statistics |
 
 The consistency rules require
 `minRadius <= initialRadius <= maxRadius`, ordered ratio thresholds, a
@@ -332,9 +336,16 @@ not replace the analysis path parameterization.
 ## Statistics and return reason
 
 ```matlab
-statistics = ops.call("trustRegionStats");
-reason = ops.call("trustRegionReturnReason");
+ops.algorithm("TrustRegion", "-subproblem", "dogleg", "-collectStats");
+% ... run the analysis ...
+statistics = ops.algorithm("TrustRegion", "-info");
+reason = statistics.returnReason;
 ```
+
+The former top-level `trustRegionStats` and `trustRegionReturnReason` commands
+are no longer part of the interface. Core status and the return reason are
+always available. Use `-collectStats` when detailed performance counters are
+required; it avoids the console output produced by `-printStats`.
 
 The statistics structure contains:
 
@@ -344,6 +355,7 @@ The statistics structure contains:
 | `iterationLimit` | Effective limit after inheritance or explicit override |
 | `residualEvaluations` | Residual formations |
 | `tangentEvaluations` | OpenSees tangent formations |
+| `tangentReuses` | Iterations that reused an accepted tangent |
 | `linearSolves` | Calls to the active OpenSees linear system |
 | `acceptedSteps`, `rejectedSteps` | Accepted and rejected trial counts |
 | `radiusContractions`, `radiusExpansions` | Radius changes |

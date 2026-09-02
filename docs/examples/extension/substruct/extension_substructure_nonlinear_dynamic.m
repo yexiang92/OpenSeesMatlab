@@ -1,5 +1,9 @@
 %% *Nonlinear Dynamic MATLAB Substructure*
-% This example demonstrates a nonlinear dynamic MATLAB substructure under sinusoidal 
+% A Duffing oscillator is represented by a callback substructure that returns 
+% force, tangent, mass, and damping. An independent ODE solution checks both the 
+% callback implementation and the OpenSees transient analysis.
+% 
+% The physical system is a MATLAB-backed nonlinear substructure under sinusoidal 
 % loading.
 % 
 % The physical system is a single-degree-of-freedom Duffing oscillator:
@@ -17,13 +21,12 @@
 % An independent <https://www.mathworks.com/help/matlab/ref/ode45.html ode45 
 % - Solve nonstiff differential equations — medium order method - MATLAB> solution 
 % is used as a reference.
-% 
-% 
+% Define the oscillator and loading history
+% |K0|, |M0|, and |C0| use the same two-interface-DOF ordering. Physical mass 
+% and damping are supplied by the callback and must not also be assigned with 
+% |mass| or Rayleigh damping.
 
 clc; clear; close all;
-%% 
-% 
-
 % Model parameters
 m = 2.0;
 c = 1.5;
@@ -62,8 +65,9 @@ initialState = struct( ...
     "alpha", alpha, ...
     "M", M0, ...
     "C", C0);
-%% 
-% 
+% Create the callback-backed substructure
+% Node 1 is fixed and node 2 carries the oscillator response. The callback evaluates 
+% (ku+\alpha u^3), its consistent tangent, and the constant mass and damping matrices.
 
 %% Create the OpenSees command interface
 
@@ -76,9 +80,6 @@ ops.wipe();
 % Automatically clean up if the script stops because of an error.
 cleanupGuard = onCleanup( ...
     @() cleanupNonlinearDynamicModel(ops));
-%% 
-% 
-
 %% Create nodes and boundary conditions
 %
 %   fixed node 1 ---- nonlinear substructure ---- node 2
@@ -91,9 +92,6 @@ ops.node(1, 0.0);
 ops.node(2, 1.0);
 
 ops.fix(1, 1);
-%% 
-% 
-
 %% Define the interface
 % Each row is:
 %
@@ -119,8 +117,10 @@ ops.matlabSubstructure( ...
 
 % Do not also assign mass m using ops.mass(). The physical mass is already
 % returned by the MATLAB callback.
-%% 
-% 
+% Apply the sinusoidal force
+% The |Path| series already includes its value at time zero, so no extra leading 
+% zero is inserted. A unit nodal load lets the time-series value act directly 
+% as the applied force.
 
 %% Create the sinusoidal external load
 % loadValues already contains the value at t = 0. Therefore,
@@ -143,9 +143,6 @@ ops.pattern( ...
 
 % A unit reference load is multiplied by the Path time-series factor.
 ops.load(2, 1.0);
-%% 
-% 
-
 %% Configure the nonlinear transient analysis
 
 ops.constraints("Plain");
@@ -188,6 +185,11 @@ aOpenSees(1) = ops.nodeAccel(2, 1);
 % update. The initial nonlinear elastic force is zero for this example.
 forceOpenSees(1) = 0.0;
 
+% Integrate the OpenSees response
+% Average-acceleration Newmark advances one step at a time. Nodal displacement, 
+% velocity, acceleration, and callback resisting force are stored only after a 
+% converged step.
+
 %% Run the transient analysis
 % One time step can contain several callback evaluations. The callback must
 % therefore calculate every trial from committedState.
@@ -222,8 +224,10 @@ if failedStep ~= 0
         failedStep, ...
         failedStep*dt);
 end
-%% 
-% 
+% Compare with an independent ODE solution
+% |ode45| solves the same scalar equation without the OpenSees element or callback 
+% machinery. Agreement therefore checks the force law, tangent, mass, damping, 
+% loading phase, and transient integration together.
 
 %% Independent ode45 reference solution
 % Solve:
@@ -265,9 +269,6 @@ aReference = ( ...
 % The Element interface force excludes the separately assembled C*v term.
 forceReference = ...
     k*uReference + alpha*uReference.^3;
-%% 
-% 
-
 %% Calculate verification errors
 
 displacementDifference = ...
@@ -329,9 +330,6 @@ relativeDisplacementError = ...
 
 relativeForceError = ...
     maxForceError / forceScale;
-%% 
-% 
-
 %% Verify the numerical agreement
 % Newmark and ode45 use different integration methods, so their solutions
 % are not expected to be identical.
@@ -672,9 +670,6 @@ ops.wipe();
 ops.clearMatlabSubstructures();
 
 clear cleanupGuard
-%% 
-% 
-
 %% Nonlinear MATLAB callback
 % The relative displacement is:
 %
@@ -787,3 +782,8 @@ function cleanupNonlinearDynamicModel(ops)
     catch
     end
 end
+
+% Verification summary
+% OpenSees and |ode45| histories should agree in displacement, velocity, and 
+% acceleration over the full duration. The force-displacement curve provides an 
+% additional check of the cubic restoring law.

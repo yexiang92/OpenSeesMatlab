@@ -1,29 +1,17 @@
-%% *2D Reinforced Concrete Frame Pushover Analysis*
-% This live script is written as a guided walkthrough for a structural-analysis 
-% example. It walks from model definition to analysis setup and then to response 
-% checks or plots. Read the text cells first, then run each code cell in order 
-% so that the variables, model state, and recorded results are available for the 
-% later sections.
+%% *2D Steel Frame Pushover Analysis*
+% A three-story steel frame with |Steel02| W-sections is taken through model 
+% construction, modal inspection, gravity loading, and displacement-controlled 
+% pushover. The gravity state is retained before lateral loading begins.
 
 clear; clc;
-%% 
-% First, instantiate the OpenSeesMatlab interface class. This class provides 
-% native OpenSees commands, as well as additional visualization, pre/post-processing, 
-% and utility methods.
-
 opsMat = OpenSeesMatlab();
 ops = opsMat.opensees;
 % |Start of model generation|
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 ops.wipe();
 
 % set modelbuilder
 ops.model('basic', '-ndm', 2, '-ndf', 3);
-%% 
-% 
-
 %% ############################################
 %  Units and Constants
 %  ############################################
@@ -247,8 +235,6 @@ ops.load(31, 0.0, -5.0*kip, 0.0);
 ops.load(32, 0.0, -6.0*kip, 0.0);
 ops.load(33, 0.0, -5.0*kip, 0.0);
 % Visualize the model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opts = struct();
 opts.loads.showNodal = true;
@@ -257,15 +243,11 @@ opts.loads.scale = 1.5;
 
 opsMat.vis.plotModel(opts=opts);
 % Visualize the eigen analysis
-% This section configures and runs the analysis. The solver, constraints, convergence 
-% test, and step size should be read together because they control numerical robustness.
 
 eigenData = opsMat.post.getEigenData(numModes=2, solver='-genBandArpack');
 disp(eigenData)
 opsMat.vis.plotEigen(1, eigenData);
 % |Perform gravity analysis|
-% This section applies the actions on the model. The load pattern and scaling 
-% determine what response the analysis will try to reproduce.
 
 NstepsGrav = 10;
 
@@ -291,8 +273,6 @@ disp('Gravity analysis complete');
 
 ops.wipeAnalysis();
 % |Perform pushover analysis|
-% This section configures and runs the analysis. The solver, constraints, convergence 
-% test, and step size should be read together because they control numerical robustness.
 
 
 disp('<<<< Running Pushover Analysis >>>>');
@@ -357,8 +337,6 @@ for j = 1:NstepsPush
         ops.nodeReaction(3, 1);
 end
 % Plot Results
-% This section collects the quantities of interest from the analysis. The recorded 
-% data are used later for plotting, verification, or post-processing.
 
 figure;
 plot(dataPush(:,1), -dataPush(:,2), 'LineWidth', 1.5);
@@ -374,3 +352,8 @@ grid on;
 xlabel('Top Displacement (inch)');
 ylabel('Base Shear (kip)');
 title('Pushover Curve');
+
+% Reading the frame response
+% Check mode shapes before gravity loading, then confirm gravity equilibrium 
+% before pushover. The base-shear versus roof-drift curve should use only converged 
+% steps and a consistent reaction sign.

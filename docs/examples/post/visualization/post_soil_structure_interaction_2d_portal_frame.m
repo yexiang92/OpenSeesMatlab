@@ -1,23 +1,17 @@
 %% *Soil-structure interaction: 2d Portal Frame*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% A portal frame and its supporting soil are solved as one model. The example 
+% emphasizes interface connectivity, staged gravity and seismic loading, and consistent 
+% interpretation of structural and soil responses.
 % 
 % This example originates from the GitHub repository maintained by Professor 
 % Quan Gu of Xiamen University:
 % 
 % [OpenSeesXMU/A-practical-guide-to-OpenSees---examples](https://github.com/OpenSeesXMU/A-practical-guide-to-OpenSees---examples/tree/master)
-% 
-% 
 
 clc; clear; close all;
 opsm = OpenSeesMatlab();
 ops = opsm.opensees;
 % Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 %% ------------------------------------------------------------------------
 %  Xiamen University example
@@ -133,9 +127,6 @@ ops.uniaxialMaterial('Hardening', 3, 2.0e8, 248200.0, 0.0, 1.6129e6);
 ops.uniaxialMaterial('Concrete01', 4, -27588.5, -0.002, 0.0, -0.008);
 ops.uniaxialMaterial('Concrete01', 5, -34485.6, -0.004, -20691.4, -0.014);
 ops.uniaxialMaterial('Hardening', 6, 2.0e8, 248200.0, 0.0, 1.6129e6);
-%% 
-% 
-
 %% ------------------------------------------------------------------------
 % Fiber sections for upper frame
 %% ------------------------------------------------------------------------
@@ -241,13 +232,13 @@ ops.element('dispBeamColumn',16, 15,  7, transfTag, integrationTag4);
 %% ------------------------------------------------------------------------
 % ops.recorder('Element', '-ele', 1, 2, '-file', 'Deformation12.out', '-time', 'section', 2, 'deformations');
 % ops.recorder('Element', '-ele', 1, 2, '-file', 'Force12.out',       '-time', 'section', 2, 'force');
-% 
+%
 % ops.recorder('Element', '-ele', 3, 4, '-file', 'Deformation34.out', '-time', 'section', 2, 'deformations');
 % ops.recorder('Element', '-ele', 3, 4, '-file', 'Force34.out',       '-time', 'section', 2, 'force');
-% 
+%
 % ops.recorder('Element', '-ele', 7, 9, '-file', 'Deformation79.out', '-time', 'section', 3, 'deformations');
 % ops.recorder('Element', '-ele', 7, 9, '-file', 'Force79.out',       '-time', 'section', 3, 'force');
-% 
+%
 % ops.recorder('Element', '-ele', 7, '-time', '-file', 'steelstress7.out',    'section', 3, 'fiber', -0.2286, 0.2286, 'stress');
 % ops.recorder('Element', '-ele', 7, '-time', '-file', 'steelstrain7.out',    'section', 3, 'fiber', -0.2286, 0.2286, 'strain');
 % ops.recorder('Element', '-ele', 7, '-time', '-file', 'concretestress7.out', 'section', 3, 'fiber', 0.0, 0.0, 'stress');
@@ -500,8 +491,6 @@ for i = 1:size(interfacePairs,1)
     ops.equalDOF(interfacePairs(i,1), interfacePairs(i,2), 1, 2);
 end
 % Visualize the model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opts = opsm.vis.defaultPlotModelOptions;
 opts.nodes.showLabels = true;
@@ -530,7 +519,7 @@ ODB = opsm.post.createODB("myODB", interpolateBeamDisp=11, flushEvery=20);   % O
 % ops.recorder('Element', '-ele', 41, '-time', '-file', 'stress41.out', 'material', 2, 'stress');
 % ops.recorder('Element', '-ele', 59, '-time', '-file', 'stress59.out', 'material', 2, 'stress');
 % ops.recorder('Element', '-ele', 77, '-time', '-file', 'stress77.out', 'material', 2, 'stress');
-% 
+%
 % ops.recorder('Element', '-ele', 37, '-time', '-file', 'stress37.out', 'material', 2, 'stress');
 % ops.recorder('Element', '-ele', 37, '-time', '-file', 'strain37.out', 'material', 2, 'strain');
 
@@ -548,7 +537,7 @@ ops.analysis('Static');
 ops.analyze(3);   % Automatically write data to the ODB.
 fprintf('Soil gravity nonlinear analysis completed.\n');
 % Seismic analysis
-% [elcentro.txt](../../utils/elcentro.txt)   
+% [elcentro.txt](../../utils/elcentro.txt)
 
 
 %% ------------------------------------------------------------------------
@@ -580,49 +569,37 @@ fprintf('Completed time: %.6f seconds.\n', elapsedTime);
 % Post-processing
 % Nodal responses
 
-% 
+%
 nodeResp = opsm.post.getNodalResponse("myODB");
 opsm.vis.plotNodalResponse(nodeResp, stepIdx="absMax");
 % By paraview
-% If you want to demonstrate animations or other features in Paraview, run the 
-% following function.
+% Export the recorded response when animation or additional field inspection 
+% is needed in ParaView.
 
 opsm.post.writeResponsePVD("myODB");
 %% 
-% If you want to display the deformation, please add the ``filter - common - 
-% wrap by vector``.  Select the ``disp`` and set the ``scaling factor``.
+% In ParaView, apply *Warp By Vector* to |disp| and choose a scale factor appropriate 
+% for the model dimensions.
 % 
-% Note that when you set variables to display colors, you need to rescale the 
-% color bar range to cover the current time step or all time steps.
+% Rescale the color range over either the current step or the full history; 
+% the choice changes how response changes are perceived during animation.
 % 
 % 
 % 
-% If you want to display a vector graphic, please click ``filter - common - 
-% Calculator - disp/vel/accel...``, and on  Calculator to ``filter - common - 
-% Glyph - disp/vel/accel...`
+% For vector arrows, select |disp|, |vel|, or |accel| in *Calculator*, then 
+% apply *Glyph* to the calculated vector. Rescale the color range over the current 
+% step or the full history as appropriate.
 % 
 % 
 % Element responses
 
 frameResp = opsm.post.getElementResponse("myODB", eleType="Frame");
-%% 
-% 
-
 opsm.vis.plotFrameResponse(frameResp, stepIdx="absMax", respType="sectionForces", respComponent="MZ");
 grid off;
-%% 
-% 
-
 planeResp = opsm.post.getElementResponse("myODB", eleType="Plane");
-%% 
-% 
-
 opsm.vis.plotContinuumResponse(planeResp, ...
     respType="StressAtGP", respComponent="sxx");
 grid off
-%% 
-% 
-
 opsm.vis.plotContinuumResponse(planeResp, ...
     respType="StressMeasureAtNode", respComponent="tauOct");
 grid off
@@ -635,9 +612,9 @@ grid off
 % opsm.vis.polyscope.plotContinuumResponse(planeResp);
 %% 
 % 
-% 
-% 
-% 
-% 
-% 
-%
+
+
+% Reading coupled response
+% Compare frame drift, foundation motion, and soil deformation at the same time 
+% step. Reaction transfer across the interface is a direct check that the structural 
+% and soil domains remain connected.

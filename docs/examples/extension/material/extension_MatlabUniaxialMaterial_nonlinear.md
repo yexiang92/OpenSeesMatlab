@@ -3,7 +3,9 @@
 
 # <span style="color:var(--md-accent-fg-color)">**History\-Dependent Nonlinear MATLAB Material in a Cyclic Pushover**</span>
 
-This notebook places a one\-dimensional elastoplastic MATLAB material inside a regular OpenSees zeroLength element. A progressively increasing cyclic displacement history drives elastic loading, yielding, unloading, reverse yielding, and repeated plastic cycles.
+This example concentrates on trial and committed material states. The cyclic protocol makes incorrect history handling visible immediately as drift in the hysteresis loop or failure of the return\-mapping checks.
+
+A one\-dimensional elastoplastic MATLAB material is placed inside a regular OpenSees `zeroLength` element. A progressively increasing displacement history covers elastic loading, yielding, unloading, reverse yielding, and repeated plastic cycles.
 
 The material uses linear isotropic hardening with two history variables:
 
@@ -307,3 +309,7 @@ function [response, state, status] = isotropicHardeningCallback(action, trial, c
 end
 
 ```
+
+## Verification
+
+The loop should show elastic unloading, yielding in both directions, and expanding isotropic strength. Repeated Newton trials must not accumulate plastic strain until OpenSees commits the step.

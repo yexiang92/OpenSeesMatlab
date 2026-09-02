@@ -1,32 +1,27 @@
 %% *Read a GMSH model by physical groups*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% The Gmsh physical groups are used as the bridge between mesh entities and 
+% OpenSees model definitions. The example shows how group names control material 
+% regions, supports, and loaded boundaries after import.
 % 
-% This example demonstrates how to read a GMSH model by physical groups and 
-% convert it to an OpenSeesPy model using the _Gmsh2OPS_ class.
+% This example reads a Gmsh mesh by physical groups and converts it into an 
+% OpenSees model with |Gmsh2OPS|.
 % 
 % This example is based on GMSH Example <https://gmsh.info/doc/texinfo/gmsh.html#t15 
 % t15>.
 % 
-% *msh* file can be found in [](../../utils/t15.msh).
+% *msh* file can be found in [](../utils/t15.msh).
 
 clc; clear;
-%% 
-% 
-
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 
 g2o = opsMAT.pre.Gmsh2OPS;
 
 g2o.readGmshFile('utils/t15.msh');
-%% 
-% In the example above, we defined the following physical groups for converting 
-% OpenSees elements. Volume 1 is used to generate elements, while the boundary 
-% consists of the bottom 1 surface, 4 lines, and 4 points!
+% Read the physical groups
+% The |Volume| group defines the tetrahedral region. |Boundary| combines the 
+% bottom surface with its enclosing curves and points, and |Load| identifies the 
+% face that receives pressure.
 %% 
 % * gmsh.model.addPhysicalGroup(dim=0, tags=[1, 2, 9, 13], tag=1, name=”Boundary”) 
 % # points
@@ -37,11 +32,14 @@ g2o.readGmshFile('utils/t15.msh');
 % * gmsh.model.addPhysicalGroup(dim=2, tags=[27], tag=4, name=”Load”) # surface 
 % load
 % * gmsh.model.addPhysicalGroup(dim=3, tags=[1], tag=4, name=”Volume”) # volume
-%% 
-% 
 
 physicalGroups = g2o.getPhysicalGroups();
 disp(physicalGroups.keys());
+% Create nodes, elements, and restraints
+% Solid connectivity comes from the |Volume| group. Boundary nodes are obtained 
+% from the group definition rather than selected by coordinates, so the model 
+% remains tied to the mesh metadata.
+
 ops.wipe()
 % Initialize a basic 3D model with 3 degrees of freedom per node
 ops.model("basic", "-ndm", 3, "-ndf", 3)
@@ -54,14 +52,14 @@ ops.model("basic", "-ndm", 3, "-ndf", 3)
 matTag = 1;
 ops.nDMaterial("ElasticIsotropic", matTag, 3e7, 0.2, 2.55)
 
-% Create OpenSeesPy node commands based on all nodes
-g2o.createNodeCmds();  
+% Create OpenSees node commands based on all nodes
+g2o.createNodeCmds();
 
-% Create OpenSeesPy element commands for specific entities
+% Create OpenSees element commands for specific entities
 % FourNodeTetrahedron elements
 %
 eleTags = g2o.createElementCmds(...
-    "FourNodeTetrahedron", ...  % OpenSeesPy element type
+    "FourNodeTetrahedron", ...  % OpenSees element type
     OpsEleArgs={matTag}, ...  % Additional arguments for the element (e.g., mat tag)
     PhysicalGroupNames="Volume");
 
@@ -76,8 +74,10 @@ boundary_dim_tags = g2o.getBoundaryDimTags(DimEntityTags=[2, 18], IncludeSelf=tr
 disp(boundary_dim_tags);
 disp(physicalGroups("Boundary"));
 opsMAT.vis.plotModel();
-%% 
-% Eigen analysis:
+% Check connectivity with an eigenanalysis
+% The first four mode shapes provide a quick visual check for disconnected regions, 
+% missing supports, and unexpected rigid-body motion before the static analysis 
+% is run.
 
 tag = 1;
 opsMAT.post.saveEigenData(tag, 10, solver='-genBandArpack');
@@ -95,15 +95,14 @@ for i = 1:4
     axis off;
     colormap(ax, cmps);
 end
-%% 
-% We can apply the load by extracting the elements belonging to surface with 
-% tag 27: First, we convert the element to which the surface load is applied to 
-% <https://opensees.berkeley.edu/wiki/index.php?title=SurfaceLoad_Element SurfaceLoad 
-% Element>, and then we can apply the surface load to it:
+% Convert the loaded surface and solve
+% Faces in the |Load| group are converted to <https://opensees.berkeley.edu/wiki/index.php?title=SurfaceLoad_Element 
+% |SurfaceLoad| elements>. Their orientation comes from the mesh, and a linear 
+% static analysis applies the pressure in ten increments.
 
 pressure = -1;
 load_ele_tags = g2o.createElementCmds(...
-    "TriSurfaceLoad", ...  % OpenSeesPy element type
+    "TriSurfaceLoad", ...  % OpenSees element type
     OpsEleArgs={pressure}, ...  % Additional arguments for the element
     PhysicalGroupNames="Load");
 load_ele_tags = num2cell(load_ele_tags);
@@ -120,9 +119,8 @@ ops.algorithm("Linear")
 ops.integrator("LoadControl", 0.1)
 ops.analysis("Static")
 ops.analyze(10)
-%% 
-% 
-% 
-% 
-% 
-%
+
+% Checks after import
+% The printed physical groups, model plot, and mode shapes should agree with 
+% the Gmsh definition. Confirm the sign of pressure from the deformed shape and 
+% reactions before using a more complicated load case.

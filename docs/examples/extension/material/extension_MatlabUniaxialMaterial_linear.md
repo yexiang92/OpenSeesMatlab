@@ -3,7 +3,9 @@
 
 # <span style="color:var(--md-accent-fg-color)">**Linear MATLAB Material**</span>
 
-This notebook\-style example places a callback\-backed linear material inside a regular OpenSees zeroLength element.
+A MATLAB callback supplies the trial stress and tangent for a linear spring while OpenSees retains control of the element, equilibrium iterations, and state transitions. The analytical relation provides a direct implementation check.
+
+A callback\-backed linear material is placed inside a regular OpenSees `zeroLength` element.
 
 A standard cyclic displacement pushover history is imposed at the free node and the material response is recovered from the Element.
 
@@ -271,3 +273,7 @@ function [response, state, status] = linearMaterialCallback(action, trial, commi
 end
 
 ```
+
+## Verification
+
+The element force must equal (Ku) at every target displacement, with a constant tangent and zero callback status. Any loop opening in this linear test indicates incorrect state or sign handling.

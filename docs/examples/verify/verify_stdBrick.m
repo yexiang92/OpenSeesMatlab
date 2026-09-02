@@ -1,31 +1,22 @@
 %% *3D Solid Cantilever Beam (Brick element)*
-% This live script is written as a guided walkthrough for a verification benchmark. 
-% It compares a known structural response with the result produced by the OpenSeesMatlab 
-% workflow. Read the text cells first, then run each code cell in order so that 
-% the variables, model state, and recorded results are available for the later 
-% sections.
+% A solid-element cantilever is checked against elementary beam theory. The 
+% example shows how a three-dimensional stress field approaches a one-dimensional 
+% beam solution and where local effects should be expected.
 % 
 % This example presents a three-dimensional cantilever beam modeled using solid 
 % (continuum) elements. The objective is to verify the accuracy of displacement 
 % and stress predictions obtained from OpenSeesMatlab by comparing them with classical 
 % beam theory solutions.
 % 
-% 
-% 
 % A rectangular beam of length \( L \), width \( b \), and height \( h \) is 
 % fixed at one end and subjected to a vertical load at the free end. The beam 
 % is modeled using 3D solid elements, and both displacement and stress responses 
 % are evaluated.
-% 
-% 
 
 clear; clc;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-%% 
-% 
-
 ops.wipe();
 ops.model('basic', '-ndm', 3, '-ndf', 3);
 
@@ -112,26 +103,19 @@ ops.pattern('Plain', 1, 1);
 for ii = 1:numel(tipFaceNodes)
     ops.load(tipFaceNodes(ii), 0.0, 0.0, fz);
 end
-%% 
-% 
-% 
-% 
-% 
-% 
-
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.nodes.showLabels = false;
 opts.elements.showLabels = false;
 opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 grid off
-%% 
-% 
-
 opsMAT.vis.polyscope.plotModel();
 %% 
 % 
-%% 
+% Static solution and response database
+% The solid model is solved in two load increments. Gauss-point stresses are 
+% extrapolated to nodes for contour plotting, while displacement is read directly 
+% from the nodal response.
 
 Nsteps = 2;
 ops.constraints('Plain');
@@ -141,15 +125,9 @@ ops.test('NormDispIncr', 1e-10, 50);
 ops.algorithm('Newton');
 ops.integrator('LoadControl', 1.0/Nsteps);
 ops.analysis('Static');
-%% 
-% 
-
 ODB = opsMAT.post.createODB("myODB", projectGaussToNodes="extrapolate");  % create ODB
 ok = ops.analyze(Nsteps);
 ODB.close();
-%% 
-% 
-
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 
 opts = opsMAT.vis.defaultPlotNodalResponseOptions;
@@ -201,11 +179,9 @@ opsMAT.vis.plotContinuumResponseGUI(solidResp);
 opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
 %% 
 % 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-%
+
+
+% Acceptance check
+% Compare free-end displacement and nominal bending stress with beam theory 
+% away from the fixed boundary. Local three-dimensional stresses near the restraint 
+% are not expected to follow the one-dimensional solution.

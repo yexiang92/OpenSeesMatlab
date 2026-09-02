@@ -128,12 +128,14 @@ ops.algorithm("KINSOL", ...
 | `-scaledStepTol value` | `1e-12` | KINSOL scaled step-length tolerance; `-stepTol` is an alias |
 | `-acceptStepTol on\|off` | `off` | Treat `KIN_STEP_LT_STPTOL` as an accepted approximate result |
 | `-maxNewtonStep value` | KINSOL default | Maximum scaled Newton step; `0` leaves the KINSOL default |
+| `-lineSearchRecovery on\|off` | `on` | Retry `KIN_LINESEARCH_NONCONV` once with full Newton from KINSOL's last retained iterate |
 | `-maxBetaFailures n` | `10` | Maximum line-search beta-condition failures |
 | `-validation residual\|step\|either\|both\|none` | handler-dependent | Final acceptance rule used only with `-testMode Hybrid` |
 | `-validationResidualTol value` | `funcNormTol` | Hybrid tolerance for the re-formed, unscaled OpenSees residual |
 | `-validationStepTol value` | `scaledStepTol` | Hybrid tolerance for final KINSOL scaled-step validation |
 | `-maxSetupCalls n` | `10` | Maximum nonlinear iterations between full tangent setups in adaptive mode |
 | `-maxSubSetupCalls n` | `5` | Maximum iterations between residual-monitoring sub-setups |
+| `-adaptiveSizeThreshold n` | `256` | In adaptive mode, use the current tangent for systems no larger than this; `0` disables the size-based override |
 | `-residualMonitor on\|off` | `on` | Enable KINSOL residual monitoring for tangent refresh |
 | `-resMonMin value` | KINSOL default | Minimum residual-monitoring parameter |
 | `-resMonMax value` | KINSOL default | Maximum residual-monitoring parameter |
@@ -148,9 +150,10 @@ ops.algorithm("KINSOL", ...
 | `-solutionScaleValue value` | `1.0` | Broadcast solution scaling value |
 | `-residualScale vector` | all ones | Equation-wise residual scaling |
 | `-residualScaleValue value` | `1.0` | Broadcast residual scaling value |
-| `-incrementConstraints vector` | none | KINSOL sign constraints on cumulative corrections |
+| `-incrementConstraints vector` | none | KINSOL sign constraints on cumulative corrections; `-constraints` is a compatibility alias |
 | `-verbosity 0\|1\|2` | `0` | Silent, final summary, or detailed residual/tangent output |
-| `-printStats` | off | Print a final statistics summary |
+| `-collectStats` | off | Collect detailed counters for `algorithm("KINSOL", "-info")` without printing them |
+| `-printStats` | off | Collect and print a final statistics summary |
 
 `exact` overrides `-maxSetupCalls` to one. `modified` retains the tangent for
 the current solve and disables residual-monitor-triggered refresh. When
@@ -249,6 +252,9 @@ never creates a second nonlinear iteration loop:
 | `KINSOL` | Default; accept `KIN_SUCCESS` or `KIN_INITIAL_GUESS_OK` |
 | `OpenSees` | After KINSOL stops, call the active `NormUnbalance` test once on the re-formed final residual |
 | `Hybrid` | Require an admissible KINSOL termination and the selected final validation |
+
+`Validated` remains accepted as a compatibility alias for `Hybrid`; use
+`Hybrid` in new scripts.
 
 For example, the tolerance in this test is unused by the default KINSOL mode,
 while `40` becomes the default KINSOL iteration limit:
@@ -413,12 +419,17 @@ behavior for compatibility.
 
 ## Solver statistics
 
-Statistics for the most recent KINSOL step are returned as a MATLAB structure:
+Statistics for the most recent KINSOL step are returned through the same
+`algorithm` command used to configure the solver:
 
 ```matlab
-stats = ops.call("kinsolStats");
-reason = ops.call("kinsolReturnReason");
+stats = ops.algorithm("KINSOL", "-info");
+reason = stats.returnReason;
 ```
+
+Core termination information is always populated. Add `-collectStats` when
+you need detailed residual, tangent, linear-solve, or line-search counters
+without console output.
 
 Important fields include:
 

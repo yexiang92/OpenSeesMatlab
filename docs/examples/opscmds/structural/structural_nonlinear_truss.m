@@ -1,21 +1,13 @@
 %% *Nonlinear Truss Pushover Analysis*
-% This live script is written as a guided walkthrough for a structural-analysis 
-% example. It walks from model definition to analysis setup and then to response 
-% checks or plots. Read the text cells first, then run each code cell in order 
-% so that the variables, model state, and recorded results are available for the 
-% later sections.
-% 
-% First, instantiate the OpenSeesMatlab interface class. This class provides 
-% native OpenSees commands, as well as additional visualization, pre/post-processing, 
-% and utility methods.
+% Three truss members support a loaded node through a yielding hardening material. 
+% The load-displacement curve shows the transition from the initial elastic stiffness 
+% to the post-yield response.
 
 clc; clear;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 % Create model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 ops.wipe();
 ops.model("basic", "-ndm", 2, '-ndf', 2);
@@ -25,7 +17,7 @@ A = 4.0;
 E = 29000.0;
 alpha = 0.05;
 sY = 36.0;
-udisp = 2.5; 
+udisp = 2.5;
 Nsteps = 1000;
 Px = 160.0;
 Py = 0.0;
@@ -58,8 +50,6 @@ ops.pattern('Plain', 1, 1);
 % Create the nodal load
 ops.load(4, Px, Py);
 % *Start of analysis generation*
-% This section configures and runs the analysis. The solver, constraints, convergence 
-% test, and step size should be read together because they control numerical robustness.
 
 % create SOE
 ops.system('ProfileSPD');
@@ -76,8 +66,6 @@ ops.test('NormUnbalance', 1e-8, 10, 0);
 % create analysis object
 ops.analysis("Static");
 % Finally perform the analysis
-% This section configures and runs the analysis. The solver, constraints, convergence 
-% test, and step size should be read together because they control numerical robustness.
 
 data = zeros(Nsteps + 1, 2);
 
@@ -87,17 +75,17 @@ for j = 1:Nsteps
     data(j + 1, 2) = ops.getLoadFactor(1) * Px;
 end
 % Model Visualization
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opsMAT.vis.plotModel();
 % Plot
-% This section turns the numerical results into plots. Use these figures to 
-% check the deformed shape, response pattern, and whether the result is physically 
-% reasonable.
 
 figure;
 plot(data(:, 1), data(:, 2), 'LineWidth', 1.5);
 xlabel('Horizontal Displacement');
 ylabel('Horizontal Load');
 grid on;
+
+% Reading the pushover curve
+% The initial straight segment is the elastic response. The reduced post-yield 
+% slope is controlled by the hardening ratio; a smooth transition also confirms 
+% that load factor and displacement were recorded at matching steps.

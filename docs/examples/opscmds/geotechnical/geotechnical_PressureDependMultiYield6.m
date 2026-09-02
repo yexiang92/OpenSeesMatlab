@@ -1,17 +1,14 @@
 %% *Dry single BbarBrick element with pressure dependent material*
-% This live script is written as a guided walkthrough for a geotechnical material 
-% or element example. It shows how the soil model is defined, loaded, and checked 
-% through selected response quantities. Read the text cells first, then run each 
-% code cell in order so that the variables, model state, and recorded results 
-% are available for the later sections.
-% 
-% 
+% A single |bbarBrick| is loaded in stages to expose the pressure-dependent 
+% constitutive response without the distractions of a large mesh. Boundary conditions 
+% are chosen to reproduce a controlled element test rather than a field problem.
+% Define the material and one-element model
+% The tied top nodes enforce a uniform one-dimensional shear deformation. The 
+% material starts in its elastic stage so gravity can establish confinement without 
+% producing plastic strain.
 
 opsMat = OpenSeesMatlab();
 ops = opsMat.opensees;
-%% 
-% 
-
 %% dry single BbarBrick element with pressure dependent material
 % subjected to 1D sinusoidal base shaking
 
@@ -83,11 +80,13 @@ ops.fix(8, 0, 1, 0, 0, 0, 0);
 ops.equalDOF(2, 4, 1, 3);
 ops.equalDOF(2, 6, 1, 3);
 ops.equalDOF(2, 8, 1, 3);
-%% 
-% 
-
 nodeList = 1:8;
 elementList = 1:1;
+
+% Establish gravity confinement
+% After the elastic gravity steps, the material switches to its plastic stage. 
+% Domain time and analysis objects are reset, but the equilibrated stress state 
+% is retained.
 
 %% GRAVITY APPLICATION (elastic behavior)
 ops.system("ProfileSPD");
@@ -106,6 +105,11 @@ ops.updateMaterials('-material', solid1, 'bulkModulus', G1 * 2 / 3);
 ops.analyze(2);
 ops.setTime(0.0);   % reset time
 ops.wipeAnalysis();
+% Record nodal and integration-point response
+% Displacement and acceleration are stored for all nodes. Stress and strain 
+% are recorded at two integration points so spatial variation inside the brick 
+% can be checked.
+
 %% create recorders
 ops.recorder("Node", ...
     '-file', 'output_data/allNodesDisp.out', ...
@@ -157,9 +161,11 @@ ops.recorder('Element', ...
     '-dT', 1000, ...
     'material', 1, 'backbone', 80, 100, 200, 300);
 
-%% 
-% 
 
+% Apply sinusoidal base motion
+% Variable transient analysis may reduce the time step when convergence is difficult. 
+% The plotted stress paths, deformation, and absolute acceleration are reconstructed 
+% from the recorder files.
 
 %% create dynamic time history analysis
 
@@ -185,9 +191,6 @@ ops.wipe();
 elapsedTime = toc(startT);
 
 fprintf('Execution time: %.6f seconds.\n', elapsedTime);
-%% 
-% 
-
 a1=load('output_data/allNodesAcce.out');
 d1=load('output_data/allNodesDisp.out');
 s1=load('output_data/stress1.out');
@@ -204,19 +207,16 @@ for i=1:size(s1,1)
     qo(i)=(s1(i,2)-s1(i,3))^2 + (s1(i,3)-s1(i,4))^2 +(s1(i,2)-s1(i,4))^2 + 6.0* s1(i,5)^2 + 6.0* s1(i,6)^2 + 6.0* s1(i,7)^2;
     qo(i)=sign(s1(i,7))*1/3.0*qo(i)^0.5;
 end
-%% 
-% 
-
 
 figure(1); clf;
 %integration point 1 stress-strain
 subplot(2,1,1), plot(e1(:,7),s1(:,7),'b');
-title ('Integration point 1 shear stress \tau_x_y VS. shear strain \epsilon_x_y');
+title ('Integration point 1: shear stress versus shear strain');
 xlabel('Shear strain \epsilon_x_y');
 ylabel('Shear stress \tau_x_y (kPa)');
 
 subplot(2,1,2), plot(-po,qo,'r');
-title ('Integration point 1 confinement p VS. deviatoric q relation');
+title ('Integration point 1: mean effective stress versus deviatoric stress');
 xlabel('confinement p (kPa)');
 ylabel('q (kPa)');
 %integration point 5 p-q
@@ -229,12 +229,12 @@ end
 figure(4); clf;
 %integration point 5 stress-strain
 subplot(2,1,1), plot(e5(:,7),s5(:,7),'b');
-title ('Integration point 5 shear stress \tau_x_y VS. shear strain \epsilon_x_y');
+title ('Integration point 5: shear stress versus shear strain');
 xlabel('Shear strain \epsilon_x_y');
 ylabel('Shear stress \tau_x_y (kPa)');
 
 subplot(2,1,2), plot(-po,qo,'r');
-title ('Integration point 5 confinement p VS. deviatoric q relation');
+title ('Integration point 5: mean effective stress versus deviatoric stress');
 xlabel('confinement p (kPa)');
 ylabel('q (kPa)');
 figure(2); clf;
@@ -253,5 +253,8 @@ plot(a1(:,1),s1+a1(:,5),'b');
 title ('Lateral acceleration at element top');
 xlabel('Time (s)');
 ylabel('Acceleration (m/s^2)');
-%% 
-%
+
+% Reading the response
+% Use the stress-strain loops and (p)-(q) paths to judge constitutive behavior 
+% at both integration points. Top acceleration should include the imposed base 
+% acceleration when an absolute response is required.

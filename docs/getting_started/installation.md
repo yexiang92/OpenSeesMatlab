@@ -37,7 +37,7 @@ If more than one copy is listed, remove old copies from the MATLAB path so that 
 
 ## Run an example
 
-The `examples` directory contains Live Scripts grouped by engineering topic. Open a `.mlx` file in MATLAB Live Editor and run its sections in order. A good first choice is a small structural example; response and visualization examples are useful after you understand the basic command workflow.
+The source repository's `examples` directory contains plain-text Live Code `.m` files grouped by engineering topic. MATLAB R2025a or later opens these files in the Live Editor; packaged releases also include ordinary `.m` scripts for older supported MATLAB versions. Run each example's sections in order. A good first choice is a small structural example; response and visualization examples are useful after you understand the basic command workflow.
 
 Next, follow [Your first analysis](quickstart.md) for a complete model–analysis–result cycle, or browse the [examples](../examples/index.md).
 

@@ -1,13 +1,11 @@
 %% *Strongly nonlinear snap-through example for adaptiveAnalyze*
-% 
+% A shallow truss passes through limit points that are difficult for a fixed 
+% nonlinear strategy. The adaptive analysis changes algorithms and subdivides 
+% failed increments without changing the requested displacement path.
 % 
 % Model:
 % 
 % An asymmetric shallow two-bar truss with corotational geometry.
-% 
-% 
-% 
-% 
 % 
 % 
 % 
@@ -18,8 +16,6 @@
 % 2. Coarse-step ModifiedNewton analysis using adaptiveAnalyze.
 % 
 % 3. Independently stored reference values at selected displacements.
-% 
-% 
 % 
 % Expected adaptive behavior:
 % 
@@ -415,3 +411,8 @@ ops.pattern("Plain", 1, 1);
 % magnitude of the applied vertical load.
 ops.load(3, 0.0, -1.0);
 end
+
+% Interpreting the comparison
+% The accepted adaptive path should remain close to the fine-step reference 
+% through both limit-point regions. The recovery log shows which algorithm changes 
+% and subdivisions were required to continue that path.

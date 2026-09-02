@@ -1,18 +1,15 @@
 %% *Excavation Supported by Cantilevered Sheet Pile Wall*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% Excavation is represented by staged changes to the soil domain and retaining-wall 
+% loading. Pay attention to the order of construction stages: each stage starts 
+% from the equilibrium state left by the previous one.
 % 
 % This example is from file <https://opensees.berkeley.edu/wiki/index.php?title=Excavation_Supported_by_Cantilevered_Sheet_Pile_Wall 
 % Excavation Supported by Cantilevered Sheet Pile Wall> on the OpenSees website.
 % 
-% Note that this model has a bug: it crashes when ``ops.wipe()`` is run again 
-% after analysis. OpenSeesPy has the same problem, which is probably a problem 
-% with related components inside OpenSees, but the specific cause is unknown.
-% 
-% 
+% Known limitation: calling |ops.wipe()| again after this analysis can terminate 
+% the process. The same behavior occurs through OpenSeesPy, indicating an issue 
+% in the underlying OpenSees components; the responsible component has not yet 
+% been isolated.
 
 clc; clear; close all;
 
@@ -22,11 +19,7 @@ ops = opsMAT.opensees;
 % Execute modeling function:
 
 excavationFEM(ops);
-%% 
-% 
 % Plot Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.nodes.showLabels = false;
@@ -36,9 +29,6 @@ opsMAT.vis.plotModel(opts=opts);
 % in subsequent analyses, ensure that |modelUpdate=true|.
 
 ODB = opsMAT.post.createODB("myODB");
-%% 
-% 
-
 ops.constraints("Transformation");
 ops.test("NormDispIncr", 1e-05, 50, 0);
 ops.algorithm("Newton");
@@ -46,11 +36,6 @@ ops.numberer("RCM");
 ops.system("BandGeneral");
 ops.integrator("LoadControl", 1);
 ops.analysis("Static");
-%% 
-% 
-% 
-% 
-
 ops.InitialStateAnalysis("on");
 % ensure soil material intially considers linear elastic behavior
 ops.updateMaterialStage("-material", 1, "-stage", 0);
@@ -72,11 +57,6 @@ ops.analyze(4);
 ops.InitialStateAnalysis("off");
 % turn on frictional behavior for beam contact elements
 ops.updateParameter(1, 1)
-%% 
-% 
-% 
-% 
-
 % define analysis parameters for excavation phase
 ops.wipeAnalysis();
 ops.constraints("Transformation");
@@ -286,9 +266,6 @@ ops.analyze(4);
 
 disp("Lift 10 removed")
 % Post-processing and visualization
-% This section turns the numerical results into plots. Use these figures to 
-% check the deformed shape, response pattern, and whether the result is physically 
-% reasonable.
 
 odbData = opsMAT.post.getODBData("myODB");
 %% 
@@ -296,16 +273,10 @@ odbData = opsMAT.post.getODBData("myODB");
 % of structures*.
 
 nodeResp = opsMAT.post.getNodalResponse("myODB");  % return nodal response
-%% 
-% 
-
 
 opts=opsMAT.vis.defaultPlotNodalResponseOptions;
 opts.nodes.show = true;
 opsMAT.vis.plotNodalResponse(nodeResp, stepIdx="absMax", opts=opts);
-%% 
-% 
-
 frameResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
 
 opts = opsMAT.vis.defaultPlotFrameResponseOptions;
@@ -315,16 +286,10 @@ opts.scale = 2;
 opsMAT.vis.plotFrameResponse(frameResp, ...
     stepIdx="absMax", respType="sectionForces", respComponent="MZ", opts=opts);
 grid off;
-%% 
-% 
-
 planeResp = opsMAT.post.getElementResponse("myODB", eleType="Plane");
 
 opsMAT.vis.plotContinuumResponse(planeResp, ...
     respType="StressAtNode", respComponent="syy");
-%% 
-% 
-
 opsMAT.vis.plotContinuumResponse(planeResp, stepIdx="absMax", ...
     respType="StressMeasureAtNode", respComponent="vonMises");
 %% 
@@ -335,23 +300,14 @@ opsMAT.post.writeResponsePVD("myODB");
 % 
 % 
 % 
-% 
-% 
-% 
-% 
-% 
-% 
 % Transform data
-% Because the model data includes updates, the original `getNodalResponse` and 
-% `getElementResponse` methods return an array of structures containing model 
+% Because the model data includes updates, the original |getNodalResponse| and 
+% |getElementResponse| methods return an array of structures containing model 
 % data and responses from each stage. For easier post-processing, they can be 
 % transformed and merged into a single scalar structure as follows:
 
 nodeResp2 = opsMAT.post.transformResponseStruct(nodeResp);
 planeResp2 = opsMAT.post.transformResponseStruct(planeResp);
-%% 
-% 
-
 nodeTags = nodeResp2.nodeTags;
 time = nodeResp2.time;
 
@@ -862,7 +818,7 @@ function excavationFEM(ops)
     ops.node(482, 4.75, 10.0);
     ops.node(483, 5.25, 9.5);
     ops.node(484, 5.25, 10.0);
-    
+
         % define fixities for soil nodes
     ops.fix(1, 1, 1);
     ops.fix(2, 1, 0);
@@ -926,7 +882,7 @@ function excavationFEM(ops)
     ops.fix(481, 1, 0);
     ops.fix(483, 1, 0);
     ops.fix(484, 1, 0);
-    
+
     % -----------------------------------------------------------------------------------------
     % 3. CREATE LAGRANGE MULTIPLIER NODES FOR BEAM CONTACT ELEMENTS
     % -----------------------------------------------------------------------------------------
@@ -972,7 +928,7 @@ function excavationFEM(ops)
     ops.node(1040, 0.0, 0.0);
     ops.node(1041, 0.0, 0.0);
     ops.node(1042, 0.0, 0.0);
-    
+
     % -----------------------------------------------------------------------------------------
     % 4. CREATE SOIL MATERIALS
     % -----------------------------------------------------------------------------------------
@@ -985,7 +941,7 @@ function excavationFEM(ops)
     % body force in y-direction
     % create wrapper material for initial state analysis
     ops.nDMaterial("InitialStateAnalysisWrapper", 1, 5, 2);
-    
+
     % -----------------------------------------------------------------------------------------
     % 5. CREATE SOIL ELEMENTS
     % -----------------------------------------------------------------------------------------
@@ -1389,7 +1345,7 @@ function excavationFEM(ops)
     ops.element("quad", 398, 258, 288, 287, 255, 1.0, "PlaneStrain", 1, 0.0, 0.0, 0.0, -17.658);
     ops.element("quad", 399, 288, 320, 318, 287, 1.0, "PlaneStrain", 1, 0.0, 0.0, 0.0, -17.658);
     ops.element("quad", 400, 320, 354, 351, 318, 1.0, "PlaneStrain", 1, 0.0, 0.0, 0.0, -17.658);
-    
+
     % -----------------------------------------------------------------------------------------
     % 6. CREATE BEAM NODES AND FIXITIES
     % -----------------------------------------------------------------------------------------
@@ -1417,10 +1373,10 @@ function excavationFEM(ops)
     ops.node(396, 0.0, 9.25);
     ops.node(417, 0.0, 9.75);
     ops.node(435, 0.0, 10.25);
-    
+
     % fix the base node of the sheetpile in the vertial direction
     ops.fix(100, 0, 1, 0);
-    
+
     % -----------------------------------------------------------------------------------------
     % 7. CREATE BEAM MATERIALS
     % -----------------------------------------------------------------------------------------
@@ -1429,7 +1385,7 @@ function excavationFEM(ops)
     ops.geomTransf("Linear", 1);
     % beam section
     ops.section("Elastic", 1, 200000000, 0.5, 0.000975);
-    
+
     % -----------------------------------------------------------------------------------------
     % 8. CREATE BEAM ELEMENTS
     % -----------------------------------------------------------------------------------------
@@ -1475,13 +1431,13 @@ function excavationFEM(ops)
     ops.element("dispBeamColumn", 420, 396, 417, 1, 420);
     ops.beamIntegration("Legendre", 421, 1, 3);
     ops.element("dispBeamColumn", 421, 417, 435, 1, 421);
-    
+
     % -----------------------------------------------------------------------------------------
     % 9. CREATE CONTACT MATERIAL FOR BEAM CONTACT ELEMENTS
     % -----------------------------------------------------------------------------------------
     % two-dimensional contact material
     ops.nDMaterial("ContactMaterial2D", 2, 0.1, 1000.0, 0.0, 0.0);
-    
+
     % -----------------------------------------------------------------------------------------
     % 10. CREATE BEAM CONTACT ELEMENTS
     % -----------------------------------------------------------------------------------------
@@ -1530,3 +1486,8 @@ function excavationFEM(ops)
     ops.element("BeamContact2D", 1041, 417, 435, 421, 1041, 2, 0.5, 1e-10, 1e-10);
     ops.element("BeamContact2D", 1042, 417, 435, 430, 1042, 2, 0.5, 1e-10, 1e-10);
 end
+
+% Reading staged results
+% Displacement and stress changes should be associated with the stage that caused 
+% them. Abrupt jumps at a stage boundary usually point to an incorrect activation, 
+% removal, or load-transfer sequence.

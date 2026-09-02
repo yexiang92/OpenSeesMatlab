@@ -1,5 +1,7 @@
 %% *Strongly nonlinear dynamic demonstration of adaptiveAnalyze*
-% 
+% The example separates convergence recovery from time-integration accuracy. 
+% A fine solution provides the reference, while ordinary and adaptive analyses 
+% use the same coarse outer time step.
 % 
 % The same nonlinear oscillator is solved three ways:
 % 
@@ -8,8 +10,6 @@
 % 2. Ordinary coarse:     Newton, dt = 0.020 s
 % 
 % 3. Adaptive coarse:     ModifiedNewton, dt = 0.020 s
-% 
-% 
 % 
 % The adaptive and ordinary coarse analyses should closely agree because they 
 % use the same outer time step. Both may differ from the fine reference because 
@@ -435,3 +435,8 @@ if isfile(logFile)
     delete(logFile);
 end
 end
+
+% Interpreting the comparison
+% Compare ordinary and adaptive solutions only at the same outer time stations. 
+% Recovery statistics describe convergence effort; agreement with the fine reference 
+% is the separate measure of time-integration accuracy.

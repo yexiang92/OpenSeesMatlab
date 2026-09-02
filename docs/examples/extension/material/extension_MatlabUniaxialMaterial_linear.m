@@ -1,18 +1,20 @@
 %% *Linear MATLAB Material*
+% A MATLAB callback supplies the trial stress and tangent for a linear spring 
+% while OpenSees retains control of the element, equilibrium iterations, and state 
+% transitions. The analytical relation provides a direct implementation check.
 % 
-% 
-% This notebook-style example places a callback-backed linear material inside 
-% a regular OpenSees zeroLength element. 
+% A callback-backed linear material is placed inside a regular OpenSees |zeroLength| 
+% element.
 % 
 % A standard cyclic displacement pushover history is imposed at the free node 
 % and the material response is recovered from the Element.
 % 
 % The model is deliberately small, but it uses the complete OpenSees analysis 
-% stack. 
+% stack.
 % 
 % ```text
 % 
-% fixed node 1 ---- zeroLength + MATLAB material ---- node 2 
+% fixed node 1 ---- zeroLength + MATLAB material ---- node 2
 % 
 % ```
 % 
@@ -20,8 +22,6 @@
 % material stress is the corresponding resisting force.
 % 
 % The exact response is
-% 
-% 
 % 
 % $$
 % 
@@ -179,7 +179,7 @@ ops.wipe();
 
 function protocol = buildCyclicProtocol(amplitudes, incrementsPerPositiveLeg)
     protocol = 0.0;
-    
+
     for amplitude = amplitudes
         positiveBranch = linspace(0.0, amplitude, ...
             incrementsPerPositiveLeg + 1).';
@@ -187,7 +187,7 @@ function protocol = buildCyclicProtocol(amplitudes, incrementsPerPositiveLeg)
             2*incrementsPerPositiveLeg + 1).';
         returnBranch = linspace(-amplitude, 0.0, ...
             incrementsPerPositiveLeg + 1).';
-    
+
         protocol = [protocol; ... %#ok<AGROW>
             positiveBranch(2:end); ...
             reversalBranch(2:end); ...
@@ -206,7 +206,7 @@ function [force, tangent] = evaluateCallbackHistory(callback, deformation, initi
     force = zeros(numberOfPoints, 1);
     tangent = zeros(numberOfPoints, 1);
     committedState = initialState;
-    
+
     for point = 1:numberOfPoints
         action = "trial";
         if point == 1
@@ -230,21 +230,27 @@ end
 function [response, state, status] = linearMaterialCallback(action, trial, committedState)
     state = committedState;
     status = 0;
-    
+
     response = struct( ...
         "stress", committedState.K * trial.strain, ...
         "tangent", committedState.K);
-    
+
     switch action
         case "init"
             state.trialCount = 0;
-    
+
         case "trial"
             state.trialCount = committedState.trialCount + 1;
-    
+
         otherwise
             % Current OpenSeesMEX versions invoke only init and trial. Commit,
             % rollback, reset, and destruction are local C++ state operations.
             status = -1;
     end
 end
+
+
+% Verification
+% The element force must equal (Ku) at every target displacement, with a constant 
+% tangent and zero callback status. Any loop opening in this linear test indicates 
+% incorrect state or sign handling.

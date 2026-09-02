@@ -1,28 +1,24 @@
 %% *History-Dependent Nonlinear MATLAB Material in a Cyclic Pushover*
+% This example concentrates on trial and committed material states. The cyclic 
+% protocol makes incorrect history handling visible immediately as drift in the 
+% hysteresis loop or failure of the return-mapping checks.
 % 
-% 
-% This notebook places a one-dimensional elastoplastic MATLAB material inside 
-% a regular OpenSees zeroLength element. A progressively increasing cyclic displacement 
-% history drives elastic loading, yielding, unloading, reverse yielding, and repeated 
+% A one-dimensional elastoplastic MATLAB material is placed inside a regular 
+% OpenSees |zeroLength| element. A progressively increasing displacement history 
+% covers elastic loading, yielding, unloading, reverse yielding, and repeated 
 % plastic cycles.
 % 
 % The material uses linear isotropic hardening with two history variables:
 % 
-% 
-% 
 % * plastic strain, $\varepsilon^p$;
 % 
 % * accumulated plastic strain, $\alpha$.
-% 
-% 
 % 
 % The yield function and plastic multiplier are
 % 
 % $f=|\sigma_{predictor}|-(F_y+H\alpha)$
 % 
 % $\Delta\gamma=\frac{f}{E+H}$
-% 
-% 
 % 
 % The central implementation rule is that every trial response starts from committedState. 
 % Trial history is never accumulated between Newton iterations.
@@ -189,8 +185,6 @@ legend([h1 h2], "Location", "best");
 title("Tangent supplied to the OpenSees Newton algorithm");
 %%
 ops.wipe();
-%% 
-% 
 % Cyclic displacement protocol helper
 
 % One complete cycle is generated at each increasing amplitude:
@@ -198,7 +192,7 @@ ops.wipe();
 
 function protocol = buildCyclicProtocol(amplitudes, incrementsPerPositiveLeg)
     protocol = 0.0;
-    
+
     for amplitude = amplitudes
         positiveBranch = linspace(0.0, amplitude, ...
             incrementsPerPositiveLeg + 1).';
@@ -206,7 +200,7 @@ function protocol = buildCyclicProtocol(amplitudes, incrementsPerPositiveLeg)
             2*incrementsPerPositiveLeg + 1).';
         returnBranch = linspace(-amplitude, 0.0, ...
             incrementsPerPositiveLeg + 1).';
-    
+
         protocol = [protocol; ... %#ok<AGROW>
             positiveBranch(2:end); ...
             reversalBranch(2:end); ...
@@ -225,7 +219,7 @@ function [force, tangent] = evaluateCallbackHistory(callback, deformation, initi
     force = zeros(numberOfPoints, 1);
     tangent = zeros(numberOfPoints, 1);
     committedState = initialState;
-    
+
     for point = 1:numberOfPoints
         action = "trial";
         if point == 1
@@ -248,18 +242,18 @@ end
 function [response, state, status] = isotropicHardeningCallback(action, trial, committedState)
     state = committedState;
     status = 0;
-    
+
     E = committedState.E;
     Fy = committedState.Fy;
     H = committedState.H;
-    
+
     switch action
         case {"init", "trial"}
             % Elastic predictor based only on committed history variables.
             sigmaPredictor = E * (trial.strain - committedState.plasticStrain);
             yieldForce = Fy + H * committedState.alpha;
             yieldFunction = abs(sigmaPredictor) - yieldForce;
-    
+
             if yieldFunction <= 0.0
                 force = sigmaPredictor;
                 tangent = E;
@@ -267,18 +261,18 @@ function [response, state, status] = isotropicHardeningCallback(action, trial, c
             else
                 flowDirection = sign(sigmaPredictor);
                 deltaGamma = yieldFunction / (E + H);
-    
+
                 state.plasticStrain = committedState.plasticStrain + ...
                     deltaGamma * flowDirection;
                 state.alpha = committedState.alpha + deltaGamma;
                 state.yielded = true;
-    
+
                 force = sigmaPredictor - E * deltaGamma * flowDirection;
                 tangent = E * H / (E + H);
             end
-    
+
             response = struct("stress", force, "tangent", tangent);
-    
+
         otherwise
             % Current OpenSeesMEX versions invoke only init and trial. Commit and
             % rollback copy or restore the returned state entirely in C++.
@@ -286,3 +280,9 @@ function [response, state, status] = isotropicHardeningCallback(action, trial, c
             status = -1;
     end
 end
+
+
+% Verification
+% The loop should show elastic unloading, yielding in both directions, and expanding 
+% isotropic strength. Repeated Newton trials must not accumulate plastic strain 
+% until OpenSees commits the step.
