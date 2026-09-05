@@ -109,16 +109,16 @@ classdef OpenSeesMatlab < handle
             % ----------
             % backend : "serial" | "sp", optional
             %     Backend selected before native initialization. The default is
-            %     the current ops.core selection, initially "serial".
+            %     the current OpenSeesNexus selection, initially "serial".
             % mexName : string or char, optional
             %     Explicit OpenSees MATLAB MEX module name. Leave empty to use
             %     OpenSeesMATLAB for serial or OpenSeesMATLABSP for SP.
             %
             % mexDir : string or char, optional
             %     Directory containing the OpenSees MATLAB MEX module. Relative
-            %     paths are resolved by OpenSeesMatlabBase relative to this class
+            %     paths are resolved by OpenSeesNexus relative to its embedded library
             %     location when supplied. By default the current platform is
-            %     selected under +ops/+core/derived.
+            %     selected under +ops/OpenSeesNexus/derived.
             %
             % Example
             % -------
@@ -135,8 +135,9 @@ classdef OpenSeesMatlab < handle
                 options.mexDir {mustBeTextScalar} = ''
             end
 
+            ops.connectOpenSeesNexus();
             if strlength(string(options.backend)) > 0
-                ops.core.setBackend(options.backend);
+                OpenSeesNexus.setBackend(options.backend);
             end
 
             obj.opensees = ops.OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
@@ -148,7 +149,7 @@ classdef OpenSeesMatlab < handle
             obj.anlys = analysis.OpenSeesMatlabAnalysis(obj);
             obj.pre = pre.OpenSeesMatlabPre(obj);
 
-            obj.backend = ops.core.getBackend();
+            obj.backend = OpenSeesNexus.getBackend();
             obj.bindingVersion = obj.opensees.matlabversion();
             obj.openseesVersion = obj.opensees.openseesVersion();
             obj.version = obj.bindingVersion;

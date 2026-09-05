@@ -1,7 +1,7 @@
 # Native runtime files
 
-This directory makes `+ops/+core` a self-contained, replaceable MATLAB
-binding package. Store each native bundle in its platform directory:
+This directory stores the platform-native part of the self-contained
+OpenSeesNexus MATLAB package:
 
 ```text
 derived/
@@ -20,7 +20,7 @@ derived/
     └── required runtime dylibs
 ```
 
-`ops.core.Runtime` selects only the directory matching the current host.
-It selects the serial MEX by default. Call `ops.core.setBackend("sp")` before
-creating a runtime or top-level `ops` object to select the SP MEX. The legacy
+`OpenSeesNexus` selects only the directory matching the current host and uses
+the serial MEX by default. Call `OpenSeesNexus.setBackend("sp")` before
+creating the command object to select the SP MEX. The legacy
 `OPENSEES_BACKEND` environment variable remains a compatibility fallback.

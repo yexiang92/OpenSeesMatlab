@@ -55,12 +55,16 @@ The generated scripts and illustrated walkthroughs are also available in the
 
 ### Building release toolboxes
 
-The OpenSees native binaries are built in the OpenSeesBindings repository.
-The Polyscope MEX binary is built in the polyscope-matlab repository. Before
-creating a release, place the current platform files in these locations:
+The OpenSeesBindings repository produces one universal OpenSeesNexus MATLAB
+package containing Windows x86-64 and macOS Apple silicon. Keep that package
+beside this repository, or set `OPENSEES_NEXUS_MATLAB_ROOT` to an extracted
+copy. During publishing, `publish.m` copies that complete directory to
+`OpenSeesMatlab/+ops/OpenSeesNexus` and selects only the current platform for
+the generated toolbox. The Polyscope
+MEX binary is built in the polyscope-matlab repository; place its current
+platform file here:
 
 ```text
-OpenSeesMatlab/+ops/+core/derived/<platform>/OpenSeesMATLAB.<mexext>
 OpenSeesMatlab/+plotter/+polyscope/vendor/+polyscope/private/polyscope_mex.<mexext>
 ```
 
@@ -69,14 +73,21 @@ Then run `publish.m` once with Windows MATLAB and once with native
 Apple-silicon MATLAB. The output files are:
 
 ```text
-release/<version>/OpenSeesMatlab-<version>-win64.mltbx
-release/<version>/OpenSeesMatlab-<version>-maca64.mltbx
+release/<version>/windows-x86_64/
+├── OpenSeesMatlab-<version>-win64.mltbx
+├── installOpenSeesMatlab.m
+└── examples/
+
+release/<version>/macos-aarch64/
+├── OpenSeesMatlab-<version>-maca64.mltbx
+├── installOpenSeesMatlab.m
+└── examples/
 ```
 
-Upload the two `.mltbx` files and `installOpenSeesMatlab.m` as separate assets
-of the same GitHub or Gitee release. The script reads the version from the MEX
-module, preserves the toolbox identifier, records the correct supported
-platform, verifies both native modules, and excludes linker products and
+Distribute the matching platform directory, or archive each platform directory
+as one release asset. The script reads the version from the
+embedded OpenSeesNexus MEX module, preserves the toolbox identifier, records
+the current supported platform, verifies both native modules, and excludes
 binaries for other systems.
 
 ## Quick Start
