@@ -21,6 +21,7 @@ classdef OpenSeesMatlab < handle
     % Syntax
     % ------
     %       opsmat = OpenSeesMatlab()
+    %       opsmat = OpenSeesMatlab(backend=name)
     %       opsmat = OpenSeesMatlab(mexName=name)
     %       opsmat = OpenSeesMatlab(mexDir=dir)
     %       opsmat = OpenSeesMatlab(mexName=name, mexDir=dir)
@@ -82,7 +83,10 @@ classdef OpenSeesMatlab < handle
     end
 
     properties (SetAccess = private, GetAccess = public)
-        version = [];  % OpenSeesMatlab version tag.
+        version = [];           % Compatibility alias for bindingVersion.
+        bindingVersion = [];    % OpenSeesNexus MATLAB package version.
+        openseesVersion = [];   % OpenSees engine version.
+        backend = "serial";     % Active native backend: serial or sp.
     end
 
     methods
@@ -96,15 +100,19 @@ classdef OpenSeesMatlab < handle
             % Syntax
             % ------
             %       opsmat = OpenSeesMatlab()
+            %       opsmat = OpenSeesMatlab(backend=name)
             %       opsmat = OpenSeesMatlab(mexName=name)
             %       opsmat = OpenSeesMatlab(mexDir=dir)
             %       opsmat = OpenSeesMatlab(mexName=name, mexDir=dir)
             %
             % Parameters
             % ----------
+            % backend : "serial" | "sp", optional
+            %     Backend selected before native initialization. The default is
+            %     the current ops.core selection, initially "serial".
             % mexName : string or char, optional
-            %     Name of the OpenSees MATLAB MEX module. Default is
-            %     'OpenSeesMATLAB'.
+            %     Explicit OpenSees MATLAB MEX module name. Leave empty to use
+            %     OpenSeesMATLAB for serial or OpenSeesMATLABSP for SP.
             %
             % mexDir : string or char, optional
             %     Directory containing the OpenSees MATLAB MEX module. Relative
@@ -122,8 +130,13 @@ classdef OpenSeesMatlab < handle
             %           mexDir="D:/custom/opensees");
 
             arguments
-                options.mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
+                options.backend {mustBeTextScalar} = ''
+                options.mexName {mustBeTextScalar} = ''
                 options.mexDir {mustBeTextScalar} = ''
+            end
+
+            if strlength(string(options.backend)) > 0
+                ops.core.setBackend(options.backend);
             end
 
             obj.opensees = ops.OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
@@ -135,7 +148,10 @@ classdef OpenSeesMatlab < handle
             obj.anlys = analysis.OpenSeesMatlabAnalysis(obj);
             obj.pre = pre.OpenSeesMatlabPre(obj);
 
-            obj.version = obj.opensees.matlabversion();
+            obj.backend = ops.core.getBackend();
+            obj.bindingVersion = obj.opensees.matlabversion();
+            obj.openseesVersion = obj.opensees.openseesVersion();
+            obj.version = obj.bindingVersion;
         end
     end
 

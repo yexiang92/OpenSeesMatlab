@@ -9,6 +9,7 @@ dist/
 *.pdb
 *.ilk
 *.dll
+*.exe
 *.so
 *.dylib
 *.lib

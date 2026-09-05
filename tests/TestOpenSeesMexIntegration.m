@@ -21,6 +21,12 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             testCase.verifyNotEmpty(opsmat.opensees.mexPath());
             testCase.verifyClass(opsmat.version, 'char');
             testCase.verifyMatches(opsmat.version, '^\d+\.\d+\.\d+');
+            testCase.verifyEqual(opsmat.version, opsmat.bindingVersion);
+            testCase.verifyClass(opsmat.openseesVersion, 'char');
+            testCase.verifyMatches(opsmat.openseesVersion, '^\d+\.\d+\.\d+');
+            testCase.verifyEqual(opsmat.backend, "serial");
+            testCase.verifyEqual(opsmat.opensees.openseesVersion(), ...
+                opsmat.openseesVersion);
 
             clear cleanup
         end
@@ -57,6 +63,32 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
                 'AbsTol', 1.0e-8);
 
             clear cleanup
+        end
+
+        function femDataSchemaFeedsNamedPostDataset(testCase)
+            opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
+            cleanup = onCleanup(@() opsmat.opensees.wipe());
+            outputFile = [tempname '.h5'];
+            fileCleanup = onCleanup(@() TestOpenSeesMexIntegration.deleteIfPresent(outputFile));
+            ops = opsmat.opensees;
+
+            TestOpenSeesMexIntegration.buildStaticTrussModel(ops);
+            recorderTag = ops.FEMDataRecorder(outputFile, '-saveNodalResp');
+            testCase.assertEqual(double(ops.analyze(1)), 0);
+            ops.remove('recorder', recorderTag);
+
+            recorded = ops.readFEMData(outputFile, 'nodal');
+            testCase.verifyTrue(isfield(recorded, 'responseSchema'));
+            schemaIndex = find(strcmp(recorded.responseSchema.paths, 'disp.ux'), 1);
+            testCase.verifyNotEmpty(schemaIndex);
+            testCase.verifyEqual(recorded.responseSchema.dimensions{schemaIndex}, ...
+                {'time', 'node'});
+
+            dataset = post.toResponseDataset(recorded);
+            displacement = dataset('disp.ux');
+            testCase.verifyEqual(displacement.Dimensions, ["time", "node"]);
+
+            clear fileCleanup cleanup
         end
 
         function postProcessorCollectsMexModelData(testCase)
@@ -98,6 +130,12 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
     end
 
     methods (Static, Access = private)
+        function deleteIfPresent(path)
+            if isfile(path)
+                delete(path);
+            end
+        end
+
         function opsmat = makeOpsMat(testCase)
             mexDir = TestOpenSeesMexIntegration.findMexDir();
             testCase.assumeTrue(isfolder(mexDir), ...
@@ -113,7 +151,8 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
 
         function mexDir = findMexDir()
             repoRoot = fileparts(fileparts(mfilename('fullpath')));
-            candidate = fullfile(repoRoot, 'OpenSeesMatlab', '+ops', 'derived');
+            candidate = fullfile(repoRoot, 'OpenSeesMatlab', '+ops', '+core', ...
+                'derived', ops.core.Runtime.platformKey());
 
             ext = mexext();
             mexFile = fullfile(candidate, ['OpenSeesMATLAB.' ext]);

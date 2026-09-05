@@ -36,7 +36,8 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %       Parent OpenSeesMatlab object that owns this command interface.
             %
             % mexName : string or char, optional
-            %     Name of the OpenSees MATLAB MEX module. Default is 'OpenSeesMATLAB'.
+            %     Explicit OpenSees MATLAB MEX module name. Leave empty to use
+            %     the module selected by ops.core.setBackend.
             %
             % mexDir : string or char, optional
             %     Directory containing the MEX module. By default the matching
@@ -54,7 +55,7 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
 
             arguments
                 parentObj (1,1) OpenSeesMatlab
-                mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
+                mexName  {mustBeTextScalar} = ''
                 mexDir {mustBeTextScalar} = ''
             end
             obj@ops.OpenSeesMatlabBase(mexName, mexDir);

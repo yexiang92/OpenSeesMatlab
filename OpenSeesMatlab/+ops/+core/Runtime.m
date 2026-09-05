@@ -12,8 +12,15 @@ classdef Runtime < handle
 
     methods
         function obj = Runtime(nativeDirectory, mexName)
-            if nargin >= 2 && ~isempty(mexName)
+            if nargin >= 2 && strlength(string(mexName)) > 0
                 obj.MexName = string(mexName);
+                if endsWith(obj.MexName, "SP")
+                    ops.core.setBackend("sp");
+                else
+                    ops.core.setBackend("serial");
+                end
+            else
+                obj.MexName = ops.core.Runtime.defaultMexName();
             end
             if nargin < 1
                 nativeDirectory = "";
@@ -33,6 +40,13 @@ classdef Runtime < handle
                      "OPENSEES_MATLAB_DIR."], ...
                     obj.MexName, ops.core.Runtime.platformKey());
             end
+
+            if endsWith(obj.MexName, "SP")
+                loadedBackend = "sp";
+            else
+                loadedBackend = "serial";
+            end
+            setappdata(0, "OpenSeesBindingsLoadedBackend", loadedBackend);
         end
 
         function varargout = invoke(obj, command, varargin)
@@ -74,14 +88,17 @@ classdef Runtime < handle
             roots(end + 1) = string(coreRoot);
 
             platform = ops.core.Runtime.platformKey();
-            candidates = strings(0, 1);
+            candidates = strings(3 * numel(roots), 1);
             for index = 1:numel(roots)
                 root = roots(index);
                 % Accept a +core/package root, a derived root, or the native
                 % platform directory itself.
-                candidates(end + 1) = fullfile(root, "derived", platform);
-                candidates(end + 1) = fullfile(root, platform);
-                candidates(end + 1) = root;
+                first = 3 * (index - 1) + 1;
+                candidates(first:first + 2) = [
+                    fullfile(root, "derived", platform)
+                    fullfile(root, platform)
+                    root
+                ];
             end
 
             extension = string(mexext);
@@ -104,6 +121,14 @@ classdef Runtime < handle
     end
 
     methods (Static)
+        function name = defaultMexName()
+            if ops.core.getBackend() == "sp"
+                name = "OpenSeesMATLABSP";
+            else
+                name = "OpenSeesMATLAB";
+            end
+        end
+
         function key = platformKey()
             if ispc && strcmp(computer("arch"), "win64")
                 key = "windows-x86_64";
