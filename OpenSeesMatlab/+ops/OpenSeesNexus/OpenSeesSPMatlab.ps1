@@ -38,9 +38,8 @@ if (-not $MatlabExecutable) {
                 ForEach-Object {
                     $properties = Get-ItemProperty -LiteralPath $_.PSPath `
                         -ErrorAction SilentlyContinue
-                    $installation = $properties.MATLABROOT
-                    if ($installation) {
-                        $matlabCandidates += Join-Path $installation 'bin\matlab.exe'
+                    if ($properties.MATLABROOT) {
+                        $matlabCandidates += Join-Path $properties.MATLABROOT 'bin\matlab.exe'
                     }
                 }
         }
@@ -54,18 +53,10 @@ if (-not $MatlabExecutable) {
 }
 
 $mpiCandidates = @()
-if ($MpiExecutable) {
-    $mpiCandidates += $MpiExecutable
-}
-if ($env:I_MPI_ROOT) {
-    $mpiCandidates += Join-Path $env:I_MPI_ROOT 'bin\mpiexec.exe'
-}
-if ($env:MSMPI_BIN) {
-    $mpiCandidates += Join-Path $env:MSMPI_BIN 'mpiexec.exe'
-}
-if ($env:ONEAPI_ROOT) {
-    $mpiCandidates += Join-Path $env:ONEAPI_ROOT 'mpi\latest\bin\mpiexec.exe'
-}
+if ($MpiExecutable) { $mpiCandidates += $MpiExecutable }
+if ($env:I_MPI_ROOT) { $mpiCandidates += Join-Path $env:I_MPI_ROOT 'bin\mpiexec.exe' }
+if ($env:MSMPI_BIN) { $mpiCandidates += Join-Path $env:MSMPI_BIN 'mpiexec.exe' }
+if ($env:ONEAPI_ROOT) { $mpiCandidates += Join-Path $env:ONEAPI_ROOT 'mpi\latest\bin\mpiexec.exe' }
 if (${env:ProgramFiles(x86)}) {
     $intelMpiRoot = Join-Path ${env:ProgramFiles(x86)} 'Intel\oneAPI\mpi'
     if (Test-Path -LiteralPath $intelMpiRoot -PathType Container) {
@@ -76,9 +67,7 @@ if (${env:ProgramFiles(x86)}) {
     }
 }
 $mpiCommand = Get-Command mpiexec.exe -ErrorAction SilentlyContinue
-if ($mpiCommand) {
-    $mpiCandidates += $mpiCommand.Source
-}
+if ($mpiCommand) { $mpiCandidates += $mpiCommand.Source }
 $resolvedMpiExecutable = $mpiCandidates |
     Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
     Select-Object -First 1
@@ -86,8 +75,7 @@ if (-not $resolvedMpiExecutable) {
     throw 'mpiexec.exe was not found automatically. Install a compatible MPI runtime or set OPENSEES_MPIEXEC.'
 }
 
-# Keep discovery local to this MPI job. No persistent user or system
-# environment variables are changed.
+# These environment changes are limited to this MPI job.
 $runtimeDirectories = @(
     $nativeDirectory,
     (Split-Path -Parent $resolvedMpiExecutable)
@@ -95,14 +83,11 @@ $runtimeDirectories = @(
 $env:PATH = (($runtimeDirectories + $env:PATH) -join [IO.Path]::PathSeparator)
 $env:OPENSEES_BACKEND = 'sp'
 
-$matlabCode = ''
-$opsDirectory = Split-Path $PSScriptRoot -Parent
-if ((Split-Path $opsDirectory -Leaf) -eq '+ops') {
-    $toolboxDirectory = Split-Path $opsDirectory -Parent
-    $matlabCode += "addpath('" + $toolboxDirectory.Replace("'", "''") + "');"
-}
-$matlabCode += "ops.core.setBackend('sp');"
-$matlabCode += "run('" + $scriptPath.Replace("'", "''") + "')"
+$escapedRoot = $PSScriptRoot.Replace("'", "''")
+$escapedScript = $scriptPath.Replace("'", "''")
+$matlabCode = "addpath('$escapedRoot','-begin');"
+$matlabCode += "OpenSeesNexus.setBackend('sp');"
+$matlabCode += "run('$escapedScript')"
 $arguments = @(
     '-n', '1', $MatlabExecutable, '-batch', $matlabCode,
     ':', '-n', ($Processes - 1).ToString(), $worker

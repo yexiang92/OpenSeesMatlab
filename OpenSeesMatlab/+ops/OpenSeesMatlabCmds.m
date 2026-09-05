@@ -1,9 +1,9 @@
-classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
+classdef OpenSeesMatlabCmds < OpenSeesNexus
     % OpenSees command interface used by OpenSeesMatlab.
     %
     %   OpenSeesMatlabCmds exposes MATLAB methods that forward OpenSees commands
     %   to the configured OpenSees MATLAB MEX module. Most command wrappers are
-    %   inherited from OpenSeesMatlabBase and follow the same argument order as
+    %   inherited from OpenSeesNexus and follow the same argument order as
     %   OpenSees/OpenSeesPy where possible.
     %
     %   Users normally access this class through the opensees property of an
@@ -37,11 +37,11 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %
             % mexName : string or char, optional
             %     Explicit OpenSees MATLAB MEX module name. Leave empty to use
-            %     the module selected by ops.core.setBackend.
+            %     the module selected by OpenSeesNexus.setBackend.
             %
             % mexDir : string or char, optional
             %     Directory containing the MEX module. By default the matching
-            %     platform directory under +ops/+core/derived is selected.
+            %     platform directory under OpenSeesNexus/derived is selected.
             %
             % Note
             % ----
@@ -58,13 +58,13 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
                 mexName  {mustBeTextScalar} = ''
                 mexDir {mustBeTextScalar} = ''
             end
-            obj@ops.OpenSeesMatlabBase(mexName, mexDir);
+            obj@OpenSeesNexus(mexName, mexDir);
             obj.parent = parentObj;
         end
     end
 
     %% OpenSees command overrides
-    %   Most OpenSees command wrappers are implemented in OpenSeesMatlabBase.
+    %   Most OpenSees command wrappers are implemented in OpenSeesNexus.
     %   The overrides below add lightweight bookkeeping around section geometry
     %   commands and then delegate to the base implementation so the actual
     %   OpenSees command is still executed by the MEX module.

@@ -151,8 +151,10 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
 
         function mexDir = findMexDir()
             repoRoot = fileparts(fileparts(mfilename('fullpath')));
-            candidate = fullfile(repoRoot, 'OpenSeesMatlab', '+ops', '+core', ...
-                'derived', ops.core.Runtime.platformKey());
+            ops.connectOpenSeesNexus();
+            candidate = fullfile(repoRoot, 'OpenSeesMatlab', '+ops', ...
+                'OpenSeesNexus', 'derived', ...
+                OpenSeesNexus.platformKey());
 
             ext = mexext();
             mexFile = fullfile(candidate, ['OpenSeesMATLAB.' ext]);

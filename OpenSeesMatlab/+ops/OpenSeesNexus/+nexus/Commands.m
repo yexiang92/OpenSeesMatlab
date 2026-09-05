@@ -1,5 +1,5 @@
 classdef Commands < handle
-    %COMMANDS Explicit OpenSees command wrappers backed by ops.core.Runtime.
+    %COMMANDS Explicit OpenSees command wrappers backed by nexus.Runtime.
     %
     %   Commands provides the shared infrastructure used by MATLAB clients.
     %   OpenSeesMatlab command interface. It resolves the OpenSees MEX module,
@@ -43,15 +43,15 @@ classdef Commands < handle
             %
             % Syntax
             % ------
-            %     obj = ops.core.Commands()
-            %     obj = ops.core.Commands(mexName)
-            %     obj = ops.core.Commands(mexName, mexDir)
+            %     obj = nexus.Commands()
+            %     obj = nexus.Commands(mexName)
+            %     obj = nexus.Commands(mexName, mexDir)
             %
             % Parameters
             % ----------
             % mexName : string or char, optional
             %     Name of the OpenSees MATLAB MEX function. By default this is
-            %     selected by ops.core.setBackend: OpenSeesMATLAB for the
+            %     selected by nexus.setBackend: OpenSeesMATLAB for the
             %     serial backend or OpenSeesMATLABSP for SP.
             % mexDir : string or char, optional
             %     Directory containing the OpenSees MATLAB MEX function. Relative
@@ -72,13 +72,13 @@ classdef Commands < handle
             if nargin >= 1 && strlength(string(mexName)) > 0
                 obj.mexName = char(mexName);
             else
-                obj.mexName = char(ops.core.Runtime.defaultMexName());
+                obj.mexName = char(nexus.Runtime.defaultMexName());
             end
             if nargin >= 2 && ~isempty(mexDir)
                 obj.mexDir = char(mexDir);
             end
             obj.mexDir = obj.resolveMexDir(char(obj.mexDir));
-            obj.nativeRuntime = ops.core.Runtime(obj.mexDir, obj.mexName);
+            obj.nativeRuntime = nexus.Runtime(obj.mexDir, obj.mexName);
             obj.mexHandle = obj.nativeRuntime.getHandle();
         end
 

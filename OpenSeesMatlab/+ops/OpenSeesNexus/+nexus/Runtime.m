@@ -15,12 +15,12 @@ classdef Runtime < handle
             if nargin >= 2 && strlength(string(mexName)) > 0
                 obj.MexName = string(mexName);
                 if endsWith(obj.MexName, "SP")
-                    ops.core.setBackend("sp");
+                    nexus.setBackend("sp");
                 else
-                    ops.core.setBackend("serial");
+                    nexus.setBackend("serial");
                 end
             else
-                obj.MexName = ops.core.Runtime.defaultMexName();
+                obj.MexName = nexus.Runtime.defaultMexName();
             end
             if nargin < 1
                 nativeDirectory = "";
@@ -35,10 +35,10 @@ classdef Runtime < handle
 
             if isempty(which(char(obj.MexName)))
                 error("ops:NativeLibraryNotFound", ...
-                    ["ops.core.Runtime could not locate %s for %s. " ...
-                     "Pass its directory to ops.core.Runtime or set " ...
+                    ["nexus.Runtime could not locate %s for %s. " ...
+                     "Pass its directory to nexus.Runtime or set " ...
                      "OPENSEES_MATLAB_DIR."], ...
-                    obj.MexName, ops.core.Runtime.platformKey());
+                    obj.MexName, nexus.Runtime.platformKey());
             end
 
             if endsWith(obj.MexName, "SP")
@@ -84,14 +84,15 @@ classdef Runtime < handle
 
             % The normal distribution layout is resolved relative to this
             % file, so the toolbox can be installed at any location.
-            coreRoot = fileparts(mfilename("fullpath"));
-            roots(end + 1) = string(coreRoot);
+            implementationRoot = fileparts(mfilename("fullpath"));
+            libraryRoot = fileparts(implementationRoot);
+            roots(end + 1) = string(libraryRoot);
 
-            platform = ops.core.Runtime.platformKey();
+            platform = nexus.Runtime.platformKey();
             candidates = strings(3 * numel(roots), 1);
             for index = 1:numel(roots)
                 root = roots(index);
-                % Accept a +core/package root, a derived root, or the native
+                % Accept the library root, a derived root, or the native
                 % platform directory itself.
                 first = 3 * (index - 1) + 1;
                 candidates(first:first + 2) = [
@@ -122,7 +123,7 @@ classdef Runtime < handle
 
     methods (Static)
         function name = defaultMexName()
-            if ops.core.getBackend() == "sp"
+            if nexus.getBackend() == "sp"
                 name = "OpenSeesMATLABSP";
             else
                 name = "OpenSeesMATLAB";
