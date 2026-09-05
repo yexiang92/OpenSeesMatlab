@@ -1,26 +1,26 @@
 # Native runtime files
 
-This directory stores the platform-specific OpenSees command-interface
-runtime used by the installed MATLAB toolbox and `publish.m`.
+This directory makes `+ops/+core` a self-contained, replaceable MATLAB
+binding package. Store each native bundle in its platform directory:
 
-Common MATLAB helpers live in the replaceable `+ops/+core` subpackage rather
-than in this binary directory.
+```text
+derived/
+├── windows-x86_64/
+│   ├── OpenSeesMATLAB.mexw64
+│   ├── OpenSeesBindings.dll
+│   ├── OpenSeesMATLABSP.mexw64
+│   ├── OpenSeesBindingsSP.dll
+│   ├── OpenSeesSPWorker.exe
+│   └── required runtime DLLs
+└── macos-aarch64/
+    ├── OpenSeesMATLAB.mexmaca64
+    ├── OpenSeesMATLABSP.mexmaca64
+    ├── libOpenSeesBindingsSP.dylib
+    ├── OpenSeesSPWorker
+    └── required runtime dylibs
+```
 
-Place Windows x86-64 files under `windows-x86_64/`:
-
-- `OpenSeesMATLAB.mexw64`
-- `OpenSeesBindings.dll`
-- required runtime `.dll` files such as `libiomp5md.dll`
-
-Place macOS Apple-silicon files under `macos-aarch64/`:
-
-- `OpenSeesMATLAB.mexmaca64`
-- required runtime `.dylib` files
-
-The publisher selects only the current platform's MEX module and dynamic
-libraries. Import libraries, object files, debug symbols, and binaries for
-other platforms are not included in the generated toolbox.
-
-The separate Polyscope MEX module remains in
-`+plotter/+polyscope/vendor/+polyscope/private`, where its MATLAB package
-wrapper expects to find it.
+`ops.core.Runtime` selects only the directory matching the current host.
+It selects the serial MEX by default. Call `ops.core.setBackend("sp")` before
+creating a runtime or top-level `ops` object to select the SP MEX. The legacy
+`OPENSEES_BACKEND` environment variable remains a compatibility fallback.

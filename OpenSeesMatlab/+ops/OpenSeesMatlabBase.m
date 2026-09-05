@@ -6,7 +6,7 @@ classdef (Abstract) OpenSeesMatlabBase < ops.core.Commands
     methods
         function obj = OpenSeesMatlabBase(mexName, mexDir)
             if nargin < 1 || isempty(mexName)
-                mexName = "OpenSeesMATLAB";
+                mexName = "";
             end
             if nargin < 2 || isempty(mexDir)
                 mexDir = "";

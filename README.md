@@ -60,7 +60,7 @@ The Polyscope MEX binary is built in the polyscope-matlab repository. Before
 creating a release, place the current platform files in these locations:
 
 ```text
-OpenSeesMatlab/+ops/derived/OpenSeesMATLAB.<mexext>
+OpenSeesMatlab/+ops/+core/derived/<platform>/OpenSeesMATLAB.<mexext>
 OpenSeesMatlab/+plotter/+polyscope/vendor/+polyscope/private/polyscope_mex.<mexext>
 ```
 
@@ -107,6 +107,15 @@ ops.element('elasticBeamColumn', 1, 1, 2, A, E, Iz, 1)
 opsMat.post.getModelData();  % Collect model data
 opsMat.vis.plotModel();      % Visualize the model
 ```
+
+`OpenSeesMatlab()` selects the serial backend by default. Run an OpenSeesSP
+model through the bundled `OpenSeesSPMatlab` launcher; it discovers MATLAB and
+common MPI installations and selects the SP backend inside the launched job.
+`OpenSeesMatlab(backend="sp")` is intended for that configured MPI process,
+not for switching an already initialized interactive session. The top-level
+object reports the interface and engine versions separately as
+`bindingVersion` and `openseesVersion`; `version` remains an alias of
+`bindingVersion` for existing code.
 
 ## OpenSeesMatlab Extensions
 

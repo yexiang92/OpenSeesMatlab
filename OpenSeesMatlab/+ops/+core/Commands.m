@@ -50,8 +50,9 @@ classdef Commands < handle
             % Parameters
             % ----------
             % mexName : string or char, optional
-            %     Name of the OpenSees MATLAB MEX function. The default is
-            %     'OpenSeesMATLAB'.
+            %     Name of the OpenSees MATLAB MEX function. By default this is
+            %     selected by ops.core.setBackend: OpenSeesMATLAB for the
+            %     serial backend or OpenSeesMATLABSP for SP.
             % mexDir : string or char, optional
             %     Directory containing the OpenSees MATLAB MEX function. Relative
             %     paths are resolved relative to the directory containing this
@@ -68,8 +69,10 @@ classdef Commands < handle
             % -------
             %     baseObj = SomeConcreteOpenSeesWrapper('OpenSeesMATLAB');
 
-            if nargin >= 1 && ~isempty(mexName)
+            if nargin >= 1 && strlength(string(mexName)) > 0
                 obj.mexName = char(mexName);
+            else
+                obj.mexName = char(ops.core.Runtime.defaultMexName());
             end
             if nargin >= 2 && ~isempty(mexDir)
                 obj.mexDir = char(mexDir);
@@ -435,6 +438,7 @@ classdef Commands < handle
         function result = numIter(obj, varargin),            result = obj.mexHandle('numIter', varargin{:}); end
         function result = systemSize(obj, varargin),         result = obj.mexHandle('systemSize', varargin{:}); end
         function result = version(obj, varargin),            result = obj.mexHandle('version', varargin{:}); end
+        function result = openseesVersion(obj, varargin),    result = obj.mexHandle('version', varargin{:}); end
 
         % --- Sensitivity / reliability ------------------------------------
         function result = sensNodeDisp(obj, varargin),       result = obj.mexHandle('sensNodeDisp', varargin{:}); end
