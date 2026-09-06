@@ -115,6 +115,14 @@ classdef Commands < handle
             [varargout{1:nargout}] = obj.mexHandle(cmd, varargin{:});
         end
 
+        function varargout = runCommand(obj, cmd, varargin)
+            %RUNCOMMAND Run an OpenSees command selected by name.
+            %
+            %   RUNCOMMAND is the cross-language name for the string-based
+            %   dispatcher. CALL remains available as a compatibility alias.
+            [varargout{1:nargout}] = obj.call(cmd, varargin{:});
+        end
+
         function tf = hasMex(obj)
             % Check whether this wrapper has a MEX function handle.
             %
