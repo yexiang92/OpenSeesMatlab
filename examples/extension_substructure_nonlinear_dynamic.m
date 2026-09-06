@@ -637,7 +637,7 @@ sgtitle( ... %[output:group:4dc82af6] %[output:92c4747a]
 %   2. Remove MATLAB callback records.
 
 ops.wipe();
-ops.clearMatlabSubstructures();
+ops.clearCallbackSubstructures();
 
 clear cleanupGuard
 %% Nonlinear MATLAB callback
@@ -748,7 +748,7 @@ function cleanupNonlinearDynamicModel(ops)
     end
 
     try
-        ops.clearMatlabSubstructures();
+        ops.clearCallbackSubstructures();
     catch
     end
 end

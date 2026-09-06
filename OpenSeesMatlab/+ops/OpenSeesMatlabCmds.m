@@ -292,7 +292,7 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
             %     K0 = eye(6);
             %     state0 = createPileSoilState();
             %     interface = [100 1; 100 2; 100 3; 100 4; 100 5; 100 6];
-            %     ops.matlabSubstructure(5001, ...
+            %     ops.callbackSubstructure(5001, ...
             %         @pileSoilModel, state0, K0, interface);
             %
             % If MATLAB contains the pile, soil, and fixed far-field reference,
@@ -357,8 +357,16 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
                 'tangentMode', tangentMode);
         end
 
-        function tf = hasMatlabSubstructure(obj, eleTag)
-            % Check whether a MATLAB substructure callback tag is registered.
+        function varargout = matlabSubstructure(obj, varargin)
+            %MATLABSUBSTRUCTURE Compatibility alias for callbackSubstructure.
+            %   Existing models may continue to call matlabSubstructure. New
+            %   code should use callbackSubstructure, which is the common name
+            %   exposed by the MATLAB, Python, and Julia interfaces.
+            [varargout{1:nargout}] = obj.callbackSubstructure(varargin{:});
+        end
+
+        function tf = hasCallbackSubstructure(obj, eleTag)
+            % Check whether a substructure callback tag is registered.
             %
             % Notes
             % -----
@@ -370,8 +378,8 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
             tf = obj.mexHandle('hasMatlabSubstructure', eleTag);
         end
 
-        function varargout = unregisterMatlabSubstructure(obj, eleTag)
-            % Remove one MATLAB substructure callback registry record.
+        function varargout = unregisterCallbackSubstructure(obj, eleTag)
+            % Remove one substructure callback registry record.
             % Call ops.wipe() first if the associated Element is still active.
             %
             % Notes
@@ -385,8 +393,8 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
                 'unregisterMatlabSubstructure', eleTag);
         end
 
-        function varargout = clearMatlabSubstructures(obj)
-            % Remove every MATLAB substructure callback registry record.
+        function varargout = clearCallbackSubstructures(obj)
+            % Remove every substructure callback registry record.
             % This does not wipe the OpenSees Domain; normally call ops.wipe()
             % before clearing records used by active Elements.
             %
@@ -394,6 +402,21 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
             % -----
             % This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
             [varargout{1:nargout}] = obj.mexHandle('clearMatlabSubstructures');
+        end
+
+        function tf = hasMatlabSubstructure(obj, varargin)
+            %HASMATLABSUBSTRUCTURE Compatibility alias for hasCallbackSubstructure.
+            tf = obj.hasCallbackSubstructure(varargin{:});
+        end
+
+        function varargout = unregisterMatlabSubstructure(obj, varargin)
+            %UNREGISTERMATLABSUBSTRUCTURE Compatibility alias for unregisterCallbackSubstructure.
+            [varargout{1:nargout}] = obj.unregisterCallbackSubstructure(varargin{:});
+        end
+
+        function varargout = clearMatlabSubstructures(obj, varargin)
+            %CLEARMATLABSUBSTRUCTURES Compatibility alias for clearCallbackSubstructures.
+            [varargout{1:nargout}] = obj.clearCallbackSubstructures(varargin{:});
         end
 
         function varargout = element(obj, eleType, eleTag, varargin)
