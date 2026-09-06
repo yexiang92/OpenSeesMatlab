@@ -104,12 +104,10 @@ ops.analysis('Static');
 ops.analyze(2);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSees] CTestNormDispIncr::test() - iteration: 2 current Norm: 1.6125e-20 (max: 1e-10, Norm deltaR: 1.16573e-15)
-[OpenSees] CTestNormDispIncr::test() - iteration: 1 current Norm: 5.83836e-21 (max: 1e-10, Norm deltaR: 3.88578e-16)
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">2 lines</span></div>
+<pre>[OpenSees] CTestNormDispIncr::test() - iteration: 2 current Norm: 1.6125e-20 (max: 1e-10, Norm deltaR: 1.16573e-15)
+[OpenSees] CTestNormDispIncr::test() - iteration: 1 current Norm: 5.83836e-21 (max: 1e-10, Norm deltaR: 3.88578e-16)</pre>
 </div>
 
 ```matlab
@@ -121,12 +119,10 @@ ops.updateMaterials('-material', solid1, 'bulkModulus', G1 * 2 / 3);
 ops.analyze(2);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSees] CTestNormDispIncr::test() - iteration: 1 current Norm: 2.84257e-20 (max: 1e-10, Norm deltaR: 2.44804e-14)
-[OpenSees] CTestNormDispIncr::test() - iteration: 1 current Norm: 1.79082e-18 (max: 1e-10, Norm deltaR: 1.21569e-14)
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">2 lines</span></div>
+<pre>[OpenSees] CTestNormDispIncr::test() - iteration: 1 current Norm: 2.84257e-20 (max: 1e-10, Norm deltaR: 2.44804e-14)
+[OpenSees] CTestNormDispIncr::test() - iteration: 1 current Norm: 1.79082e-18 (max: 1e-10, Norm deltaR: 1.21569e-14)</pre>
 </div>
 
 ```matlab
@@ -219,14 +215,12 @@ startT = tic;
 ops.analyze(numSteps, dt, dt / 64, dt, 15);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSees] 80
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">4 lines</span></div>
+<pre>[OpenSees] 80
 [OpenSees] 100
 [OpenSees] 200
-[OpenSees] 300
-</div>
+[OpenSees] 300</pre>
 </div>
 
 ```matlab
@@ -236,11 +230,9 @@ elapsedTime = toc(startT);
 fprintf('Execution time: %.6f seconds.\n', elapsedTime);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Execution time: 0.410077 seconds.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Execution time: 0.410077 seconds.</pre>
 </div>
 
 ```matlab

@@ -91,10 +91,9 @@ for i = 1:numel(solverNames)
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-OpenSees Newton
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">13 lines</span></div>
+<pre>OpenSees Newton
 [OpenSees] WARNING: CTestNormUnbalance::test() - failed to converge
 [OpenSees] after: 40 iterations  current Norm: 279.23 (max: 1e-08, Norm deltaX: 7.73261)
 [OpenSees] NewtonRaphson::solveCurrentStep() -the ConvergenceTest object failed in test()
@@ -106,8 +105,7 @@ KINSOL Newton
 [OpenSees] StaticAnalysis::analyze() - the Algorithm failed at step: 0 with domain at load factor 1.5
 [OpenSees] OpenSees &gt; analyze failed, returned: -3 error flag
 Stopped at step 3.
-KINSOL Line Search
-</div>
+KINSOL Line Search</pre>
 </div>
 
 ## Results

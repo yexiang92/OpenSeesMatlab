@@ -14,7 +14,7 @@
 %[text] The example uses a linear spring and verifies the OpenSees results against the analytical solution.
 %[text] **Problem definition**
 %[text] Two one-dimensional interface nodes are connected by a spring:
-%[text]   **fixed node 1 ---- MATLAB spring (k) ---- node 2 ---\> P**
+%[text]  **fixed node 1 ---- MATLAB spring (k) ---- node 2 ---\> P**
 %[text] Node 1 is fixed.
 %[text] A force P is applied to node 2.
 %[text] The analytical solution is:
@@ -42,10 +42,10 @@ K0 = k * [
 initialState = struct("K", K0);
 
 %[text] ### Create the OpenSees model and interface
-%[text] Both interface nodes must exist before `matlabSubstructure` is created. Each row of `interfacePairs` fixes the ordering used by trial vectors, resisting force, and all callback matrices.
+%[text] Both interface nodes must exist before `callbackSubstructure` is created. Each row of `interfacePairs` fixes the ordering used by trial vectors, resisting force, and all callback matrices.
 %% Create the OpenSees command interface
 
-opsMAT = OpenSeesMatlab(); %[output:46086a57]
+opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 
 % Remove any model left from an earlier run.
@@ -56,7 +56,7 @@ ops.wipe();
 cleanupGuard = onCleanup(@() cleanupLinearSubstructure(ops));
 %% Create the OpenSees model and interface nodes
 % The model and every node referenced by interfacePairs must exist before
-% matlabSubstructure is called.
+% callbackSubstructure is called.
 
 ops.model("basic", "-ndm", 1, "-ndf", 1);
 
@@ -92,7 +92,7 @@ interfacePairs = [
 
 eleTag = 1001;
 
-ops.matlabSubstructure( ...
+ops.callbackSubstructure( ...
     eleTag, ...
     @linearSubstructureCallback, ...
     initialState, ...
@@ -116,7 +116,7 @@ ops.load(2, P);
 %[text] ### Solve one static load step
 %[text] The callback element participates in the ordinary OpenSees equation assembly. Newton may evaluate it several times during the step, so callback trials must not modify committed history.
 %% Configure the static analysis
-% matlabSubstructure behaves as an OpenSees Element. It does not select the
+% callbackSubstructure behaves as an OpenSees Element. It does not select the
 % constraint handler, equation numberer, solver, algorithm, or integrator.
 
 ops.constraints("Plain");
@@ -159,6 +159,7 @@ initialStiffnessFlat = ops.eleResponse( ...
 
 interfaceDefinition = ops.eleResponse( ...
     eleTag, "interfacePairs");
+
 %% Convert flattened matrices
 % The current MATLAB wrapper can return an OpenSees matrix as a flattened
 % row vector. Convert it back to an N-by-N MATLAB matrix.
@@ -273,7 +274,9 @@ fprintf("Mean callback time: %.6g seconds\n", meanCallbackTime); %[output:45944c
 % OpenSees assembles this internal force into the global equilibrium
 % equations and balances it against the applied external load.
 
-%% Clean up
+%%
+%[text] ### Clean up
+%[text]
 % Always remove the active Element before removing its callback record.
 %
 % Recommended order:
@@ -288,7 +291,10 @@ ops.clearMatlabSubstructures();
 
 % The explicit cleanup succeeded, so remove the automatic cleanup guard.
 clear cleanupGuard
-%% MATLAB callback used by the Element
+%[text]
+%%
+%[text] ### MATLAB callback used by the Element
+%[text]
 % The callback signature is:
 %
 %   [response, trialState, status] = ...
@@ -320,7 +326,7 @@ function [response, trialState, status] = ...
             % Derivative of response.force with respect to trial.disp.
             response.tangent = K;
 
-            % K0 passed to matlabSubstructure is already the fallback initial
+            % K0 passed to callbackSubstructure is already the fallback initial
             % stiffness. Returning it explicitly during init demonstrates the
             % optional callback field.
             if strcmpi(action, "init")
@@ -388,9 +394,6 @@ end
 %[metadata:view]
 %   data: {"layout":"inline","rightPanelPercent":40}
 %---
-%[output:46086a57]
-%   data: {"dataType":"text","outputData":{"text":"\n============================================================\n  OpenSeesMatlab v3.8.0.2\n  OpenSees MEX Interface for MATLAB\n  Copyright (c) 2026, By Yexiang Yan\n\n  Type 'help OpenSeesMatlab' in MATLAB for documentation.\n  Documentation also available at \n  https:\/\/openseesmatlab.readthedocs.io\/en\/latest\/ \n============================================================\n\n","truncated":false}}
-%---
 %[output:257ad8e8]
 %   data: {"dataType":"tabular","outputData":{"columnNames":["u2","uExpected","displacementError","interfaceDispError","forceError","tangentError","initialStiffnessError"],"columns":7,"dataTypes":["double","double","double","double","double","double","double"],"header":"1×7 table","name":"verification","rows":1,"type":"table","value":[["1.0000e-03","1.0000e-03","0","0","0","0","0"]]}}
 %---
@@ -428,5 +431,5 @@ end
 %   data: {"dataType":"text","outputData":{"text":"Total callback calls: 4\n","truncated":false}}
 %---
 %[output:45944c81]
-%   data: {"dataType":"text","outputData":{"text":"Mean callback time: 0.0012484 seconds\n","truncated":false}}
+%   data: {"dataType":"text","outputData":{"text":"Mean callback time: 0.0009162 seconds\n","truncated":false}}
 %---

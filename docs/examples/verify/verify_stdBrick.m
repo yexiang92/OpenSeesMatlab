@@ -1,22 +1,25 @@
 %% *3D Solid Cantilever Beam (Brick element)*
-% A solid-element cantilever is checked against elementary beam theory. The 
-% example shows how a three-dimensional stress field approaches a one-dimensional 
+% A solid-element cantilever is checked against elementary beam theory. The
+% example shows how a three-dimensional stress field approaches a one-dimensional
 % beam solution and where local effects should be expected.
-% 
-% This example presents a three-dimensional cantilever beam modeled using solid 
-% (continuum) elements. The objective is to verify the accuracy of displacement 
-% and stress predictions obtained from OpenSeesMatlab by comparing them with classical 
+%
+% This example presents a three-dimensional cantilever beam modeled using solid
+% (continuum) elements. The objective is to verify the accuracy of displacement
+% and stress predictions obtained from OpenSeesMatlab by comparing them with classical
 % beam theory solutions.
-% 
-% A rectangular beam of length \( L \), width \( b \), and height \( h \) is 
-% fixed at one end and subjected to a vertical load at the free end. The beam 
-% is modeled using 3D solid elements, and both displacement and stress responses 
+%
+% A rectangular beam of length \( L \), width \( b \), and height \( h \) is
+% fixed at one end and subjected to a vertical load at the free end. The beam
+% is modeled using 3D solid elements, and both displacement and stress responses
 % are evaluated.
 
 clear; clc;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
+%%
+%
+
 ops.wipe();
 ops.model('basic', '-ndm', 3, '-ndf', 3);
 
@@ -110,11 +113,11 @@ opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 grid off
 opsMAT.vis.polyscope.plotModel();
-%% 
-% 
+%%
+%
 % Static solution and response database
-% The solid model is solved in two load increments. Gauss-point stresses are 
-% extrapolated to nodes for contour plotting, while displacement is read directly 
+% The solid model is solved in two load increments. Gauss-point stresses are
+% extrapolated to nodes for contour plotting, while displacement is read directly
 % from the nodal response.
 
 Nsteps = 2;
@@ -173,15 +176,13 @@ fprintf("Maximal sxx stress:\n" + ...
 % Visualization by GUI
 
 opsMAT.vis.plotContinuumResponseGUI(solidResp);
-%% 
-% 
+%%
+%
 
 opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
-%% 
-% 
-
-
+%%
+%
 % Acceptance check
-% Compare free-end displacement and nominal bending stress with beam theory 
-% away from the fixed boundary. Local three-dimensional stresses near the restraint 
+% Compare free-end displacement and nominal bending stress with beam theory
+% away from the fixed boundary. Local three-dimensional stresses near the restraint
 % are not expected to follow the one-dimensional solution.

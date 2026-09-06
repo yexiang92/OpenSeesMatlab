@@ -7,7 +7,7 @@ commands, but they are implemented and maintained by OpenSeesMatlab.
 | If you need to... | Start with |
 |---|---|
 | Retry a difficult nonlinear step without losing its remainder | `adaptiveAnalyze` |
-| Run a component or condensed model in a MATLAB function | `matlabSubstructure` |
+| Run a component or condensed model in a MATLAB function | `callbackSubstructure` |
 | Define a path-dependent uniaxial material in MATLAB | MATLAB uniaxial material |
 | Solve a large sparse system on an NVIDIA GPU | `CuDSS` |
 | Add line-search Newton, adaptive tangent refresh, or Anderson-Picard iteration | `KINSOL` |
@@ -32,8 +32,8 @@ older spellings remain accepted so existing models continue to run:
 
 The raw MEX dispatcher also recognizes internal callback command names used by
 older builds. They are implementation details, not additional MATLAB APIs.
-Use `ops.matlabSubstructure(...)` and
-`ops.uniaxialMaterial("MatlabUniaxialMaterial", ...)` in user code.
+Use `ops.callbackSubstructure(...)` and
+`ops.callbackUniaxialMaterial(...)` in user code.
 
 ## Adaptive analysis recovery
 
@@ -46,7 +46,7 @@ and `VariableTransient` analyses without requiring changes to OpenSees.
 
 ## MATLAB numerical substructure analysis
 
-[`matlabSubstructure`][ops.OpenSeesMatlabCmds.matlabSubstructure] connects an
+[`callbackSubstructure`][ops.OpenSeesMatlabCmds.callbackSubstructure] connects an
 OpenSees domain to a numerical sub-model evaluated by a MATLAB callback.
 OpenSees owns the global model and analysis, while MATLAB returns the interface
 force, tangent stiffness, and optional mass and damping matrices.

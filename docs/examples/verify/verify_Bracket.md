@@ -51,11 +51,9 @@ minUzPDE = min(result.Displacement.uz);
 fprintf("Maximal deflection in the z-direction is %g meters.",minUzPDE)
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Maximal deflection in the z-direction is -1.44604e-05 meters.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Maximal deflection in the z-direction is -1.44604e-05 meters.</pre>
 </div>
 
 ```matlab
@@ -82,11 +80,9 @@ maxVonMisesStressPDE = max(result.VonMisesStress);
 fprintf("Maximal VonMisesStress is %g Pa.", maxVonMisesStressPDE)
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Maximal VonMisesStress is 1.03705e+06 Pa.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Maximal VonMisesStress is 1.03705e+06 Pa.</pre>
 </div>
 
 ## OpenSeesMatlab Solving
@@ -161,10 +157,9 @@ end
 opsMAT = OpenSeesMatlab();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-============================================================
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">10 lines</span></div>
+<pre>============================================================
   OpenSeesMatlab v3.8.0.3
   OpenSees MEX Interface for MATLAB
   Copyright (c) 2026, By Yexiang Yan
@@ -173,8 +168,7 @@ opsMAT = OpenSeesMatlab();
   Type 'help OpenSeesMatlab' in MATLAB for documentation.
   Documentation also available at
   https://openseesmatlab.readthedocs.io/en/latest/
-============================================================
-</div>
+============================================================</pre>
 </div>
 
 ```matlab
@@ -236,11 +230,9 @@ ops.analysis('Static');
 ODB = opsMAT.post.createODB("myODB");  % create ODB
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5</pre>
 </div>
 
 ```matlab
@@ -256,13 +248,11 @@ opts.loads.showNodal=true;
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSeesMatlab] Model summary
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>[OpenSeesMatlab] Model summary
   Nodes: 1336
-  Solid elements: 3883
-</div>
+  Solid elements: 3883</pre>
 </div>
 
 ```matlab
@@ -281,13 +271,11 @@ fprintf("Maximal deflection in the z-direction:\n" + ...
         minUz, minUzPDE);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Maximal deflection in the z-direction:
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>Maximal deflection in the z-direction:
   OpenSeesMatlab: -1.44604e-05 meters
-  MATLAB PDE    : -1.44604e-05 meters
-</div>
+  MATLAB PDE    : -1.44604e-05 meters</pre>
 </div>
 
 ```matlab
@@ -313,13 +301,11 @@ fprintf("Maximal Von Mises stress:\n" + ...
         maxVonMisesStress, maxVonMisesStressPDE);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Maximal Von Mises stress:
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>Maximal Von Mises stress:
   OpenSeesMatlab: 1.03705e+06 Pa
-  MATLAB PDE    : 1.03705e+06 Pa
-</div>
+  MATLAB PDE    : 1.03705e+06 Pa</pre>
 </div>
 
 ```matlab

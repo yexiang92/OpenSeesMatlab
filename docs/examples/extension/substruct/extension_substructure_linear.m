@@ -74,7 +74,7 @@ K0 = k * [
 initialState = struct("K", K0);
 
 % Create the OpenSees model and interface
-% Both interface nodes must exist before |matlabSubstructure| is created. Each 
+% Both interface nodes must exist before |callbackSubstructure| is created. Each
 % row of |interfacePairs| fixes the ordering used by trial vectors, resisting 
 % force, and all callback matrices.
 
@@ -91,7 +91,7 @@ ops.wipe();
 cleanupGuard = onCleanup(@() cleanupLinearSubstructure(ops));
 %% Create the OpenSees model and interface nodes
 % The model and every node referenced by interfacePairs must exist before
-% matlabSubstructure is called.
+% callbackSubstructure is called.
 
 ops.model("basic", "-ndm", 1, "-ndf", 1);
 
@@ -129,7 +129,7 @@ interfacePairs = [
 
 eleTag = 1001;
 
-ops.matlabSubstructure( ...
+ops.callbackSubstructure( ...
     eleTag, ...
     @linearSubstructureCallback, ...
     initialState, ...
@@ -156,7 +156,7 @@ ops.load(2, P);
 % not modify committed history.
 
 %% Configure the static analysis
-% matlabSubstructure behaves as an OpenSees Element. It does not select the
+% callbackSubstructure behaves as an OpenSees Element. It does not select the
 % constraint handler, equation numberer, solver, algorithm, or integrator.
 
 ops.constraints("Plain");
@@ -363,7 +363,7 @@ function [response, trialState, status] = ...
             % Derivative of response.force with respect to trial.disp.
             response.tangent = K;
 
-            % K0 passed to matlabSubstructure is already the fallback initial
+            % K0 passed to callbackSubstructure is already the fallback initial
             % stiffness. Returning it explicitly during init demonstrates the
             % optional callback field.
             if strcmpi(action, "init")

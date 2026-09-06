@@ -200,11 +200,9 @@ opsmat.post.createODB(odbTag, saveNodalResp=true, saveMVLEMResp=true, ...
     saveContactResp=false, mvlemTags=1:39, flushEvery=20);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Output file: .openseesmatlab.output\Responses-MVLEM3DForceControl.odb\output.h5
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Output file: .openseesmatlab.output\Responses-MVLEM3DForceControl.odb\output.h5</pre>
 </div>
 
 ## Gravity load
@@ -286,10 +284,9 @@ for sequenceNum = 1:numberOfSequences
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Sequence 1 of 124.
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">372 lines</span></div>
+<pre>Sequence 1 of 124.
 [OpenSees] adaptiveAnalyze::  SUCCESS | outer steps=200/200 | attempts=200 | accepted substeps=200 | subdivisions=0 | elapsed=1.66186 s
 [OpenSees] adaptiveAnalyze::  overall final | code=0 | last increment=0.005 | iterations=2 | norm=7.661e-07 | KrylovNewton / NormDispIncr | analyze code=0
 Sequence 2 of 124.
@@ -660,19 +657,16 @@ Sequence 123 of 124.
 [OpenSees] adaptiveAnalyze::  overall final | code=0 | last increment=0.005 | iterations=4 | norm=1.9855e-07 | KrylovNewton / NormDispIncr | analyze code=0
 Sequence 124 of 124.
 [OpenSees] adaptiveAnalyze::  SUCCESS | outer steps=200/200 | attempts=200 | accepted substeps=200 | subdivisions=0 | elapsed=1.79844 s
-[OpenSees] adaptiveAnalyze::  overall final | code=0 | last increment=0.005 | iterations=2 | norm=7.02868e-06 | KrylovNewton / NormDispIncr | analyze code=0
-</div>
+[OpenSees] adaptiveAnalyze::  overall final | code=0 | last increment=0.005 | iterations=2 | norm=7.02868e-06 | KrylovNewton / NormDispIncr | analyze code=0</pre>
 </div>
 
 ```matlab
 fprintf('Analysis completed in %.1f s.\n', toc);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Analysis completed in 210.2 s.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Analysis completed in 210.2 s.</pre>
 </div>
 
 ```matlab

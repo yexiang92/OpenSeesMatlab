@@ -88,6 +88,146 @@
   border-radius: 0.45rem;
 }
 
+/* Final-level example indexes use compact, image-led cards. The generated
+ * Markdown supplies the final figure from each example as its thumbnail. */
+.example-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.85rem;
+  margin: 1rem 0 2rem;
+}
+
+.md-typeset .example-gallery__card {
+  display: grid;
+  grid-template-rows: 7.6rem auto;
+  overflow: hidden;
+  color: var(--md-default-fg-color);
+  border: 0.05rem solid var(--md-default-fg-color--lightest);
+  border-radius: 0.7rem;
+  background: var(--md-default-bg-color);
+  box-shadow: 0 0.22rem 0.8rem rgba(30, 50, 90, 0.1);
+  text-decoration: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.md-typeset .example-gallery__card:hover {
+  color: var(--md-default-fg-color);
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 0.42rem 1.1rem rgba(30, 50, 90, 0.17);
+  transform: translateY(-0.12rem);
+}
+
+.example-gallery__media {
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  border-bottom: 0.05rem solid var(--md-default-fg-color--lightest);
+  background: color-mix(in srgb, var(--md-default-fg-color) 3%, var(--md-default-bg-color));
+}
+
+.example-gallery__media > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: contain;
+  transition: transform 180ms ease;
+}
+
+.example-gallery__card:hover .example-gallery__media > img {
+  transform: scale(1.018);
+}
+
+.example-gallery__media--placeholder > img {
+  width: 3.6rem;
+  height: 3.6rem;
+  opacity: 0.78;
+}
+
+.example-gallery__body {
+  display: grid;
+  gap: 0.42rem;
+  align-content: start;
+  min-height: 4rem;
+  padding: 0.68rem 0.76rem 0.78rem;
+}
+
+.example-gallery__body strong {
+  color: inherit;
+  font-size: 0.76rem;
+  line-height: 1.38;
+}
+
+.example-gallery__interface {
+  display: flex;
+  gap: 0.34rem;
+  align-items: center;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.example-gallery__interface img {
+  width: 0.92rem;
+  height: 0.92rem;
+  object-fit: contain;
+}
+
+@media screen and (max-width: 44.984375em) {
+  .example-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  }
+}
+
+/* Shared visual language for MATLAB command-window output. The generator
+ * emits semantic classes only; presentation remains centralized here. */
+.example-output {
+  margin: 0.65rem 0 0.9rem;
+  overflow: hidden;
+  border: 0.05rem solid color-mix(in srgb, #21a366 65%, transparent);
+  border-radius: 0.42rem;
+  background: color-mix(in srgb, #21a366 8%, var(--md-default-bg-color));
+}
+
+.example-output__header {
+  display: flex;
+  gap: 0.34rem;
+  align-items: center;
+  padding: 0.36rem 0.58rem;
+  color: #2db875;
+  border-bottom: 0.05rem solid color-mix(in srgb, #21a366 35%, transparent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.example-component__logo,
+.example-output__header .example-component__logo {
+  width: 0.86rem;
+  height: 0.86rem;
+  object-fit: contain;
+}
+
+.example-output__count {
+  margin-left: auto;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.56rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.example-output pre {
+  margin: 0;
+  max-height: 14rem;
+  padding: 0.56rem 0.7rem;
+  overflow: auto;
+  color: var(--md-default-fg-color);
+  background: transparent;
+  font-size: 0.62rem;
+  line-height: 1.38;
+}
+
 .md-typeset table:not([class]) {
   border-radius: 0.45rem;
   box-shadow: 0 0.15rem 0.5rem rgba(30, 50, 90, 0.08);

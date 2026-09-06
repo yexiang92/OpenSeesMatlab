@@ -28,7 +28,8 @@ This page lists all 245 methods currently exposed by `OpenSeesMatlabCmds`:
 - 4 shared OpenSeesBindings commands: `adaptiveAnalyze`, `FEMDataRecorder`,
   `getDomainGeoTag`, and `updateMaterials`;
 - 9 MATLAB-specific commands: `suppressPrint`, `matlabversion`, `readFEMData`,
-  `writeFEMDataPVD`, `matlabSubstructure`, `registerMatlabSubstructure`,
+  `writeFEMDataPVD`, `callbackSubstructure`, `callbackUniaxialMaterial`,
+  `callbackSparseSystem`, `callbackSparseEigen`, `registerMatlabSubstructure`,
   `unregisterMatlabSubstructure`, `clearMatlabSubstructures`, and
   `hasMatlabSubstructure`.
 
@@ -104,7 +105,10 @@ This page lists all 245 methods currently exposed by `OpenSeesMatlabCmds`:
 | `matlabversion` | Return the MATLAB binding version. |
 | `readFEMData` | Read HDF5 FEMData into MATLAB structures. |
 | `writeFEMDataPVD` | Export FEMData visualization files. |
-| `matlabSubstructure` | Create a MATLAB callback substructure element. |
+| `callbackUniaxialMaterial` | Create a host-callback uniaxial material. |
+| `callbackSubstructure` | Create a host-callback substructure element. |
+| `callbackSparseSystem` | Register a host sparse-system solver. |
+| `callbackSparseEigen` | Register and run a host sparse eigensolver. |
 | `registerMatlabSubstructure` | Register substructure callback state. |
 | `unregisterMatlabSubstructure` | Remove one registered substructure callback. |
 | `clearMatlabSubstructures` | Remove all registered substructure callbacks. |
@@ -399,7 +403,10 @@ delegates the call to upstream OpenSees.
         - matlabversion
         - readFEMData
         - writeFEMDataPVD
-        - matlabSubstructure
+        - callbackUniaxialMaterial
+        - callbackSubstructure
+        - callbackSparseSystem
+        - callbackSparseEigen
         - registerMatlabSubstructure
         - unregisterMatlabSubstructure
         - clearMatlabSubstructures

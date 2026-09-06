@@ -8,7 +8,9 @@ param(
 
     [string]$MatlabExecutable = $env:OPENSEES_MATLAB_EXECUTABLE,
 
-    [string]$MpiExecutable = $env:OPENSEES_MPIEXEC
+    [string]$MpiExecutable = $env:OPENSEES_MPIEXEC,
+
+    [string]$FigureDirectory = $env:OPENSEES_MATLAB_FIGURE_DIRECTORY
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,12 +84,16 @@ $runtimeDirectories = @(
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) }
 $env:PATH = (($runtimeDirectories + $env:PATH) -join [IO.Path]::PathSeparator)
 $env:OPENSEES_BACKEND = 'sp'
+if ($FigureDirectory) {
+    $resolvedFigureDirectory = (Resolve-Path -LiteralPath $FigureDirectory).Path
+    $env:OPENSEES_MATLAB_FIGURE_DIRECTORY = $resolvedFigureDirectory
+}
 
 $escapedRoot = $PSScriptRoot.Replace("'", "''")
 $escapedScript = $scriptPath.Replace("'", "''")
 $matlabCode = "addpath('$escapedRoot','-begin');"
 $matlabCode += "OpenSeesNexus.setBackend('sp');"
-$matlabCode += "run('$escapedScript')"
+$matlabCode += "nexus.internal.runSPModel('$escapedScript')"
 $arguments = @(
     '-n', '1', $MatlabExecutable, '-batch', $matlabCode,
     ':', '-n', ($Processes - 1).ToString(), $worker

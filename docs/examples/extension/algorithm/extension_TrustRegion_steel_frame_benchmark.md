@@ -91,10 +91,9 @@ for i = 1:numel(solverNames)
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Newton
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">11 lines</span></div>
+<pre>Newton
 [OpenSees] WARNING: CTestNormUnbalance::test() - failed to converge
 [OpenSees] after: 40 iterations  current Norm: 279.23 (max: 1e-08, Norm deltaX: 7.73261)
 [OpenSees] NewtonRaphson::solveCurrentStep() -the ConvergenceTest object failed in test()
@@ -104,8 +103,7 @@ Stopped at step 3.
 TrustRegion Newton
 
 
-TrustRegion Dogleg
-</div>
+TrustRegion Dogleg</pre>
 </div>
 
 ## Results

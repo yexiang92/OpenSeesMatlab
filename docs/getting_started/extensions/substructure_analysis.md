@@ -6,7 +6,7 @@
     - Currently, it only supports numerical sub-models created within Matlab.
     - Any bugs or new request can be submitted as issues on GitHub.
 
-[`matlabSubstructure`][ops.OpenSeesMatlabCmds.matlabSubstructure] lets an OpenSees model use a substructure calculated by a
+[`callbackSubstructure`][ops.OpenSeesMatlabCmds.callbackSubstructure] lets an OpenSees model use a substructure calculated by a
 MATLAB function. OpenSees treats it like an ordinary Element; when it needs the
 Element force or tangent stiffness, it calls your MATLAB callback.
 
@@ -16,7 +16,7 @@ keeps those steps together so it can be copied directly.
 
 ## Decide what MATLAB and OpenSees each own
 
-Treat `matlabSubstructure` as a condensed boundary Element:
+Treat `callbackSubstructure` as a condensed boundary Element:
 
 | OpenSees | MATLAB callback |
 | --- | --- |
@@ -73,7 +73,7 @@ case {"init", "trial"}
 
     if strcmpi(action, "init")
         % Optional initial matrix queried by getInitialStiff(). If omitted,
-        % the K0 supplied to matlabSubstructure is used as the fallback.
+        % the K0 supplied to callbackSubstructure is used as the fallback.
         response.initialStiffness = K;
     end
 
@@ -111,7 +111,7 @@ analysis step promotes its accepted `trialState` to the next
 values:
 
 ```text
-initialState     original value passed to matlabSubstructure
+initialState     original value passed to callbackSubstructure
 committedState   MATLAB history at the last accepted OpenSees step
 trialState       candidate MATLAB history for the current Newton trial
 ```
@@ -200,7 +200,7 @@ state0 = struct("K", K0);
 % ------------------------------------------------------------
 % A one-dimensional model with one translational DOF per node is sufficient
 % for this two-ended axial spring. Both interface nodes must already exist
-% when matlabSubstructure is called.
+% when callbackSubstructure is called.
 ops.model("basic", "-ndm", 1, "-ndf", 1);
 ops.node(1, 0.0);
 ops.node(2, 1.0);
@@ -223,7 +223,7 @@ interfacePairs = [
 % optional name-value setting. "matlab" tells OpenSees to use the current
 % response.tangent returned by the callback during Newton iterations.
 eleTag = 1001;
-ops.matlabSubstructure(eleTag, ...
+ops.callbackSubstructure(eleTag, ...
     @mySubstructure, state0, K0, interfacePairs, ...
     "tangentMode", "matlab");
 
@@ -235,7 +235,7 @@ ops.timeSeries("Linear", 1);
 ops.pattern("Plain", 1, 1);
 ops.load(2, 1.0);
 
-% matlabSubstructure is an Element only; the usual OpenSees analysis objects
+% callbackSubstructure is an Element only; the usual OpenSees analysis objects
 % must still be selected. This problem is linear, but Newton also verifies
 % that the callback-provided tangent is usable by the nonlinear solution loop.
 ops.constraints("Plain");
@@ -297,7 +297,7 @@ field is omitted. The wrapper validates the
 tag, callback, dimensions, interface rows, and tangent mode before forwarding
 the command to the MEX interface.
 
-### `matlabSubstructure` inputs
+### `callbackSubstructure` inputs
 
 The five inputs through `interfacePairs` are required positional arguments.
 Optional settings follow as name-value pairs. Optional names are
@@ -318,7 +318,7 @@ Prefer `"tangentMode", value` in new code.
 
 ### Algorithms, integrators, and `tangentMode`
 
-`matlabSubstructure` does not contain an algorithm or integrator whitelist. It
+`callbackSubstructure` does not contain an algorithm or integrator whitelist. It
 implements the normal OpenSees Element interfaces for resisting force, current
 and initial stiffness, mass, and damping. The selected OpenSees algorithm and
 integrator decide when and how those quantities are requested and assembled.
@@ -406,7 +406,7 @@ pile-head node is enough:
 ops.model("basic", "-ndm", 3, "-ndf", 6);
 ops.node(100, 0.0, 0.0, 0.0);
 interfacePairs = [(100 * ones(6,1)), (1:6)'];
-ops.matlabSubstructure(5001, ...
+ops.callbackSubstructure(5001, ...
     @pileSoilSubstructure, state0, K0, interfacePairs);
 ```
 

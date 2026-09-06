@@ -146,14 +146,14 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
             [varargout{1:nargout}] = obj.mexHandle('node', nodeTag, varargin{:});
         end
 
-        function varargout = matlabSubstructure(obj, eleTag, callback, initialState, initialStiffness, interfacePairs, varargin)
+        function varargout = callbackSubstructure(obj, eleTag, callback, initialState, initialStiffness, interfacePairs, varargin)
             % Create a MATLAB-backed OpenSees substructure Element. This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
             %
             % Syntax
             % ------
-            %     ops.matlabSubstructure(eleTag, callback, initialState, ...
+            %     ops.callbackSubstructure(eleTag, callback, initialState, ...
             %         K0, interfacePairs)
-            %     ops.matlabSubstructure(eleTag, callback, initialState, ...
+            %     ops.callbackSubstructure(eleTag, callback, initialState, ...
             %         K0, interfacePairs, "tangentMode", "initial")
             %
             % The five inputs through interfacePairs are required positional
@@ -327,7 +327,7 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
             end
 
             parser = inputParser;
-            parser.FunctionName = 'ops.matlabSubstructure';
+            parser.FunctionName = 'ops.callbackSubstructure';
             parser.CaseSensitive = false;
             parser.PartialMatching = false;
             addParameter(parser, 'tangentMode', "matlab", ...
@@ -352,7 +352,7 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
                     'interfacePairs cannot contain duplicate [nodeTag, DOF] rows.');
             end
 
-            [varargout{1:nargout}] = obj.mexHandle('matlabSubstructure', ...
+            [varargout{1:nargout}] = obj.mexHandle('callbackSubstructure', ...
                 eleTag, callback, initialState, initialStiffness, interfacePairs, ...
                 'tangentMode', tangentMode);
         end
@@ -1371,15 +1371,6 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
         function varargout = uniaxialMaterial(obj, matType, matTag, matArgs)
             % This command is used to construct a UniaxialMaterial object which represents uniaxial stress-strain (or force-deformation) relationships.
             %
-            % MATLAB extension syntax
-            % -----------------------
-            %   ops.uniaxialMaterial("MatlabUniaxialMaterial", matTag, ...
-            %       callback, initialState, initialTangent)
-            %
-            % MatlabUniaxialMaterial is routed internally to the MEX
-            % extensionMaterial dispatcher. Native OpenSees material types
-            % continue to use the upstream uniaxialMaterial command.
-            %
             % See also
             % ---------
             %   - [uniaxialMaterial commands (Python)](https://openseespydoc.readthedocs.io/en/latest/src/uniaxialMaterial.html)
@@ -1404,17 +1395,8 @@ classdef OpenSeesMatlabCmds < OpenSeesNexus
                 matArgs
             end
 
-            if strcmpi(string(matType), "MatlabUniaxialMaterial")
-                % MATLAB-aware materials need direct MATLAB arrays/function
-                % handles, so the wrapper routes them to the internal MEX
-                % extension dispatcher while preserving the standard public
-                % uniaxialMaterial API.
-                [varargout{1:nargout}] = obj.mexHandle( ...
-                    'extensionMaterial', matType, matTag, matArgs{:});
-            else
-                [varargout{1:nargout}] = obj.mexHandle( ...
-                    'uniaxialMaterial', matType, matTag, matArgs{:});
-            end
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'uniaxialMaterial', matType, matTag, matArgs{:});
         end
 
         function varargout = nDMaterial(obj, matType, matTag, matArgs)

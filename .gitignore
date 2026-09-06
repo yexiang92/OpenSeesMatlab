@@ -28,3 +28,7 @@ paraview_output/
 release/
 site/
 _readthedocs/
+
+# OpenSeesNexus platform binaries are populated locally or by release jobs.
+# Keep derived/README.md tracked, but ignore every generated platform payload.
+OpenSeesMatlab/+ops/OpenSeesNexus/derived/*/

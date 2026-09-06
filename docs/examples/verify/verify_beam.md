@@ -85,13 +85,11 @@ The response database interpolates beam displacement and stores section forces. 
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSeesMatlab] Model summary
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>[OpenSeesMatlab] Model summary
   Nodes: 5
-  Beam elements: 4
-</div>
+  Beam elements: 4</pre>
 </div>
 
 ```matlab
@@ -113,11 +111,9 @@ ops.analysis('Static');
 ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=9);  % create ODB, 6 points in interpolateBeamDisp
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5</pre>
 </div>
 
 ```matlab
@@ -143,11 +139,9 @@ deflection_ratio = abs(uy_mid) / deflection_target;
 fprintf('Deflection (in)     %12.6f %20.6f %12.6f\n', deflection_target, uy_mid, deflection_ratio);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Deflection (in)         0.182000             0.182463     1.002545
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Deflection (in)         0.182000             0.182463     1.002545</pre>
 </div>
 
 ```matlab
@@ -174,11 +168,9 @@ fprintf('Stress (psi)        %12.6f %20.6f %12.6f\n', ...
     stress_target, sigma_max, stress_ratio);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Stress (psi)        11400.000000         11403.953371     1.000347
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Stress (psi)        11400.000000         11403.953371     1.000347</pre>
 </div>
 
 ```matlab

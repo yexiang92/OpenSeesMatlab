@@ -74,7 +74,11 @@ classdef OpenSeesMatlab < handle
     %
 
     properties (SetAccess = private, GetAccess = public)
-        opensees ops.OpenSeesMatlabCmds      % OpenSees command interface.
+        % Keep this property untyped so the embedded OpenSeesNexus library can
+        % be connected before MATLAB resolves OpenSeesMatlabCmds and its
+        % superclass. The constructor still assigns an OpenSeesMatlabCmds
+        % instance, so the public API and runtime type are unchanged.
+        opensees                               % OpenSees command interface.
         post post.OpenSeesMatlabPost          % Post-processing interface.
         vis plotter.OpenSeesMatlabVis            % Visualization interface.
         pre pre.OpenSeesMatlabPre            % Pre-processing interface.
