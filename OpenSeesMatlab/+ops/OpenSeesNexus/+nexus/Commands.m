@@ -687,10 +687,16 @@ classdef Commands < handle
 
         function varargout = registerMatlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('registerMatlabSubstructure', varargin{:}); end
 
-        function result = hasMatlabSubstructure(obj, varargin), result = obj.mexHandle('hasMatlabSubstructure', varargin{:}); end
+        function result = hasCallbackSubstructure(obj, varargin), result = obj.mexHandle('hasMatlabSubstructure', varargin{:}); end
 
-        function varargout = unregisterMatlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('unregisterMatlabSubstructure', varargin{:}); end
+        function varargout = unregisterCallbackSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('unregisterMatlabSubstructure', varargin{:}); end
 
-        function varargout = clearMatlabSubstructures(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('clearMatlabSubstructures', varargin{:}); end
+        function varargout = clearCallbackSubstructures(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('clearMatlabSubstructures', varargin{:}); end
+
+        function result = hasMatlabSubstructure(obj, varargin), result = obj.hasCallbackSubstructure(varargin{:}); end
+
+        function varargout = unregisterMatlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.unregisterCallbackSubstructure(varargin{:}); end
+
+        function varargout = clearMatlabSubstructures(obj, varargin), [varargout{1:nargout}] = obj.clearCallbackSubstructures(varargin{:}); end
     end
 end

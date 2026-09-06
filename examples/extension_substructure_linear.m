@@ -282,12 +282,12 @@ fprintf("Mean callback time: %.6g seconds\n", meanCallbackTime); %[output:45944c
 % Recommended order:
 %
 %   1. ops.wipe()
-%   2. ops.clearMatlabSubstructures()
+%   2. ops.clearCallbackSubstructures()
 %
 % Query all required results before cleanup.
 
 ops.wipe();
-ops.clearMatlabSubstructures();
+ops.clearCallbackSubstructures();
 
 % The explicit cleanup succeeded, so remove the automatic cleanup guard.
 clear cleanupGuard
@@ -381,7 +381,7 @@ function cleanupLinearSubstructure(ops)
     end
 
     try
-        ops.clearMatlabSubstructures();
+        ops.clearCallbackSubstructures();
     catch
     end
 end
