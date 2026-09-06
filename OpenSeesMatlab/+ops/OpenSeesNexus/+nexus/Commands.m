@@ -642,6 +642,9 @@ classdef Commands < handle
 
         function result = FEMDataRecorder(obj, varargin), result = obj.mexHandle('FEMDataRecorder', varargin{:}); end
 
+        function result = getFEMModel(obj), result = obj.mexHandle('getFEMModel'); end
+        function result = writeFEMModel(obj, varargin), result = obj.mexHandle('writeFEMModel', varargin{:}); end
+
         function result = readFEMData(obj, varargin), result = obj.mexHandle('readFEMData', varargin{:}); end
 
         function result = writeFEMDataPVD(obj, varargin), result = obj.mexHandle('writeFEMDataPVD', varargin{:}); end

@@ -616,7 +616,8 @@ classdef PlotModel < handle
             if ~isfield(obj.ModelInfo,'Loads') || isempty(obj.ModelInfo.Loads), return; end
             if isempty(obj.NodeCoords), return; end
 
-            L           = obj.ModelInfo.Loads;
+            L           = plotter.utils.FEMModelAdapter.loadsForPlotting( ...
+                obj.ModelInfo.Loads);
             minNorm     = obj.Opts.loads.minNorm;
             baseLen     = obj.getLoadAutoLength();
             labelOffset = obj.getLoadLabelOffset();

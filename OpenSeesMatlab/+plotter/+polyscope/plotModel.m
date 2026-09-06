@@ -1071,7 +1071,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
                 return;
             end
 
-            L = obj.ModelInfo.Loads;
+            L = plotter.utils.FEMModelAdapter.loadsForPlotting( ...
+                obj.ModelInfo.Loads);
             minNorm = obj.Opts.loads.minNorm;
             baseLen = obj.getLoadAutoLength_();
             maxMag = obj.computeGlobalMaxMag_(L, P, minNorm);

@@ -98,8 +98,8 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             TestOpenSeesMexIntegration.buildTrussModel(opsmat.opensees);
             modelInfo = opsmat.post.getModelData();
 
-            testCase.verifyEqual(modelInfo.NumNode, 2);
-            testCase.verifyEqual(modelInfo.NumElement, 1);
+            testCase.verifyEqual(double(modelInfo.NumNode), 2);
+            testCase.verifyEqual(double(modelInfo.NumElement), 1);
             testCase.verifyEqual(double(modelInfo.Nodes.Tags(:).'), [1 2]);
             testCase.verifyEqual(double(modelInfo.Nodes.Coords(1:2, 1:2)), ...
                 [0 0; 1 0], 'AbsTol', 1.0e-12);
@@ -107,6 +107,31 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             testCase.verifyEqual(double(modelInfo.Elements.Families.Truss.Cells), [2 1 2]);
 
             clear cleanup
+        end
+
+        function postModelDataMatchesNativeSnapshot(testCase)
+            opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
+            cleanup = onCleanup(@() opsmat.opensees.wipe());
+            outputFile = [tempname '.h5'];
+            fileCleanup = onCleanup(@() TestOpenSeesMexIntegration.deleteIfPresent(outputFile));
+            ops = opsmat.opensees;
+
+            TestOpenSeesMexIntegration.buildTrussModel(ops);
+            ops.equalDOF(1, 2, 1);
+            ops.timeSeries('Linear', 1);
+            ops.pattern('Plain', 1, 1);
+            ops.load(2, 2.0, 0.0);
+
+            fromPost = opsmat.post.getModelData();
+            testCase.assertEqual(double(ops.writeFEMModel(outputFile)), 0);
+            fromNative = ops.readFEMData(outputFile, 'model');
+
+            testCase.verifyEqual(fromPost, fromNative);
+            testCase.verifyEqual(double(fromPost.MPConstraint.PairNodeTags), [1 2]);
+            testCase.verifyTrue(isfield(fromPost.MPConstraint, 'RetainedDofs'));
+            testCase.verifyTrue(isfield(fromPost.MPConstraint, 'ConstrainedDofs'));
+
+            clear fileCleanup cleanup
         end
 
         function preProcessorAssemblesStiffnessMatrixFromMexModel(testCase)

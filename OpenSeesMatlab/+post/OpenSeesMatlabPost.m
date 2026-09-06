@@ -143,8 +143,7 @@ classdef OpenSeesMatlabPost < handle
             filename = fullfile(obj.outputDir, filename);
             obj.checkOutputDir();
 
-            modelData = post.FEMDataCollector(obj.parent.opensees, post.utils.OpenSeesTagMaps());
-            modelData.collect();
+            modelData = post.FEMDataCollector(obj.parent.opensees);
             modelData.save(filename);
         end
 
@@ -179,7 +178,7 @@ classdef OpenSeesMatlabPost < handle
 
             odbTag = string(odbTag);
 
-            modelData = post.FEMDataCollector(obj.parent.opensees, post.utils.OpenSeesTagMaps());
+            modelData = post.FEMDataCollector(obj.parent.opensees);
 
             if strlength(odbTag) == 0
                 modelInfo = modelData.getModelInfo();
