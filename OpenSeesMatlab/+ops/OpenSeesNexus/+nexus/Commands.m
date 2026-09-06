@@ -635,7 +635,7 @@ classdef Commands < handle
 
     end % action methods
     %-------------------------------------------------------------------------
-    % Added by OpenSeesMatlab
+    % OpenSeesNexus extensions
     %-------------------------------------------------------------------------
     methods
         function varargout = suppressPrint(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('suppressPrint', varargin{:}); end
@@ -652,7 +652,35 @@ classdef Commands < handle
 
         function result = matlabversion(obj, varargin), result = obj.mexHandle('matlabversion', varargin{:}); end
 
-        function varargout = matlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('matlabSubstructure', varargin{:}); end
+        function varargout = callbackUniaxialMaterial(obj, varargin)
+            %CALLBACKUNIAXIALMATERIAL Create a host-callback uniaxial material.
+            %   callbackUniaxialMaterial(tag, callback, initialState,
+            %   initialTangent) uses the same public name and argument order as
+            %   the Python and Julia interfaces.
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'callbackUniaxialMaterial', varargin{:});
+        end
+
+        function varargout = callbackSubstructure(obj, varargin)
+            %CALLBACKSUBSTRUCTURE Create a host-callback substructure Element.
+            %   callbackSubstructure(tag, callback, initialState,
+            %   initialStiffness, interfacePairs, ...) uses the shared binding
+            %   command name.
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'callbackSubstructure', varargin{:});
+        end
+
+        function varargout = callbackSparseSystem(obj, varargin)
+            %CALLBACKSPARSESYSTEM Register a host sparse linear-system solver.
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'callbackSparseSystem', varargin{:});
+        end
+
+        function varargout = callbackSparseEigen(obj, varargin)
+            %CALLBACKSPARSEEIGEN Run a host sparse eigensolver callback.
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'callbackSparseEigen', varargin{:});
+        end
 
         function varargout = registerMatlabSubstructure(obj, varargin), [varargout{1:nargout}] = obj.mexHandle('registerMatlabSubstructure', varargin{:}); end
 

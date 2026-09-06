@@ -82,11 +82,9 @@ for e = 1:nElem
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSees] Using ASDShellQ4 - Developed by: Massimo Petracca, Guido Camata, ASDEA Software Technology
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>[OpenSees] Using ASDShellQ4 - Developed by: Massimo Petracca, Guido Camata, ASDEA Software Technology</pre>
 </div>
 
 ```matlab
@@ -115,13 +113,11 @@ opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSeesMatlab] Model summary
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>[OpenSeesMatlab] Model summary
   Nodes: 102
-  Shell elements: 50
-</div>
+  Shell elements: 50</pre>
 </div>
 
 ```matlab
@@ -144,11 +140,9 @@ ops.analysis('Static');
 ODB = opsMAT.post.createODB("myODB", projectGaussToNodes="extrapolate");  % create ODB
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5</pre>
 </div>
 
 ```matlab
@@ -224,11 +218,9 @@ fprintf('end sigma_x: target = %.2f, MAPDL182 = %.2f, OpenSeesMatlab = %.2f, rat
     target_end, mapdl182_end, fixed_end_stress_osp, fixed_end_stress_osp / target_end);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-end sigma_x: target = 7407.00, MAPDL182 = 7151.10, OpenSeesMatlab = 7481.59, ratio = 1.0101
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>end sigma_x: target = 7407.00, MAPDL182 = 7151.10, OpenSeesMatlab = 7481.59, ratio = 1.0101</pre>
 </div>
 
 ## Visualization by Polyscope GUI

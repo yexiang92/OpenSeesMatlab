@@ -106,7 +106,7 @@ interfacePairs = [
 
 eleTag = 2001;
 
-ops.matlabSubstructure( ...
+ops.callbackSubstructure( ...
     eleTag, ...
     @duffingSubstructureCallback, ...
     initialState, ...
@@ -472,10 +472,9 @@ report = sprintf( ...
 fprintf("%s", report);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-============================================================
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">46 lines</span></div>
+<pre>============================================================
  Nonlinear Dynamic MATLAB Substructure Verification
 ============================================================
 System parameters
@@ -520,8 +519,7 @@ Callback statistics
 
 
 Verification status            : PASSED
-============================================================
-</div>
+============================================================</pre>
 </div>
 
 ```matlab

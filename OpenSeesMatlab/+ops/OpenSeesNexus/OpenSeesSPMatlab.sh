@@ -34,6 +34,6 @@ export OPENSEES_BACKEND=sp
 
 escaped_root=$(printf '%s' "$package_dir" | sed "s/'/''/g")
 escaped_script=$(printf '%s' "$script" | sed "s/'/''/g")
-matlab_code="addpath('$escaped_root','-begin');OpenSeesNexus.setBackend('sp');run('$escaped_script')"
+matlab_code="addpath('$escaped_root','-begin');OpenSeesNexus.setBackend('sp');nexus.internal.runSPModel('$escaped_script')"
 exec "$mpiexec" -n 1 "$matlab" -batch "$matlab_code" \
     : -n "$((processes - 1))" "$worker"

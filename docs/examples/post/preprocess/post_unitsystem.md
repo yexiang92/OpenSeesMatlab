@@ -26,11 +26,9 @@ fprintf("Length: %g %g %g %g %g %g\n", ...
     UNIT.mm, UNIT.mm2, UNIT.cm, UNIT.m, UNIT.inch, UNIT.ft);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Length: 0.001 1e-06 0.01 1 0.0254 0.3048
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Length: 0.001 1e-06 0.01 1 0.0254 0.3048</pre>
 </div>
 
 ```matlab
@@ -39,11 +37,9 @@ fprintf("Force: %g %g %g %g %g\n", ...
     UNIT.N, UNIT.kN, UNIT.lbf, UNIT.kip, UNIT("kN/mm"));
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Force: 0.001 1 0.00444822 4.44822 1000
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Force: 0.001 1 0.00444822 4.44822 1000</pre>
 </div>
 
 ```matlab
@@ -52,11 +48,9 @@ fprintf("Stress: %g %g %g %g %g %g\n", ...
     UNIT.MPa, UNIT.kPa, UNIT.Pa, UNIT.psi, UNIT.ksi, UNIT("N/mm2"));
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Stress: 1000 1 0.001 6.89476 6894.76 1000
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Stress: 1000 1 0.001 6.89476 6894.76 1000</pre>
 </div>
 
 ```matlab
@@ -65,22 +59,18 @@ fprintf("Mass: %g %g %g %g\n", ...
     UNIT.g, UNIT.kg, UNIT.ton, UNIT.slug);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Mass: 1e-06 0.001 1 0.0145939
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Mass: 1e-06 0.001 1 0.0145939</pre>
 </div>
 
 ```matlab
 disp(UNIT)
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-&lt;UnitSystem: length="m", force="kn", time="sec"&gt;
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>&lt;UnitSystem: length=&quot;m&quot;, force=&quot;kn&quot;, time=&quot;sec&quot;&gt;</pre>
 </div>
 
 These other units will be automatically converted to the base units you have set!
@@ -116,13 +106,11 @@ freq = [f1; f2; f3];
 disp(freq);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-7.0536    8.2893
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>    7.0536    8.2893
     7.0536    8.2893
-    7.0536    8.2893
-</div>
+    7.0536    8.2893</pre>
 </div>
 
 ### **Node Displacement**
@@ -139,11 +127,9 @@ fprintf(['Displacement at node 4: ', ...
          char(length_unit1), char(length_unit3), u1(end) / u3(end));
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Displacement at node 4: cm/m = 100, m/ft = 0.3048
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Displacement at node 4: cm/m = 100, m/ft = 0.3048</pre>
 </div>
 
 ### **Node Reactions**
@@ -154,11 +140,9 @@ fprintf('Reaction at node 2: %s/%s = %g, %s/%s = %g\n', ...
     char(force_unit3), char(force_unit1), forces3(end) / forces1(end));
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Reaction at node 2: N/kN = 1000, lbf/kN = 224.809
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Reaction at node 2: N/kN = 1000, lbf/kN = 224.809</pre>
 </div>
 
 The numerical values change with the chosen units, while the physical response does not. The printed ratios should reproduce the known conversion factors for displacement and force.

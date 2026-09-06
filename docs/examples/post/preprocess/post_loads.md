@@ -59,13 +59,11 @@ opts.elements.showLabels = true;
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSeesMatlab] Model summary
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>[OpenSeesMatlab] Model summary
   Nodes: 4
-  Beam elements: 5
-</div>
+  Beam elements: 5</pre>
 </div>
 
 ```matlab

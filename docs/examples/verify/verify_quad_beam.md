@@ -99,13 +99,11 @@ opts.loads.showNodal = true;
 opsMAT.vis.plotModel(opts=opts);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-[OpenSeesMatlab] Model summary
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">3 lines</span></div>
+<pre>[OpenSeesMatlab] Model summary
   Nodes: 202
-  Plane elements: 100
-</div>
+  Plane elements: 100</pre>
 </div>
 
 ```matlab
@@ -127,11 +125,9 @@ ops.analysis('Static');
 ODB = opsMAT.post.createODB("myODB", projectGaussToNodes="extrapolate");  % create ODB
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Output file: .openseesmatlab.output\Responses-myODB.odb\output.h5</pre>
 </div>
 
 ```matlab
@@ -219,15 +215,13 @@ fprintf([ ...
     'end sigma_x', target_end, mapdl182_end, fixed_end_stress_osp, fixed_end_stress_osp / target_end);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
----------------- OpenSeesMatlab vs Reference ----------------
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">5 lines</span></div>
+<pre>---------------- OpenSeesMatlab vs Reference ----------------
 | LABEL              | TARGET     | MAPDL PLANE182  | OpenSeesMatlab  | RATIO    |
 | mid VonMises       |    8333.00 |         8163.66 |         8334.05 |   1.0001 |
 | end sigma_x        |    7407.00 |         7151.10 |         7408.09 |   1.0001 |
--------------------------------------------------------------
-</div>
+-------------------------------------------------------------</pre>
 </div>
 
 Local function:

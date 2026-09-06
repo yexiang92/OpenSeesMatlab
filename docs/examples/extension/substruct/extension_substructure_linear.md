@@ -77,7 +77,7 @@ initialState = struct("K", K0);
 
 ## Create the OpenSees model and interface
 
-Both interface nodes must exist before `matlabSubstructure` is created. Each row of `interfacePairs` fixes the ordering used by trial vectors, resisting force, and all callback matrices.
+Both interface nodes must exist before `callbackSubstructure` is created. Each row of `interfacePairs` fixes the ordering used by trial vectors, resisting force, and all callback matrices.
 
 ```matlab
 %% Create the OpenSees command interface
@@ -85,10 +85,9 @@ Both interface nodes must exist before `matlabSubstructure` is created. Each row
 opsMAT = OpenSeesMatlab();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-============================================================
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">10 lines</span></div>
+<pre>============================================================
   OpenSeesMatlab v3.8.0.2
   OpenSees MEX Interface for MATLAB
   Copyright (c) 2026, By Yexiang Yan
@@ -97,8 +96,7 @@ opsMAT = OpenSeesMatlab();
   Type 'help OpenSeesMatlab' in MATLAB for documentation.
   Documentation also available at
   https://openseesmatlab.readthedocs.io/en/latest/
-============================================================
-</div>
+============================================================</pre>
 </div>
 
 ```matlab
@@ -112,7 +110,7 @@ ops.wipe();
 cleanupGuard = onCleanup(@() cleanupLinearSubstructure(ops));
 %% Create the OpenSees model and interface nodes
 % The model and every node referenced by interfacePairs must exist before
-% matlabSubstructure is called.
+% callbackSubstructure is called.
 
 ops.model("basic", "-ndm", 1, "-ndf", 1);
 
@@ -153,7 +151,7 @@ With `tangentMode="matlab"`, OpenSees uses the tangent returned by the callback.
 
 eleTag = 1001;
 
-ops.matlabSubstructure( ...
+ops.callbackSubstructure( ...
     eleTag, ...
     @linearSubstructureCallback, ...
     initialState, ...
@@ -182,7 +180,7 @@ The callback element participates in the ordinary OpenSees equation assembly. Ne
 
 ```matlab
 %% Configure the static analysis
-% matlabSubstructure behaves as an OpenSees Element. It does not select the
+% callbackSubstructure behaves as an OpenSees Element. It does not select the
 % constraint handler, equation numberer, solver, algorithm, or integrator.
 
 ops.constraints("Plain");
@@ -310,94 +308,78 @@ verification = table( ...
 disp("Interface definition returned by the Element:");
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Interface definition returned by the Element:
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Interface definition returned by the Element:</pre>
 </div>
 
 ```matlab
 disp(interfaceDefinition);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-1     1     2     1
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>     1     1     2     1</pre>
 </div>
 
 ```matlab
 disp("Interface displacement:");
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Interface displacement:
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Interface displacement:</pre>
 </div>
 
 ```matlab
 disp(interfaceDisp(:));
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-1.0e-03 *
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">5 lines</span></div>
+<pre>   1.0e-03 *
 
 
          0
-    1.0000
-</div>
+    1.0000</pre>
 </div>
 
 ```matlab
 disp("Interface resisting force:");
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Interface resisting force:
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Interface resisting force:</pre>
 </div>
 
 ```matlab
 disp(interfaceForce(:));
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
--1
-     1
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">2 lines</span></div>
+<pre>    -1
+     1</pre>
 </div>
 
 ```matlab
 disp("Current tangent stiffness:");
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Current tangent stiffness:
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Current tangent stiffness:</pre>
 </div>
 
 ```matlab
 disp(tangent);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-1000       -1000
-       -1000        1000
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">2 lines</span></div>
+<pre>        1000       -1000
+       -1000        1000</pre>
 </div>
 
 ```matlab
@@ -417,44 +399,36 @@ meanCallbackTime = ops.eleResponse( ...
 fprintf("Verification passed.\n");
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Verification passed.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Verification passed.</pre>
 </div>
 
 ```matlab
 fprintf("Trial callback calls: %g\n", trialCalls);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Trial callback calls: 2
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Trial callback calls: 2</pre>
 </div>
 
 ```matlab
 fprintf("Total callback calls: %g\n", totalCalls);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Total callback calls: 4
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Total callback calls: 4</pre>
 </div>
 
 ```matlab
 fprintf("Mean callback time: %.6g seconds\n", meanCallbackTime);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Mean callback time: 0.0012484 seconds
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Mean callback time: 0.0012484 seconds</pre>
 </div>
 
 ```matlab
@@ -524,7 +498,7 @@ function [response, trialState, status] = ...
             % Derivative of response.force with respect to trial.disp.
             response.tangent = K;
 
-            % K0 passed to matlabSubstructure is already the fallback initial
+            % K0 passed to callbackSubstructure is already the fallback initial
             % stiffness. Returning it explicitly during init demonstrates the
             % optional callback field.
             if strcmpi(action, "init")

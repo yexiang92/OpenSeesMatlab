@@ -25,7 +25,7 @@ clear;
 clc;
 close all;
 
-opsMAT = OpenSeesMatlab();
+opsMAT = OpenSeesMatlab;
 ops = opsMAT.opensees;
 % Parameters
 
@@ -333,13 +333,9 @@ fprintf('adaptiveAnalyze completed every outer time target.\n');
 fprintf('The adaptive and ordinary dt = 0.02 solutions agree.\n');
 fprintf(['Their difference from dt = 0.001 is time-discretization ', ...
     'error, not an incomplete outer step.\n']);
-
 ops.wipe();
-
 % Local functions
 
-
-%%
 function [time, displacement] = runFixedAnalysis( ...
     ops, p, dt, algorithm, tolerance, maxIterations)
 %RUNFIXEDANALYSIS Run an ordinary fixed-step transient analysis.

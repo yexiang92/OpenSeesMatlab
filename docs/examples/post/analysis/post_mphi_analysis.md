@@ -24,10 +24,9 @@ opsMC = opsMAT.anlys.MomentCurvature;  % Get MomentCurvature instance
 disp(opsMC);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-MomentCurvature with properties:
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">10 lines</span></div>
+<pre>  MomentCurvature with properties:
 
 
        secTag: NaN
@@ -36,8 +35,7 @@ MomentCurvature with properties:
             M: [0x1 double]
     FiberData: []
     cyclePath: [0x1 double]
-    NMMresult: [1x1 struct]
-</div>
+    NMMresult: [1x1 struct]</pre>
 </div>
 
 ```matlab
@@ -219,18 +217,16 @@ for k = 1:numel(N_cases)
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Case 1: N = 0
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">8 lines</span></div>
+<pre>  Case 1: N = 0
 MomentCurvature: analysis complete.
   Case 2: N = -500 kN
 MomentCurvature: analysis complete.
   Case 3: N = -1000 kN
 MomentCurvature: analysis complete.
   Case 4: N = -2000 kN
-MomentCurvature: analysis complete.
-</div>
+MomentCurvature: analysis complete.</pre>
 </div>
 
 Plot M\-phi for all axial load levels
@@ -258,11 +254,9 @@ Yield and ultimate curvature for each case:
 fprintf('\n--- Limit-state identification ---\n');
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
---- Limit-state identification ---
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>--- Limit-state identification ---</pre>
 </div>
 
 ```matlab
@@ -270,11 +264,9 @@ fprintf('%-18s  %-10s %-12s  %-10s %-12s  %-8s\n', ...
     'Case', 'phi_y[1/m]', 'My[kN.m]', 'phi_u[1/m]', 'Mu[kN.m]', 'mu_phi');
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Case                phi_y[1/m] My[kN.m]      phi_u[1/m] Mu[kN.m]      mu_phi
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Case                phi_y[1/m] My[kN.m]      phi_u[1/m] Mu[kN.m]      mu_phi</pre>
 </div>
 
 ```matlab
@@ -319,10 +311,9 @@ for k = 1:numel(N_cases)
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Warning: matTag 1 strain -0.016 not reached; last step used.
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">11 lines</span></div>
+<pre>Warning: matTag 1 strain -0.016 not reached; last step used.
 Warning: Moment has not dropped 20.0%; last step used.
 N = 0                   0.0090        325.0      0.1500        362.6     16.67  [peak-drop]
 Warning: matTag 1 strain -0.016 not reached; last step used.
@@ -332,8 +323,7 @@ Warning: matTag 1 strain -0.016 not reached; last step used.
 Warning: Moment has not dropped 20.0%; last step used.
 N = -1000 kN            0.0105        446.3      0.1500        448.7     14.29  [peak-drop]
 Warning: Moment has not dropped 20.0%; last step used.
-N = -2000 kN            0.0125        543.1      0.1215        470.6      9.72  [crushing]
-</div>
+N = -2000 kN            0.0125        543.1      0.1215        470.6      9.72  [crushing]</pre>
 </div>
 
 ```matlab
@@ -381,14 +371,12 @@ for k = 1:numel(N_cases)
 end
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-N = 0                   0.0096        347.5
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">4 lines</span></div>
+<pre>N = 0                   0.0096        347.5
 N = -500 kN             0.0100        403.8
 N = -1000 kN            0.0105        447.1
-N = -2000 kN            0.0113        489.9
-</div>
+N = -2000 kN            0.0113        489.9</pre>
 </div>
 
 ```matlab
@@ -443,10 +431,9 @@ mc_nmm.buildNMM( ...
     'useParallel',    false);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-buildNMM: capacityMode=strain,  21 levels x 2 = 42 analyses.
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">23 lines</span></div>
+<pre>buildNMM: capacityMode=strain,  21 levels x 2 = 42 analyses.
   N = -2.400e+06  (1/21)
   N = -2.280e+06  (2/21)
   N = -2.160e+06  (3/21)
@@ -468,8 +455,7 @@ buildNMM: capacityMode=strain,  21 levels x 2 = 42 analyses.
   N = -2.400e+05  (19/21)
   N = -1.200e+05  (20/21)
   N = +0.000e+00  (21/21)
-buildNMM: done.  (42 OpenSees analyses)
-</div>
+buildNMM: done.  (42 OpenSees analyses)</pre>
 </div>
 
 ```matlab
@@ -500,11 +486,9 @@ mc_cyc.analyze( ...
     'smartAnalyze',   true);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-MomentCurvature: analysis complete.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>MomentCurvature: analysis complete.</pre>
 </div>
 
 ```matlab
