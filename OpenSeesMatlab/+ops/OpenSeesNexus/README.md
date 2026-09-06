@@ -22,6 +22,10 @@ The compatible raw entry point `OpenSeesMATLAB("command", ...)` uses the same
 native model state. For normal code, prefer the class because its named methods
 support MATLAB IDE completion.
 
+`getFEMModel()` reads the current model directly into a MATLAB structure and is
+the normal choice for plotting or inspection. `writeFEMModel(filename)` is the
+optional persistent form; reopen it with `readFEMData(filename, "model")`.
+
 ## Directory layout
 
 ```text
