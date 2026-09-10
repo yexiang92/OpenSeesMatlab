@@ -661,6 +661,12 @@ classdef Commands < handle
 
         function result = updateMaterials(obj, varargin), result = obj.mexHandle('updateMaterials', varargin{:}); end
 
+        function varargout = constraintGraphValidator(obj, varargin)
+            %CONSTRAINTGRAPHVALIDATOR Validate the active constraint graph.
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'constraintGraphValidator', varargin{:});
+        end
+
         function result = matlabversion(obj, varargin), result = obj.mexHandle('matlabversion', varargin{:}); end
 
         function varargout = callbackUniaxialMaterial(obj, varargin)
