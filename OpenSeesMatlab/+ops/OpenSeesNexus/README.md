@@ -43,10 +43,14 @@ an implementation detail rather than another installation layer. The runtime
 selects the current platform automatically. `OPENSEES_MATLAB_DIR` may override
 the native directory for development.
 
-The higher-level OpenSeesMatlab project copies this complete directory to
-`OpenSeesMatlab/+ops/OpenSeesNexus`. Bridge files beside it connect the
-toolbox command class to this sublibrary. Its publisher retains only the host
-platform's native directory in each generated toolbox.
+The build synchronizes this complete directory to
+`OpenSeesMatlab/+ops/OpenSeesNexus` when the higher-level toolbox is checked
+out beside OpenSeesNexus. Set `OPENSEES_MATLAB_UPSTREAM_PACKAGE_DIR` at CMake
+configure time for another location, or set
+`OPENSEES_MATLAB_SYNC_UPSTREAM=OFF` to disable the copy. Bridge files beside
+the destination connect the toolbox command class to this sublibrary. Its
+publisher retains only the host platform's native directory in each generated
+toolbox.
 
 ## OpenSeesSP
 
@@ -55,6 +59,11 @@ Serial OpenSees is selected by default. Start a four-rank SP model with:
 ```powershell
 .\OpenSeesSPMatlab.cmd 4 model.m
 ```
+
+Windows SP packages require the Microsoft MPI Runtime (`msmpisetup.exe`). It
+can be downloaded from the
+[official Microsoft MPI page](https://www.microsoft.com/en-us/download/details.aspx?id=105289).
+The SDK (`msmpisdk.msi`) is additionally required for source builds.
 
 On macOS:
 

@@ -7,22 +7,22 @@ This example verifies distributed domain partitioning and the parallel MUMPS sys
 
 ## **Before running: install MPI on Windows**
 
-This Windows package uses **Intel MPI**. Download the current x64 Intel MPI Library installer from the [official Intel MPI download page](https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library-download.html), run the installer, and keep its standard installation directory. The standalone runtime is sufficient for running this prebuilt example; the development component is needed only when compiling OpenSeesBindings.
+This Windows package uses **Microsoft MPI \(MS\-MPI\)**. Install `msmpisetup.exe` from the [official Microsoft MPI download page](https://www.microsoft.com/en-us/download/details.aspx?id=105289) and keep the standard installation directory. The runtime is sufficient for this prebuilt example; the SDK \(`msmpisdk.msi`\) is needed only when compiling OpenSeesNexus from source.
 
 Restart MATLAB after installation, then verify the launcher from PowerShell:
 
 <pre>
-& "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe" -n 2 hostname
+& "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -n 2 hostname
 </pre>
 
-Two host\-name lines indicate that the local MPI launcher works. `runOpenSeesSP` searches the standard Intel oneAPI directories automatically, so it does not permanently modify `PATH` and normally does not require `setvars.bat`. If several MPI versions are installed, select the compatible executable explicitly:
+Two host\-name lines indicate that the local MPI launcher works. `runOpenSeesSP` searches the standard MS\-MPI directory automatically without permanently modifying `PATH`. If several MPI versions are installed, select MS\-MPI explicitly:
 
 <pre>
-mpi = "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe";
+mpi = "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe";
 runOpenSeesSP(8, "parallel_openseessp_plane_100k.m", MpiExecutable=mpi)
 </pre>
 
-Do not launch an Intel\-MPI build with Microsoft MPI or another incompatible `mpiexec`; use the MPI implementation identified by the OpenSeesNexus release package.
+Windows OpenSeesNexus packages built for MS\-MPI must use the MS\-MPI launcher rather than an incompatible MPI implementation.
 
 ## **Run from the MATLAB Command Window**
 
