@@ -7,13 +7,13 @@ This example performs a displacement\-controlled pushover of a scalable, one\-ba
 
 ## **Before running: install MPI on Windows**
 
-This Windows package uses **Intel MPI**. Install the current x64 Intel MPI Library runtime from the [official Intel MPI download page](https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library-download.html), keep its standard installation directory, and restart MATLAB. Verify it from PowerShell with:
+This Windows package uses **Microsoft MPI \(MS\-MPI\)**. Install `msmpisetup.exe` from the [official Microsoft MPI download page](https://www.microsoft.com/en-us/download/details.aspx?id=105289), keep the standard installation directory, and restart MATLAB. The SDK \(`msmpisdk.msi`\) is needed only when compiling OpenSeesNexus from source. Verify the runtime from PowerShell with:
 
 <pre>
-& "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe" -n 2 hostname
+& "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -n 2 hostname
 </pre>
 
-`runOpenSeesSP` normally discovers this installation without changing the persistent environment. With multiple MPI versions, pass the compatible executable explicitly using `MpiExecutable="C:\...\mpiexec.exe"`. Do not mix an Intel\-MPI package with Microsoft MPI or another MPI implementation.
+`runOpenSeesSP` normally discovers the standard MS\-MPI installation without changing the persistent environment. With multiple MPI versions, select MS\-MPI explicitly using `MpiExecutable="C:\Program Files\Microsoft MPI\Bin\mpiexec.exe"`.
 
 ## **Run from the MATLAB Command Window**
 

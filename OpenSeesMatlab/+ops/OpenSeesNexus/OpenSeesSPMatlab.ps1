@@ -56,25 +56,15 @@ if (-not $MatlabExecutable) {
 
 $mpiCandidates = @()
 if ($MpiExecutable) { $mpiCandidates += $MpiExecutable }
-if ($env:I_MPI_ROOT) { $mpiCandidates += Join-Path $env:I_MPI_ROOT 'bin\mpiexec.exe' }
 if ($env:MSMPI_BIN) { $mpiCandidates += Join-Path $env:MSMPI_BIN 'mpiexec.exe' }
-if ($env:ONEAPI_ROOT) { $mpiCandidates += Join-Path $env:ONEAPI_ROOT 'mpi\latest\bin\mpiexec.exe' }
-if (${env:ProgramFiles(x86)}) {
-    $intelMpiRoot = Join-Path ${env:ProgramFiles(x86)} 'Intel\oneAPI\mpi'
-    if (Test-Path -LiteralPath $intelMpiRoot -PathType Container) {
-        $mpiCandidates += Get-ChildItem -LiteralPath $intelMpiRoot -Directory `
-            -ErrorAction SilentlyContinue |
-            Sort-Object Name -Descending |
-            ForEach-Object { Join-Path $_.FullName 'bin\mpiexec.exe' }
-    }
+if ($env:ProgramFiles) {
+    $mpiCandidates += Join-Path $env:ProgramFiles 'Microsoft MPI\Bin\mpiexec.exe'
 }
-$mpiCommand = Get-Command mpiexec.exe -ErrorAction SilentlyContinue
-if ($mpiCommand) { $mpiCandidates += $mpiCommand.Source }
 $resolvedMpiExecutable = $mpiCandidates |
     Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
     Select-Object -First 1
 if (-not $resolvedMpiExecutable) {
-    throw 'mpiexec.exe was not found automatically. Install a compatible MPI runtime or set OPENSEES_MPIEXEC.'
+    throw 'mpiexec.exe was not found automatically. Install the Microsoft MPI Runtime or set OPENSEES_MPIEXEC.'
 }
 
 # These environment changes are limited to this MPI job.

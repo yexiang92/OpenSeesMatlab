@@ -2,17 +2,17 @@
 %[text] This example verifies distributed domain partitioning and the parallel MUMPS system with a genuinely large finite-element mesh. A rectangular elastic plate is represented by exactly 100,000 four-node quadrilateral elements and loaded along its free edge.
 %%
 %[text] ### **Before running: install MPI on Windows**
-%[text] This Windows package uses **Intel MPI**. Download the current x64 Intel MPI Library installer from the [official Intel MPI download page](https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library-download.html), run the installer, and keep its standard installation directory. The standalone runtime is sufficient for running this prebuilt example; the development component is needed only when compiling OpenSeesBindings.
+%[text] This Windows package uses **Microsoft MPI (MS-MPI)**. Install `msmpisetup.exe` from the [official Microsoft MPI download page](https://www.microsoft.com/en-us/download/details.aspx?id=105289) and keep the standard installation directory. The runtime is sufficient for this prebuilt example; the SDK (`msmpisdk.msi`) is needed only when compiling OpenSeesNexus from source.
 %[text] Restart MATLAB after installation, then verify the launcher from PowerShell:
 %[text] ```
-%[text] & "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe" -n 2 hostname
+%[text] & "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -n 2 hostname
 %[text] ```
-%[text] Two host-name lines indicate that the local MPI launcher works. `runOpenSeesSP` searches the standard Intel oneAPI directories automatically, so it does not permanently modify `PATH` and normally does not require `setvars.bat`. If several MPI versions are installed, select the compatible executable explicitly:
+%[text] Two host-name lines indicate that the local MPI launcher works. `runOpenSeesSP` searches the standard MS-MPI directory automatically without permanently modifying `PATH`. If several MPI versions are installed, select MS-MPI explicitly:
 %[text] ```
-%[text] mpi = "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe";
+%[text] mpi = "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe";
 %[text] runOpenSeesSP(8, "parallel_openseessp_plane_100k.m", MpiExecutable=mpi)
 %[text] ```
-%[text] Do not launch an Intel-MPI build with Microsoft MPI or another incompatible `mpiexec`; use the MPI implementation identified by the OpenSeesNexus release package.
+%[text] Windows OpenSeesNexus packages built for MS-MPI must use the MS-MPI launcher rather than an incompatible MPI implementation.
 %%
 %[text] ### **Run from the MATLAB Command Window**
 %[text] Open the file in the Live Editor to read it, then launch a separate MPI job. Eight processes are a practical starting point; a machine with more CPU cores can request more because this mesh contains far more elements than typical workstation process counts.

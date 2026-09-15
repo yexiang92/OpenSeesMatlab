@@ -5,19 +5,19 @@
 % base-shear–roof-drift curve shows the reduction in tangent stiffness as yielding
 % spreads through displacement-based beam-column elements.
 % *Before running: install MPI on Windows*
-% This Windows package uses *Intel MPI*. Install the current x64 Intel MPI Library
-% runtime from the <https://www.intel.com/content/www/us/en/developer/tools/oneapi/mpi-library-download.html
-% official Intel MPI download page>, keep its standard installation directory,
-% and restart MATLAB. Verify it from PowerShell with:
+% This Windows package uses *Microsoft MPI (MS-MPI)*. Install |msmpisetup.exe|
+% from the <https://www.microsoft.com/en-us/download/details.aspx?id=105289
+% official Microsoft MPI download page>, keep the standard installation directory,
+% and restart MATLAB. The SDK (|msmpisdk.msi|) is needed only when compiling
+% OpenSeesNexus from source. Verify the runtime from PowerShell with:
 %%
 %
-%  & "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe" -n 2 hostname
+%  & "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -n 2 hostname
 %
 %%
-% |runOpenSeesSP| normally discovers this installation without changing the
-% persistent environment. With multiple MPI versions, pass the compatible executable
-% explicitly using |MpiExecutable="C:\...\mpiexec.exe"|. Do not mix an Intel-MPI
-% package with Microsoft MPI or another MPI implementation.
+% |runOpenSeesSP| normally discovers the standard MS-MPI installation without
+% changing the persistent environment. With multiple MPI versions, select MS-MPI
+% explicitly using |MpiExecutable="C:\Program Files\Microsoft MPI\Bin\mpiexec.exe"|.
 % *Run from the MATLAB Command Window*
 % Open this file in the Live Editor to read it, then launch the MPI job from
 % the Command Window. The response figure is transferred back from the batch child
