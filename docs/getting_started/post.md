@@ -91,6 +91,48 @@ opsMAT.vis.polyscope.plotEigen(1, eigenData);
 
 ---
 
+## Linear Buckling Mode Visualization
+
+The analysis sequence remains under user control. After
+[`linearBuckling`][ops.OpenSeesMatlabCmds.linearBuckling]
+solves the requested modes, post-processing can collect all factors and mode
+shapes in one data structure:
+
+```matlab
+ops.linearBuckling("capture");
+assert(ops.analyze(1) == 0);
+factors = ops.linearBuckling("solve", 6);
+
+bucklingData = opsMAT.post.getLinearBucklingData(factors);
+opsMAT.post.saveLinearBucklingData("plate", factors);
+
+% All mode-shape viewers recognize bucklingData.AnalysisType automatically.
+opsMAT.vis.plotEigen(1, bucklingData);
+opsMAT.vis.plotEigenGUI(bucklingData);
+opsMAT.vis.polyscope.plotEigen(bucklingData);
+```
+
+[`getLinearBucklingData`][post.OpenSeesMatlabPost.getLinearBucklingData] does
+not run, repeat, or modify the analysis. It reads
+the node mode vectors stored by the preceding `linearBuckling("solve", ...)`
+call. Buckling views display load factors rather than modal periods,
+frequencies, or participation masses. Existing eigen workflows remain modal by
+default. To override data auto-detection explicitly, set
+`opts.mode.type` to `"modal"` or `"buckling"`.
+
+Modal and buckling data also carry `AnalysisType`, so all three mode-shape
+viewers select the correct labels automatically. When `ModelInfo` is included,
+the viewers use that stored geometry before consulting the current OpenSees
+domain; saved results therefore remain viewable after `ops.wipe()`.
+
+See the [linear buckling guide](extensions/linear_buckling.md) for the tangent
+difference problem, analysis sequence, matrix assumptions, solver selection,
+and validation checks. The
+[rectangular plate example](../examples/extension/analysis/extension_linear_buckling_plate.md)
+collects and plots six modes.
+
+---
+
 ## Response Data Recording (ODB)
 
 OpenSeesMatlab uses an **ODB (Output Database)** system to record analysis results in HDF5 format.
@@ -639,3 +681,5 @@ opsMAT.vis.plotDeformation(nodeResp, stepIdx="absMax");
 
 - [Detailed Examples](../examples/post/index.md)
 - [API Reference](../api/index.md)
+- [OpenSeesNexus Extensions API](../api/OpenSeesNexusExtensions.md)
+- [Linear Buckling Analysis](extensions/linear_buckling.md)

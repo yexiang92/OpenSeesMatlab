@@ -92,3 +92,8 @@ GUI functions should continue to receive that original struct.
         - toStruct
         - toTable
 
+## Related documentation
+
+- [Post-processing API](OpenSeesMatlabPost.md)
+- [Pre/post-processing and visualization](../getting_started/post.md)
+- [Post-processing examples](../examples/post/index.md)

@@ -63,3 +63,12 @@ OpenSeesMatlab extends a range of functionalities, including *numerical substruc
   </a>
 </div>
 
+## Analysis Extensions
+
+<div class="example-gallery">
+  <a class="example-gallery__card" href="./analysis/extension_linear_buckling_plate.md">
+    <span class="example-gallery__media"><img src="./analysis/extension_linear_buckling_plate-thumbnail.png" alt="Linear buckling modes of a rectangular plate preview" loading="lazy"></span>
+    <span class="example-gallery__body"><strong>Linear buckling modes of a rectangular plate</strong><span class="example-gallery__interface"><img src="../../static/images/matlab.svg" alt=""><span>MATLAB</span></span></span>
+  </a>
+</div>
+

@@ -383,7 +383,7 @@ my_model/
 
 ```matlab
 which OpenSeesMatlab -all
-which OpenSeesMex -all
+which OpenSeesMATLAB -all
 ```
 
 确认 MATLAB 没有同时加载多个版本。更新或重新安装后，建议重启 MATLAB。

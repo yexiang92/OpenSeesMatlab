@@ -33,7 +33,7 @@ The example uses a linear spring and verifies the OpenSees results against the a
 
 Two one\-dimensional interface nodes are connected by a spring:
 
-  **fixed node 1 \-\-\-\- MATLAB spring (k) \-\-\-\- node 2 \-\-\-> P**
+ **fixed node 1 \-\-\-\- MATLAB spring (k) \-\-\-\- node 2 \-\-\-> P**
 
 Node 1 is fixed.
 
@@ -83,23 +83,6 @@ Both interface nodes must exist before `callbackSubstructure` is created. Each r
 %% Create the OpenSees command interface
 
 opsMAT = OpenSeesMatlab();
-```
-
-<div class="example-output">
-<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">10 lines</span></div>
-<pre>============================================================
-  OpenSeesMatlab v3.8.0.2
-  OpenSees MEX Interface for MATLAB
-  Copyright (c) 2026, By Yexiang Yan
-
-
-  Type 'help OpenSeesMatlab' in MATLAB for documentation.
-  Documentation also available at
-  https://openseesmatlab.readthedocs.io/en/latest/
-============================================================</pre>
-</div>
-
-```matlab
 ops = opsMAT.opensees;
 
 % Remove any model left from an earlier run.
@@ -223,6 +206,7 @@ initialStiffnessFlat = ops.eleResponse( ...
 
 interfaceDefinition = ops.eleResponse( ...
     eleTag, "interfacePairs");
+
 %% Convert flattened matrices
 % The current MATLAB wrapper can return an OpenSees matrix as a flattened
 % row vector. Convert it back to an N-by-N MATLAB matrix.
@@ -428,7 +412,7 @@ fprintf("Mean callback time: %.6g seconds\n", meanCallbackTime);
 
 <div class="example-output">
 <div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
-<pre>Mean callback time: 0.0012484 seconds</pre>
+<pre>Mean callback time: 0.0009162 seconds</pre>
 </div>
 
 ```matlab
@@ -451,22 +435,30 @@ fprintf("Mean callback time: %.6g seconds\n", meanCallbackTime);
 % OpenSees assembles this internal force into the global equilibrium
 % equations and balances it against the applied external load.
 
-%% Clean up
+```
+
+## Clean up
+
+```matlab
 % Always remove the active Element before removing its callback record.
 %
 % Recommended order:
 %
 %   1. ops.wipe()
-%   2. ops.clearMatlabSubstructures()
+%   2. ops.clearCallbackSubstructures()
 %
 % Query all required results before cleanup.
 
 ops.wipe();
-ops.clearMatlabSubstructures();
+ops.clearCallbackSubstructures();
 
 % The explicit cleanup succeeded, so remove the automatic cleanup guard.
 clear cleanupGuard
-%% MATLAB callback used by the Element
+```
+
+## MATLAB callback used by the Element
+
+```matlab
 % The callback signature is:
 %
 %   [response, trialState, status] = ...
@@ -553,7 +545,7 @@ function cleanupLinearSubstructure(ops)
     end
 
     try
-        ops.clearMatlabSubstructures();
+        ops.clearCallbackSubstructures();
     catch
     end
 end

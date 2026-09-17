@@ -138,8 +138,6 @@ title('Stiffness Matrix Visualization');
 % It can be observed that the constrained degrees of freedom are eliminated 
 % from the system matrix (only nodes 4 and 6 are retained), thus reducing the 
 % dimension of the system matrix.
-
-
 % Checking assembled matrices
 % Matrix sizes must match the active equation count. Check expected symmetry 
 % and sparsity, and remember that the tangent stiffness depends on the current 

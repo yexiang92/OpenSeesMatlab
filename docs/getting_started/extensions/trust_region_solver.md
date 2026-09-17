@@ -5,6 +5,13 @@
     constraints, numberer, integrator, linear system, analysis object, Domain,
     elements, and materials remain under normal OpenSees control.
 
+!!! warning "Validation status"
+
+    This algorithm has not yet received broad independent use. Compare critical
+    solutions with native Newton-family algorithms and verify equilibrium and
+    path dependence. Report reproducible problems through
+    [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
 The trust-region extension globalizes Newton iteration by accepting a trial
 step only when the measured residual reduction is consistent with the local
 linear model. Its algorithmic structure references the BSD-licensed Trilinos
@@ -379,3 +386,11 @@ compares OpenSees Newton and KrylovNewton with trust-region Newton, Cauchy, and
 dogleg for nonlinear pushover and Newmark transient analyses. It reports
 accuracy, timing, iteration histories, residual histories, completion, and
 return reasons with publication-style figures.
+
+## Related documentation
+
+- [`algorithm` API][ops.OpenSeesMatlabCmds.algorithm]
+- [KINSOL nonlinear solver](kinsol_solver.md)
+- [Adaptive analysis recovery](adaptive_analysis.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
+- [Extension examples](../../examples/extension/index.md)

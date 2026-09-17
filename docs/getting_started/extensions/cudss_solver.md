@@ -6,6 +6,13 @@
     - CPU solvers continue to work without an NVIDIA GPU, CUDA, or cuDSS.
     - The current binary supports the cuDSS 0.8 API. CUDA 12 is validated; CUDA 13 runtime discovery is available but has not yet been validated on a CUDA 13 test machine.
 
+!!! warning "Validation status"
+
+    The backend has not yet received broad independent use across GPU, driver,
+    matrix, and model combinations. Compare critical results with a CPU solver
+    such as `UmfPack`, and report reproducible problems through
+    [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
 The cuDSS backend can accelerate repeated sparse factorizations in large models.
 For small systems, CPU solvers may remain faster because GPU initialization,
 data transfer, and kernel-launch overhead are comparable with the solve itself.
@@ -318,6 +325,37 @@ ops.system("CuDSS", ...
     "-device", 0);
 ```
 
+## Eigenvalue and linear buckling analysis
+
+cuDSS can accelerate the repeated sparse solves used by two spectral-analysis
+paths. It does not replace ARPACK and does not move the Arnoldi iteration to
+the GPU.
+
+| Analysis path | Matrix factored by cuDSS | Reuse during one solve | Limitation |
+| --- | --- | --- | --- |
+| [`eigen("-genBandArpack", modes)`][ops.OpenSeesMatlabCmds.eigen] | Shifted stiffness `K - sigma*M` | One factorization is reused for ARPACK right-hand sides | `-fullGenLapack`, `-symmBandLapack`, and `callbackSparseEigen` do not use the active cuDSS system |
+| [`linearBuckling("solve", modes)`][ops.OpenSeesMatlabCmds.linearBuckling] | Captured base tangent `K0` | One factorization is reused while ARPACK applies `Kg = K0 - K1` | Requires symmetric `K0` and `Kg`, with constrained `K0` positive definite |
+
+For a compatible model, select the system before the eigen or buckling call:
+
+```matlab
+ops.constraints("Transformation");
+ops.numberer("RCM");
+ops.system("CuDSSSPD", "-device", 0, "-reuseFactorization");
+
+eigenvalues = ops.eigen("-genBandArpack", 10);
+```
+
+For buckling, the same active system must remain in place throughout
+`capture`, the reference-load analysis, and `solve`. See the
+[linear buckling guide](linear_buckling.md) for the complete sequence and
+matrix requirements.
+
+GPU factorization is most useful when the matrix is large enough to amortize
+runtime initialization and host-device transfers. Use `UmfPack` as the CPU
+reference and confirm the requested eigenvalues or buckling factors before
+accepting a GPU speedup.
+
 ## Choosing the matrix type
 
 The following variants are available:
@@ -370,3 +408,10 @@ nonlinear convergence settings.
 ## Examples
 
 [Extensions Examples](../../examples/extension/index.md)
+
+## Related documentation
+
+- [`system` API][ops.OpenSeesMatlabCmds.system]
+- [Linear buckling analysis](linear_buckling.md)
+- [KINSOL nonlinear solver](kinsol_solver.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)

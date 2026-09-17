@@ -68,6 +68,18 @@ Native OpenSees command interface. All standard OpenSees Tcl commands are availa
 
 ---
 
+### [OpenSeesNexus Extensions](OpenSeesNexusExtensions.md)
+
+API reference for extensions exposed through `opsMAT.opensees`, including:
+
+- analysis commands: `adaptiveAnalyze` and `linearBuckling`;
+- sparse systems: `CuDSS`, `CuDSSSPD`, and `SUNDIALS`;
+- nonlinear algorithms: `TrustRegion` and `KINSOL`;
+- `ConcreteDamagePlasticity`, MATLAB callbacks, FEMData, material updates,
+  and constraint validation.
+
+---
+
 ### [Preprocessing (OpenSeesMatlabPre)](OpenSeesMatlabPre.md)
 
 Helper functions for model preprocessing.
@@ -94,7 +106,7 @@ Data recording, retrieval, and export.
 | Category | Functions |
 |----------|-----------|
 | **Model Data** | `saveModelData`, `getModelData`, `getModelDataFromODB` |
-| **Eigen Data** | `saveEigenData`, `getEigenData` |
+| **Mode Data** | `saveEigenData`, `getEigenData`, `saveLinearBucklingData`, `getLinearBucklingData` |
 | **ODB Management** | `createODB`, `getODBData`, `close` |
 | **Response Retrieval** | `getNodalResponse`, `getElementResponse` |
 | **Export** | `writeResponsePVD` |
@@ -120,7 +132,7 @@ High-level plotting functions for models, eigen modes, and analysis results.
 | Function | Purpose |
 |----------|---------|
 | `plotModel` | Visualize model geometry (nodes, elements, constraints, loads) |
-| `plotEigen` | Visualize eigen mode shapes |
+| `plotEigen` | Visualize modal or linear-buckling mode shapes; data type is detected automatically |
 | `plotDeformation` | Plot deformed shape from nodal response |
 | `plotNodalResponse` | Plot nodal response scalar fields |
 | `plotFrameResponse` | Plot frame element response diagrams (forces, deformations) |
@@ -144,9 +156,10 @@ Recommended interactive backend for static exploration and animation.
 | Function | Purpose |
 |----------|---------|
 | `plotModel` | Inspect model geometry and display options |
-| `plotEigen` | Select and animate eigen mode shapes |
+| `plotEigen` | Select and animate modal or linear-buckling shapes; data type is detected automatically |
 | `plotNodalResponse` | Explore and animate nodal response fields and histories |
 | `plotFrameResponse` | Explore and animate frame response diagrams |
+| `plotMVLEMResponse` | Explore MVLEM wall response fields and histories |
 | `plotShellResponse` | Explore shell response fields |
 | `plotContinuumResponse` | Explore plane and solid response fields |
 | `plotUnstruResponse` | General low-level unstructured-response viewer |
@@ -195,6 +208,7 @@ General helper functions.
 
 - [OpenSeesMatlab](OpenSeesMatlab.md) — Root interface
 - [OpenSeesMatlabCmds](OpenSeesMatlabCmds.md) — Native commands
+- [OpenSeesNexus Extensions](OpenSeesNexusExtensions.md) — Extended commands, systems, algorithms, materials, and callbacks
 - [OpenSeesMatlabPre](OpenSeesMatlabPre.md) — Preprocessing
 - [OpenSeesMatlabPost](OpenSeesMatlabPost.md) — Post-processing
 - [ResponseArray and ResponseDataset](ResponseArrayDataset.md) — Label-aware response data

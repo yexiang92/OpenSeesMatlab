@@ -5,6 +5,13 @@
     `callbackUniaxialMaterial` is an OpenSeesNexus extension. It is not a native
     OpenSees material command and requires the OpenSeesMATLAB MEX module.
 
+!!! warning "Validation status"
+
+    Callback correctness depends on user code and has not received broad
+    independent use. Check tangent consistency, trial/commit/revert behavior,
+    and cyclic response against a reference material. Report adapter problems
+    through [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
 `callbackUniaxialMaterial` lets a MATLAB function implement the stress, tangent,
 and history evolution of an ordinary OpenSees `UniaxialMaterial`. Once created,
 it can be assigned to `zeroLength`, truss, section, bearing, and other OpenSees
@@ -312,3 +319,10 @@ cyclic increments as needed to resolve the response.
 ## Complete tutorials
 
 [Extensions Examples](../../examples/extension/index.md){ .md-button .md-button--primary }
+
+## Related documentation
+
+- [`callbackUniaxialMaterial` API][ops.OpenSeesMatlabCmds.callbackUniaxialMaterial]
+- [MATLAB substructure callbacks](substructure_analysis.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
+- [Extension examples](../../examples/extension/index.md)

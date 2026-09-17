@@ -8,11 +8,7 @@
 % 
 % The physical system is a single-degree-of-freedom Duffing oscillator:
 % 
-% $$
-% 
-% mu'' + cu' + k u + \alpha u^3 = P_0 \sin(\omega t)
-% 
-% $$
+% $$mu'' + cu' + k u + \alpha u^3 = P_0 \sin(\omega t)$$
 % 
 % OpenSees performs the transient analysis using the Newmark method. The MATLAB 
 % callback returns the nonlinear internal force, consistent tangent stiffness, 
@@ -667,7 +663,7 @@ sgtitle( ...
 %   2. Remove MATLAB callback records.
 
 ops.wipe();
-ops.clearMatlabSubstructures();
+ops.clearCallbackSubstructures();
 
 clear cleanupGuard
 %% Nonlinear MATLAB callback
@@ -778,7 +774,7 @@ function cleanupNonlinearDynamicModel(ops)
     end
 
     try
-        ops.clearMatlabSubstructures();
+        ops.clearCallbackSubstructures();
     catch
     end
 end

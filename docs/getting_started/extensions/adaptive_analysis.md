@@ -7,6 +7,12 @@
     [`adaptiveAnalyze`][ops.OpenSeesMatlabCmds.adaptiveAnalyze] instead of
     `analyze`.
 
+!!! warning "Validation status"
+
+    This extension has not yet received broad independent use. Check recovered
+    results against a successful fixed-step analysis when possible, and report
+    reproducible problems through [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
 `adaptiveAnalyze` runs one analysis attempt at a time. A converged step advances
 the analysis normally. If a step fails, the command can increase the convergence
 test iteration limit, switch algorithms or tests, and reduce only the failed
@@ -45,6 +51,13 @@ if ok ~= 0
     error("Adaptive analysis failed with code %d.", ok);
 end
 ```
+
+## Related documentation
+
+- [`adaptiveAnalyze` API][ops.OpenSeesMatlabCmds.adaptiveAnalyze]
+- [Extensions overview](../extensions.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
+- [Adaptive-analysis examples](../../examples/extension/index.md)
 
 For a nonlinear analysis, this is a practical starting configuration:
 

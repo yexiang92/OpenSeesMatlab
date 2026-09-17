@@ -255,8 +255,6 @@ fprintf("Maximal Von Mises stress:\n" + ...
         "  OpenSeesMatlab: %g Pa\n" + ...
         "  MATLAB PDE    : %g Pa\n", ...
         maxVonMisesStress, maxVonMisesStressPDE);
-
-
 opts = opsMAT.vis.defaultPlotContinuumResponseOptions;
 opts.fixed.show = false;
 opts.surf.showEdges = false;
@@ -274,7 +272,6 @@ title("Von Mises Stress")
 colormap("jet")
 opsMAT.vis.plotContinuumResponseGUI(planeResp);
 opsMAT.vis.polyscope.plotContinuumResponse(planeResp);
-
 % Acceptance check
 % Compute the concentration factor from the peak stress and the nominal far-field 
 % stress. Refine the mesh around the hole and check convergence before comparing 
