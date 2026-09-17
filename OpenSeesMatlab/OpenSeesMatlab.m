@@ -41,12 +41,13 @@ classdef OpenSeesMatlab < handle
     %     analysis with retries, algorithm switching, step splitting, and progress
     %     reporting.
     % post : OpenSeesMatlabPost
-    %     Post-processing utilities for collecting model information, eigen data,
-    %     and response data, and for saving/loading output databases.
+    %     Post-processing utilities for collecting model information, modal and
+    %     linear-buckling data, and response data, and for saving/loading output
+    %     databases.
     % vis : OpenSeesMatlabVis
-    %     Visualization utilities for model geometry, mode shapes, deformations,
-    %     nodal responses, frame responses, shell responses, and continuum
-    %     responses.
+    %     Visualization utilities for model geometry, modal and buckling mode
+    %     shapes, deformations, nodal responses, frame responses, shell
+    %     responses, and continuum responses.
     % utils : OpenSeesMatlabTool
     %     General helper tools, including example-model loading.
     %

@@ -13,6 +13,11 @@ arguments
 end
 
 opts0 = localMerge(plotter.PlotEigen.defaultOptions(), options.opts);
+if ~(isfield(options.opts, 'mode') && isstruct(options.opts.mode) && ...
+        isfield(options.opts.mode, 'type')) && isfield(eigenInfo, 'AnalysisType')
+    opts0.mode.type = eigenInfo.AnalysisType;
+end
+opts0.mode.type = localModeType(opts0.mode.type);
 opts0.general.clearAxes = true;
 opts0.general.holdOn = true;
 opts0.general.figureSize = [];
@@ -28,8 +33,18 @@ if ~ismember(double(opts0.mode.modeTag), double(modeTags))
     opts0.mode.modeTag = modeTags(1);
 end
 
+if strcmp(opts0.mode.type, 'buckling')
+    windowName = 'OpenSeesMatlab Buckling Mode Plotter | by Yexiang Yan';
+    panelName = 'Buckling Mode GUI';
+    infoName = 'Buckling mode information';
+else
+    windowName = 'OpenSeesMatlab Eigen Plotter | by Yexiang Yan';
+    panelName = 'PlotEigen GUI';
+    infoName = 'Modal information';
+end
+
 fig = figure( ...
-    'Name', 'OpenSeesMatlab Eigen Plotter | by Yexiang Yan', ...
+    'Name', windowName, ...
     'NumberTitle', 'off', ...
     'Color', 'w', ...
     'MenuBar', 'none', ...
@@ -40,13 +55,13 @@ fig = figure( ...
 ax = axes('Parent', fig, 'Units', 'normalized', 'Position', [0.28 0.16 0.70 0.78]);
 panel = uipanel( ...
     'Parent', fig, ...
-    'Title', 'PlotEigen GUI', ...
+    'Title', panelName, ...
     'Units', 'normalized', ...
     'Position', [0.015 0.035 0.25 0.93], ...
     'BackgroundColor', 'w');
 infoPanel = uipanel( ...
     'Parent', fig, ...
-    'Title', 'Mode information', ...
+    'Title', infoName, ...
     'Units', 'normalized', ...
     'Position', [0.28 0.035 0.70 0.11], ...
     'BackgroundColor', 'w');
@@ -63,7 +78,8 @@ y = 0.955;
 dy = 0.036;
 
 addLabel('Mode', y);
-controls.modeTag = addPopup(localModeLabels(state.modeTags, state.eigenInfo), state.opts.mode.modeTag, y);
+controls.modeTag = addPopup(localModeLabels(state.modeTags, state.eigenInfo, ...
+    state.opts.mode.type), state.opts.mode.modeTag, y);
 y = y - dy;
 
 addLabel('View', y);
@@ -127,7 +143,8 @@ controls.title = uicontrol(panel, ...
 
 controls.modeInfo = uicontrol(infoPanel, 'Style', 'edit', 'Units', 'normalized', ...
     'Position', [0.015 0.08 0.97 0.78], ...
-    'String', localModeSummary(state.eigenInfo, state.opts.mode.modeTag), ...
+    'String', localModeSummary(state.eigenInfo, state.opts.mode.modeTag, ...
+        state.opts.mode.type), ...
     'Max', 2, ...
     'Min', 0, ...
     'Enable', 'inactive', ...
@@ -314,7 +331,8 @@ redraw();
 
     function updateModeInfo()
         if isfield(controls, 'modeInfo') && ishandle(controls.modeInfo)
-            controls.modeInfo.String = localModeSummary(state.eigenInfo, state.opts.mode.modeTag);
+            controls.modeInfo.String = localModeSummary( ...
+                state.eigenInfo, state.opts.mode.modeTag, state.opts.mode.type);
         end
     end
 
@@ -407,8 +425,22 @@ elseif isfield(eigenInfo, 'EigenVectors') && isfield(eigenInfo.EigenVectors, 'da
 end
 end
 
-function labels = localModeLabels(tags, eigenInfo)
+function labels = localModeLabels(tags, eigenInfo, modeType)
 labels = strings(numel(tags), 1);
+if strcmp(modeType, 'buckling')
+    factors = [];
+    if isfield(eigenInfo, 'BucklingFactors')
+        factors = double(eigenInfo.BucklingFactors(:));
+    end
+    for i = 1:numel(tags)
+        labels(i) = sprintf('%g', tags(i));
+        if numel(factors) >= i && isfinite(factors(i))
+            labels(i) = sprintf('%g  (factor %.4g)', tags(i), factors(i));
+        end
+    end
+    labels = cellstr(labels);
+    return;
+end
 freqs = [];
 if isfield(eigenInfo, 'ModalProps') && isfield(eigenInfo.ModalProps, 'raw') && ...
         isfield(eigenInfo.ModalProps.raw, 'eigenFrequency')
@@ -456,7 +488,7 @@ for i = 1:numel(names)
 end
 end
 
-function lines = localModeSummary(eigenInfo, modeTag)
+function lines = localModeSummary(eigenInfo, modeTag, modeType)
 tags = localModeTags(eigenInfo);
 idx = find(abs(tags - double(modeTag)) < 1e-12, 1, 'first');
 if isempty(idx) && modeTag >= 1 && modeTag <= numel(tags)
@@ -466,6 +498,21 @@ end
 lines = strings(0,1);
 lines(end+1,1) = sprintf('Available modes: %d', numel(tags));
 lines(end+1,1) = sprintf('Selected mode: %g', double(modeTag));
+
+if strcmp(modeType, 'buckling')
+    if ~isempty(idx) && isfield(eigenInfo, 'BucklingFactors') && ...
+            numel(eigenInfo.BucklingFactors) >= idx
+        factor = double(eigenInfo.BucklingFactors(idx));
+        if isfinite(factor)
+            lines(end+1,1) = sprintf('Buckling load factor: %.6g', factor);
+        end
+    end
+    if isempty(idx)
+        lines(end+1,1) = 'Selected mode was not found in eigenInfo.ModeTags.';
+    end
+    lines = cellstr(lines);
+    return;
+end
 
 if ~isempty(idx) && isfield(eigenInfo, 'ModalProps') && isfield(eigenInfo.ModalProps, 'raw')
     raw = eigenInfo.ModalProps.raw;
@@ -513,6 +560,14 @@ if isempty(idx)
     lines(end+1,1) = 'Selected mode was not found in eigenInfo.ModeTags.';
 end
 lines = cellstr(lines);
+end
+
+function type = localModeType(value)
+type = lower(char(string(value)));
+if ~ismember(type, {'modal', 'buckling'})
+    error('PlotEigenGUI:InvalidModeType', ...
+        'mode.type must be ''modal'' or ''buckling''.');
+end
 end
 
 function value = localModalValue(raw, fieldName, idx)

@@ -320,6 +320,102 @@ classdef OpenSeesMatlabPost < handle
             modeData = post.EigenDataCollector(obj.parent.opensees, modelInfo);
             out = modeData.collect(numModes, solver, extraArgs{:});
         end
+
+        function saveLinearBucklingData(obj, odbTag, bucklingFactors, options)
+            % Save all mode shapes from an already-completed buckling solve.
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag = "1"
+                bucklingFactors = []
+                options.IncludeModelInfo (1,1) logical = false
+                options.InterpolateBeam (1,1) logical = true
+                options.NptsPerElement (1,1) double ...
+                    {mustBeInteger, mustBeGreaterThanOrEqual(options.NptsPerElement, 2)} = 6
+            end
+
+            data = obj.getLinearBucklingData( ...
+                bucklingFactors, ...
+                IncludeModelInfo=options.IncludeModelInfo, ...
+                InterpolateBeam=options.InterpolateBeam, ...
+                NptsPerElement=options.NptsPerElement);
+            filename = fullfile(obj.outputDir, ...
+                sprintf('linearBucklingData_%s.hdf5', string(odbTag)));
+            obj.checkOutputDir();
+            store = post.utils.HDF5DataStore(filename, 'overwrite', true);
+            store.write('/', data);
+        end
+
+        function out = getLinearBucklingData(obj, bucklingFactors, options)
+            % Collect mode shapes from an already-completed linearBuckling solve.
+            %
+            % This method performs no analysis. The caller must first run
+            % linearBuckling("capture"), the reference-load analysis, and
+            % linearBuckling("solve", numModes), then pass the returned factors
+            % here while the resulting node eigenvectors remain in the domain.
+            %
+            % Example
+            % -------
+            %     ops.linearBuckling("capture");
+            %     assert(ops.analyze(1) == 0);
+            %     factors = ops.linearBuckling("solve", 6);
+            %     data = opsmat.post.getLinearBucklingData(factors);
+
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost
+                bucklingFactors = []
+                options.odbTag = ""
+                options.IncludeModelInfo (1,1) logical = false
+                options.InterpolateBeam (1,1) logical = true
+                options.NptsPerElement (1,1) double ...
+                    {mustBeInteger, mustBeGreaterThanOrEqual(options.NptsPerElement, 2)} = 6
+            end
+
+            odbTag = string(options.odbTag);
+            if strlength(odbTag) > 0
+                filename = fullfile(obj.outputDir, ...
+                    sprintf('linearBucklingData_%s.hdf5', odbTag));
+                store = post.utils.HDF5DataStore(filename, 'overwrite', false);
+                out = store.load();
+                if ~isstruct(out)
+                    error('OpenSeesMatlabPost:InvalidLinearBucklingData', ...
+                        'Saved linear buckling data must be a struct.');
+                end
+                return;
+            end
+
+            if ~isnumeric(bucklingFactors) || ~isreal(bucklingFactors) || ...
+                    ~isvector(bucklingFactors)
+                error('OpenSeesMatlabPost:InvalidBucklingFactors', ...
+                    'bucklingFactors must be a nonempty real numeric vector.');
+            end
+            factors = double(bucklingFactors(:));
+            if isempty(factors) || any(~isfinite(factors)) || any(factors <= 0)
+                error('OpenSeesMatlabPost:InvalidBucklingFactors', ...
+                    'bucklingFactors must be a nonempty vector of finite positive values.');
+            end
+
+            modelInfo = obj.getModelData();
+            modeData = post.EigenDataCollector(obj.parent.opensees, modelInfo);
+            numModes = numel(factors);
+
+            out = struct();
+            out.AnalysisType = 'buckling';
+            out.ModeTags = (1:numModes).';
+            out.BucklingFactors = factors;
+            out.EigenVectors = modeData.getEigenVectors(numModes);
+            if options.InterpolateBeam
+                out.InterpolatedEigenVectors = ...
+                    modeData.getInterpolatedEigenVectors( ...
+                        out.EigenVectors, options.NptsPerElement, 'ignore');
+            else
+                out.InterpolatedEigenVectors = [];
+            end
+            if options.IncludeModelInfo
+                out.ModelInfo = modelInfo;
+            else
+                out.ModelInfo = struct();
+            end
+        end
     end
 
     % Responses
