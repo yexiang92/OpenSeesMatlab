@@ -103,7 +103,6 @@ S.ModalProps.raw.partiMassRatiosCumuMZ
 S.ModalProps.raw.partiMassRatiosCumuRMX
 S.ModalProps.raw.partiMassRatiosCumuRMY
 S.ModalProps.raw.partiMassRatiosCumuRMZ
-
 % Checking returned data
 % Verify tag ordering and array dimensions before indexing returned model data. 
 % Eigenvectors are organized by node, degree of freedom, and mode; a plotted mode 

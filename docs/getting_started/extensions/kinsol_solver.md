@@ -6,6 +6,13 @@
     OpenSees `algorithm`; the Domain, constraint handler, numberer, integrator,
     analysis object, and linear system remain under OpenSees control.
 
+!!! warning "Validation status"
+
+    This integration has not yet received broad independent use. Compare
+    critical solutions with a native OpenSees algorithm, inspect equilibrium
+    and response histories, and report reproducible problems through
+    [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
 [KINSOL](https://computing.llnl.gov/projects/sundials/kinsol) solves nonlinear
 systems of the form
 
@@ -545,3 +552,11 @@ For meaningful timings, warm up MATLAB and the linear solver, exclude model
 construction, repeat runs, and compare median time together with
 `tangentEvaluations`, `linearSolves`, `residualEvaluations`, backtracks,
 validation status, and response error.
+
+## Related documentation
+
+- [`algorithm` API][ops.OpenSeesMatlabCmds.algorithm]
+- [Trust-region nonlinear solver](trust_region_solver.md)
+- [Adaptive analysis recovery](adaptive_analysis.md)
+- [cuDSS sparse solver](cudss_solver.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)

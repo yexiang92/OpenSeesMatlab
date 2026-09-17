@@ -1,3 +1,9 @@
+# OpenSeesMatlabPre
+
+Preprocessing interface available as `opsMAT.pre`. These utilities prepare
+units, geometry, meshes, sections, loads, and matrices before or around the
+normal OpenSees command workflow.
+
 ::: pre.OpenSeesMatlabPre
     handler: matlab
     options:
@@ -106,3 +112,10 @@
         - circRebars
         - arcRebars
         - polygonRebars
+
+## Related documentation
+
+- [OpenSees command interface](../getting_started/opensees.md)
+- [Pre/post-processing and visualization](../getting_started/post.md)
+- [Pre/post-processing examples](../examples/post/index.md)
+- [OpenSees command API](OpenSeesMatlabCmds.md)

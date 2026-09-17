@@ -33,5 +33,14 @@ opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
         - plotEigen
         - plotNodalResponse
         - plotFrameResponse
+        - plotMVLEMResponse
         - plotShellResponse
         - plotContinuumResponse
+
+## Related documentation
+
+- [Visualization and post-processing guide](../getting_started/post.md)
+- [MATLAB graphics API](OpenSeesMatlabVis.md)
+- [Post-processing API](OpenSeesMatlabPost.md)
+- [Linear buckling visualization](../getting_started/extensions/linear_buckling.md#collect-and-visualize-all-modes)
+- [Visualization examples](../examples/post/index.md)

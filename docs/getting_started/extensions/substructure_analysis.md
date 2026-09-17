@@ -4,7 +4,15 @@
 
     - This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
     - Currently, it only supports numerical sub-models created within Matlab.
-    - Any bugs or new request can be submitted as issues on GitHub.
+    - Problems and feature requests can be submitted through
+      [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
+!!! warning "Validation status"
+
+    This coupling has not yet received broad independent use. Verify interface
+    ordering, resisting-force signs, tangent consistency, energy balance, and
+    failed-step recovery against a monolithic reference model before relying on
+    critical results.
 
 [`callbackSubstructure`][ops.OpenSeesMatlabCmds.callbackSubstructure] lets an OpenSees model use a substructure calculated by a
 MATLAB function. OpenSees treats it like an ordinary Element; when it needs the
@@ -625,3 +633,10 @@ The Element does not select the analysis algorithm or integrator. Configure
 ## Examples
 
 [Extensions Examples](../../examples/extension/index.md)
+
+## Related documentation
+
+- [`callbackSubstructure` API][ops.OpenSeesMatlabCmds.callbackSubstructure]
+- [MATLAB-defined uniaxial material](matlab_uniaxialmaterial.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
+- [Extension examples](../../examples/extension/index.md)

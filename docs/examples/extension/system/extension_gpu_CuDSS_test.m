@@ -191,57 +191,51 @@ drawnow;
 
 % Vector export for a manuscript:
 exportgraphics(figTime,"output_data/CUDSSSolverTime.pdf","ContentType","vector");
-% 7. Publication-style displacement-accuracy figure
-% Accuracy is kept as a separate figure, matching the manuscript example. Every 
-% curve is measured relative to the |UmfPack| solution. Exact zero is replaced 
-% by |eps| only for display on the logarithmic axis; the results table retains 
-% zero.
+% 7. Accuracy and speedup overview
+% The two related comparisons share one large, horizontally arranged figure. 
+% The left panel measures displacement agreement with |UmfPack|; the right panel 
+% shows repeated-solution speedup relative to the same reference. Exact zero error 
+% is replaced by |eps| only on the logarithmic display axis; the results table 
+% retains zero.
 
 
-figAccuracy = figure( ...
-    "Name","Sparse-solver displacement accuracy", ...
+figComparison = figure( ...
+    "Name","Sparse-solver accuracy and speedup", ...
     "Color","w", ...
     "Units","pixels", ...
-    "Position",[120 100 800 600]);
-axError = axes(figAccuracy);
+    "Position",[80 90 1600 720]);
+comparisonLayout = tiledlayout(figComparison,1,2, ...
+    "TileSpacing","compact","Padding","compact");
+
+axError = nexttile(comparisonLayout);
 plotComparisonMetric(axError,Results,Solvers,"RelativeTipError", ...
     PlotStyle,lineWidth,markerSize,true);
 setPublicationAxes(axError,fontName,fontSize,axisLineWidth);
+title(axError,"(a) Displacement accuracy","FontWeight","normal");
 ylabel(axError,"Relative displacement error");
-accuracyLegend = legend(axError,"Location","northwest", ...
-    "NumColumns",3,"Box","on","FontName",fontName, ...
-    "FontSize",fontSize-1.5);
-drawnow;
 
-% Vector export for a manuscript:
-exportgraphics(figAccuracy,"output_data/CUDSSSolverAccuracy.pdf", "ContentType","vector");
-% 8. Optional speedup figure
-% Speedup is useful for interpretation but is kept separate so it does not reduce 
-% the plotting area available to the accuracy figure. All values use the same 
-% |UmfPack| reference.
-
-
-figSpeedup = figure( ...
-    "Name","Sparse-solver repeated-solution speedup", ...
-    "Color","w", ...
-    "Units","pixels", ...
-    "Position",[150 120 800 600]);
-axSpeedup = axes(figSpeedup);
+axSpeedup = nexttile(comparisonLayout);
 plotComparisonMetric(axSpeedup,Results,Solvers,"RepeatedSpeedup", ...
     PlotStyle,lineWidth,markerSize,false);
 yline(axSpeedup,1,"--","UmfPack reference", ...
-    "Color",[0.25 0.25 0.25],"LineWidth",1.0, "FontSize",fontSize-1, ...
+    "Color",[0.25 0.25 0.25],"LineWidth",1.0, ...
+    "FontSize",fontSize-1, ...
     "LabelHorizontalAlignment","right","HandleVisibility","off");
 setPublicationAxes(axSpeedup,fontName,fontSize,axisLineWidth);
+title(axSpeedup,"(b) Repeated-solution speedup","FontWeight","normal");
 ylabel(axSpeedup,"Speedup");
-speedupLegend = legend(axSpeedup,"Location","northwest", ...
+
+comparisonLegend = legend(axSpeedup,"Location","northwest", ...
     "NumColumns",3,"Box","on","FontName",fontName, ...
     "FontSize",fontSize-1);
+comparisonLegend.Layout.Tile = "south";
 drawnow;
 
 % Vector export for a manuscript:
-exportgraphics(figSpeedup,"output_data/CUDSSSolverSpeedup.pdf", "ContentType","vector");
-% 9. Interpret the result
+exportgraphics(figComparison, ...
+    "output_data/CUDSSSolverAccuracyAndSpeedup.pdf", ...
+    "ContentType","vector");
+% 8. Interpret the result
 % Confirm displacement agreement before using any timing result. Then distinguish 
 % the first solution from repeated solutions: GPU initialization, matrix analysis, 
 % factorization, transfer, and reuse affect the two measurements differently.

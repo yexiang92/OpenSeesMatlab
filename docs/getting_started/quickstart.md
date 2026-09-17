@@ -386,7 +386,7 @@ Keep the return code and identify the last successful step. A smaller step may h
 
 ```matlab
 which OpenSeesMatlab -all
-which OpenSeesMex -all
+which OpenSeesMATLAB -all
 ```
 
 Make sure MATLAB is not resolving files from different releases. Restart MATLAB after reinstalling or changing the path.

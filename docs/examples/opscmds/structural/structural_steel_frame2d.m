@@ -352,7 +352,6 @@ grid on;
 xlabel('Top Displacement (inch)');
 ylabel('Base Shear (kip)');
 title('Pushover Curve');
-
 % Reading the frame response
 % Check mode shapes before gravity loading, then confirm gravity equilibrium 
 % before pushover. The base-shear versus roof-drift curve should use only converged 

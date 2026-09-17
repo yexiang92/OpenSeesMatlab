@@ -55,22 +55,19 @@ The generated scripts and illustrated walkthroughs are also available in the
 
 ### Building release toolboxes
 
-The OpenSeesBindings repository produces one universal OpenSeesNexus MATLAB
-package containing Windows x86-64 and macOS Apple silicon. Keep that package
-beside this repository, or set `OPENSEES_NEXUS_MATLAB_ROOT` to an extracted
-copy. During publishing, `publish.m` copies that complete directory to
-`OpenSeesMatlab/+ops/OpenSeesNexus` and selects only the current platform for
-the generated toolbox. The Polyscope
-MEX binary is built in the polyscope-matlab repository; place its current
-platform file here:
+Before publishing, populate the Windows x86-64 and macOS Apple-silicon native
+files under `OpenSeesMatlab/+ops/OpenSeesNexus/derived`. The Polyscope MEX
+binaries are built in the polyscope-matlab repository; place both platform
+files here:
 
 ```text
 OpenSeesMatlab/+plotter/+polyscope/vendor/+polyscope/private/polyscope_mex.<mexext>
 ```
 
 Keep any required runtime DLLs or dylibs beside the MEX module that uses them.
-Then run `publish.m` once with Windows MATLAB and once with native
-Apple-silicon MATLAB. The output files are:
+These generated binaries are ignored by Git. Run `publish.m` once to package
+the complete toolbox tree for both platforms. The script does not copy or
+replace the embedded OpenSeesNexus directory. The output files are:
 
 ```text
 release/<version>/windows-x86_64/
@@ -85,10 +82,10 @@ release/<version>/macos-aarch64/
 ```
 
 Distribute the matching platform directory, or archive each platform directory
-as one release asset. The script reads the version from the
-embedded OpenSeesNexus MEX module, preserves the toolbox identifier, records
-the current supported platform, verifies both native modules, and excludes
-binaries for other systems.
+as one release asset. The script preserves the toolbox identifier, records the
+supported platform, includes every MATLAB source file in the toolbox project,
+verifies both Nexus and Polyscope native modules, and excludes binaries for the
+other operating system.
 
 ## Quick Start
 
@@ -133,6 +130,9 @@ object reports the interface and engine versions separately as
 Optional extensions integrate MATLAB-native components and GPU acceleration
 with the standard OpenSees analysis workflow:
 
+- Recover failed nonlinear steps with `adaptiveAnalyze`
+- Compute sparse linear buckling factors and mode shapes with `linearBuckling`
+- Use `TrustRegion` or SUNDIALS `KINSOL` nonlinear algorithms
 - Define linear or history-dependent uniaxial materials with MATLAB callbacks
 - Couple MATLAB numerical substructures to an OpenSees domain
 - Solve supported sparse systems with the NVIDIA cuDSS GPU backend, including
@@ -142,6 +142,12 @@ with the standard OpenSees analysis workflow:
 See the [extension guides](https://openseesmatlab.readthedocs.io/en/latest/getting_started/extensions/)
 for setup instructions and runnable examples. CUDA and cuDSS are optional; CPU
 solvers remain available without them.
+
+These extensions have targeted tests and examples, but they have not yet
+received the same breadth of independent use as established upstream OpenSees
+features. Verify critical numerical results against benchmarks or an
+independent formulation. Please report reproducible problems through
+[GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
 
 ## 🌟 Features
 

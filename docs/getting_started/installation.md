@@ -1,6 +1,7 @@
 # Installation
 
-OpenSeesMatlab is currently distributed as a MATLAB toolbox for Windows. MATLAB R2023a or later is required.
+OpenSeesMatlab is distributed as platform-specific MATLAB toolboxes for
+Windows x86-64 and macOS Apple silicon. MATLAB R2023a or later is required.
 
 ## Install a released version
 
@@ -46,7 +47,7 @@ Next, follow [Your first analysis](quickstart.md) for a complete model–analysi
 | Item | Requirement |
 |---|---|
 | MATLAB | R2023a or later |
-| Operating system | Windows |
+| Operating system | Windows x86-64 or macOS Apple silicon |
 | OpenSees engine | Included through the OpenSeesMatlab MEX interface |
 | Interactive Polyscope viewer | Requires the packaged Polyscope MEX binary |
 
@@ -66,7 +67,10 @@ Next, follow [Your first analysis](quickstart.md) for a complete model–analysi
 
 ### The MEX file cannot be loaded
 
-- Confirm that you are using supported 64-bit Windows and MATLAB R2023a or later.
+- Confirm that the installed toolbox matches Windows x86-64 or macOS Apple
+  silicon and that MATLAB is R2023a or later.
+- Run `which OpenSeesMATLAB -all` for the serial backend. Inside a configured
+  OpenSeesSP job, run `which OpenSeesMATLABSP -all`.
 - Do not mix files from different OpenSeesMatlab releases.
 - Check whether endpoint security software quarantined a packaged binary.
 
@@ -85,3 +89,10 @@ For the lowest overhead, use `opsMat.opensees` with standard OpenSees recorders 
 OpenSeesMatlab uses `MAJOR.MINOR.PATCH.BUILD`. The first three fields identify the corresponding OpenSees release; `BUILD` identifies an OpenSeesMatlab revision built on it. For example, `3.8.0.2` is the second OpenSeesMatlab build based on OpenSees 3.8.0.
 
 See the [changelog](changelog.md) for release-specific changes.
+
+## Related documentation
+
+- [OpenSeesMatlab at a glance](overview.md)
+- [Your first analysis](quickstart.md)
+- [OpenSees command interface](opensees.md)
+- [Examples](../examples/index.md)

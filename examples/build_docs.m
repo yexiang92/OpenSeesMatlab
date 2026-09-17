@@ -50,6 +50,7 @@ tasks = [
     "extension", "adaptiveAnalyze",  "extension_adaptiveAnalyze_dynamic";
     "extension", "algorithm", "extension_KINSOL_steel_frame_benchmark";
     "extension", "algorithm", "extension_TrustRegion_steel_frame_benchmark";
+    "extension", "analysis", "extension_linear_buckling_plate";
 ];
 
 examplesDir = string(fileparts(mfilename("fullpath")));
@@ -913,6 +914,8 @@ function titleStr = localSubgroupTitle(category, subgroup)
                     titleStr = "Adaptive Analysis";
                 case "algorithm"
                     titleStr = "Nonlinear iterative algorithm";
+                case "analysis"
+                    titleStr = "Analysis Extensions";
                 otherwise
                     titleStr = localPrettyTitle(subgroup);
             end

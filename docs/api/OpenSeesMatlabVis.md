@@ -42,3 +42,11 @@ opsMAT.vis.plotModel();
         - defaultPlotFrameResponseOptions
         - defaultPlotShellResponseOptions
         - defaultPlotContinuumResponseOptions
+
+## Related documentation
+
+- [Visualization and post-processing guide](../getting_started/post.md)
+- [Polyscope API](OpenSeesMatlabVisPolyscope.md)
+- [Post-processing API](OpenSeesMatlabPost.md)
+- [Linear buckling visualization](../getting_started/extensions/linear_buckling.md#collect-and-visualize-all-modes)
+- [Visualization examples](../examples/post/index.md)

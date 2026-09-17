@@ -4,17 +4,33 @@ OpenSeesMatlab includes optional features that extend the standard OpenSees
 command workflow. These extensions use the same `ops` interface as native
 commands, but they are implemented and maintained by OpenSeesMatlab.
 
+!!! warning "Validation status"
+
+    Compared with upstream OpenSees commands, these extensions have not yet
+    received equally broad field use or independent validation. Verify critical
+    results with analytical benchmarks, mesh/time-step studies, and an
+    independent solver or formulation before research publication or
+    engineering use. Please report reproducible problems through
+    [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues), including
+    the OpenSeesMatlab version, platform, minimal model, expected result, and
+    observed result.
+
 | If you need to... | Start with |
 |---|---|
 | Retry a difficult nonlinear step without losing its remainder | `adaptiveAnalyze` |
 | Run a component or condensed model in a MATLAB function | `callbackSubstructure` |
 | Define a path-dependent uniaxial material in MATLAB | MATLAB uniaxial material |
+| Compute sparse linearized buckling factors and mode shapes | `linearBuckling` |
 | Solve a large sparse system on an NVIDIA GPU | `CuDSS` |
 | Add line-search Newton, adaptive tangent refresh, or Anderson-Picard iteration | `KINSOL` |
 | Globalize Newton steps with a native Cauchy or dogleg trust region | `TrustRegion` |
 
 Use an extension only where it solves a specific problem. An ordinary OpenSees
 command is still the clearest choice for the rest of the model.
+
+The [OpenSeesNexus extensions API](../api/OpenSeesNexusExtensions.md) is the
+compact command and type reference. The sections below link to the longer
+workflow guides and runnable examples.
 
 ## Canonical names and compatibility aliases
 
@@ -64,6 +80,16 @@ Use this extension when a component or condensed sub-model is easier to
 implement in MATLAB but must participate in an ordinary OpenSees static or
 transient analysis.
 
+## Linear buckling analysis
+
+[`linearBuckling`][ops.OpenSeesMatlabCmds.linearBuckling] captures the unloaded
+tangent, uses a converged reference-load state to obtain geometric stiffness,
+and solves a sparse generalized eigenproblem for critical load factors and
+mode shapes. The command uses the current OpenSees constraint handler,
+numberer, system, integrator, and static analysis.
+
+[Read the linear buckling workflow and requirements](extensions/linear_buckling.md){ .md-button .md-button--primary }
+
 ## NVIDIA cuDSS GPU solver
 
 The optional cuDSS backend solves sparse linear systems on a supported NVIDIA
@@ -107,4 +133,13 @@ Domain commit/revert lifecycle.
 Complete runnable examples are collected under
 [Extended functionality by OpenSeesMatlab](../examples/extension/index.md),
 including linear and nonlinear MATLAB substructures and a cuDSS plane-element
-solver comparison.
+solver comparison. The
+[rectangular plate example](../examples/extension/analysis/extension_linear_buckling_plate.md)
+calculates and plots the first six linear buckling modes.
+
+## Related reference
+
+- [OpenSees command API](../api/OpenSeesMatlabCmds.md)
+- [OpenSeesNexus extensions API](../api/OpenSeesNexusExtensions.md)
+- [Pre/post-processing and visualization](post.md)
+- [Extension examples](../examples/extension/index.md)

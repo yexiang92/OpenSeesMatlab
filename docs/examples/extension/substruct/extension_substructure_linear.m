@@ -74,8 +74,8 @@ K0 = k * [
 initialState = struct("K", K0);
 
 % Create the OpenSees model and interface
-% Both interface nodes must exist before |callbackSubstructure| is created. Each
-% row of |interfacePairs| fixes the ordering used by trial vectors, resisting 
+% Both interface nodes must exist before |callbackSubstructure| is created. 
+% Each row of |interfacePairs| fixes the ordering used by trial vectors, resisting 
 % force, and all callback matrices.
 
 %% Create the OpenSees command interface
@@ -199,6 +199,7 @@ initialStiffnessFlat = ops.eleResponse( ...
 
 interfaceDefinition = ops.eleResponse( ...
     eleTag, "interfacePairs");
+
 %% Convert flattened matrices
 % The current MATLAB wrapper can return an OpenSees matrix as a flattened
 % row vector. Convert it back to an N-by-N MATLAB matrix.
@@ -316,22 +317,28 @@ fprintf("Mean callback time: %.6g seconds\n", meanCallbackTime);
 % OpenSees assembles this internal force into the global equilibrium
 % equations and balances it against the applied external load.
 
-%% Clean up
+% Clean up
+% 
+
 % Always remove the active Element before removing its callback record.
 %
 % Recommended order:
 %
 %   1. ops.wipe()
-%   2. ops.clearMatlabSubstructures()
+%   2. ops.clearCallbackSubstructures()
 %
 % Query all required results before cleanup.
 
 ops.wipe();
-ops.clearMatlabSubstructures();
+ops.clearCallbackSubstructures();
 
 % The explicit cleanup succeeded, so remove the automatic cleanup guard.
 clear cleanupGuard
-%% MATLAB callback used by the Element
+%% 
+% 
+% MATLAB callback used by the Element
+% 
+
 % The callback signature is:
 %
 %   [response, trialState, status] = ...
@@ -418,7 +425,7 @@ function cleanupLinearSubstructure(ops)
     end
 
     try
-        ops.clearMatlabSubstructures();
+        ops.clearCallbackSubstructures();
     catch
     end
 end
