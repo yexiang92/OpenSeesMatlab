@@ -540,6 +540,16 @@ classdef Commands < handle
 
         % --- Analysis control ---------------------------------------------
         function varargout = wipeAnalysis(obj, varargin),      [varargout{1:nargout}] = obj.mexHandle('wipeAnalysis', varargin{:}); end
+        function varargout = linearBuckling(obj, varargin)
+            %LINEARBUCKLING Capture tangents and solve linearized buckling modes.
+            %   code = linearBuckling("capture") stores the base tangent of the
+            %   configured static analysis. After a converged reference-load
+            %   step, factors = linearBuckling("solve", numModes) returns the
+            %   positive critical load factors and stores the corresponding node
+            %   mode vectors for nodeEigenvector and OpenSeesMatlab post-processing.
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'linearBuckling', varargin{:});
+        end
         function varargout = reset(obj, varargin),             [varargout{1:nargout}] = obj.mexHandle('reset', varargin{:}); end
         function varargout = initialize(obj, varargin),        [varargout{1:nargout}] = obj.mexHandle('initialize', varargin{:}); end
         function varargout = reactions(obj, varargin),         [varargout{1:nargout}] = obj.mexHandle('reactions', varargin{:}); end
@@ -650,16 +660,29 @@ classdef Commands < handle
 
         function result = FEMDataRecorder(obj, varargin), result = obj.mexHandle('FEMDataRecorder', varargin{:}); end
 
-        function result = getFEMModel(obj), result = obj.mexHandle('getFEMModel'); end
-        function result = writeFEMModel(obj, varargin), result = obj.mexHandle('writeFEMModel', varargin{:}); end
+        function result = getFEMModel(obj)
+            %GETFEMMODEL Return active-domain geometry and metadata.
+            result = obj.mexHandle('getFEMModel');
+        end
+
+        function result = writeFEMModel(obj, varargin)
+            %WRITEFEMMODEL Write active-domain model data to an FEMData file.
+            result = obj.mexHandle('writeFEMModel', varargin{:});
+        end
 
         function result = readFEMData(obj, varargin), result = obj.mexHandle('readFEMData', varargin{:}); end
 
         function result = writeFEMDataPVD(obj, varargin), result = obj.mexHandle('writeFEMDataPVD', varargin{:}); end
 
-        function result = getDomainGeoTag(obj, varargin), result = obj.mexHandle('getDomainGeoTag', varargin{:}); end
+        function result = getDomainGeoTag(obj, varargin)
+            %GETDOMAINGEOTAG Return the domain topology revision identifier.
+            result = obj.mexHandle('getDomainGeoTag', varargin{:});
+        end
 
-        function result = updateMaterials(obj, varargin), result = obj.mexHandle('updateMaterials', varargin{:}); end
+        function result = updateMaterials(obj, varargin)
+            %UPDATEMATERIALS Apply supported material parameter updates.
+            result = obj.mexHandle('updateMaterials', varargin{:});
+        end
 
         function varargout = constraintGraphValidator(obj, varargin)
             %CONSTRAINTGRAPHVALIDATOR Validate the active constraint graph.

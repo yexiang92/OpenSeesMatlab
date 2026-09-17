@@ -41,11 +41,11 @@ classdef OpenSeesMatlabVisPolyscope < handle
         end
 
         function h = plotEigen(obj, varargin)
-            % Open the Polyscope eigen-mode viewer.
+            % Open the Polyscope modal/buckling-mode viewer.
             %
             % Usage:
             % --------
-            %     vis.polyscope.plotEigen(eigenData);
+            %     vis.polyscope.plotEigen(modeData);
             %
             % If eigenData is omitted it is collected from the current model.
             % The mode number can be picked directly in the GUI; modeTag only
@@ -97,7 +97,7 @@ classdef OpenSeesMatlabVisPolyscope < handle
                 opts.mode.modeTag = modeTag;
             end
 
-            modelInfo = obj.parent.parent.post.getModelData();
+            modelInfo = obj.resolveModeModelInfo_(eigenData);
             h = plotter.polyscope.plotEigen(modelInfo, eigenData, opts);
         end
 
@@ -274,6 +274,18 @@ classdef OpenSeesMatlabVisPolyscope < handle
             options.opts.responseLocation = char(string(options.responseLocation));
             options.opts.stepIdx = options.stepIdx;
             h = plotter.polyscope.plotUnstruResponse(modelInfo, nodalResp, respData, options.opts);
+        end
+    end
+
+    methods (Access = private)
+        function modelInfo = resolveModeModelInfo_(obj, modeData)
+            if isfield(modeData, 'ModelInfo') && ...
+                    isstruct(modeData.ModelInfo) && ...
+                    ~isempty(fieldnames(modeData.ModelInfo))
+                modelInfo = modeData.ModelInfo;
+            else
+                modelInfo = obj.parent.parent.post.getModelData();
+            end
         end
     end
 end

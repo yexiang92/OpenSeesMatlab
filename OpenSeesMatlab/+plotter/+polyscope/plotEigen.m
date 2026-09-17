@@ -35,6 +35,16 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             obj.EigenInfo = eigenInfo;
             obj.Opts = plotter.polyscope.Options.mergeOpts( ...
                 plotter.polyscope.Options.defaultEigenOptions(), opts);
+            if ~(isstruct(opts) && isfield(opts, 'mode') && ...
+                    isstruct(opts.mode) && isfield(opts.mode, 'type')) && ...
+                    isfield(eigenInfo, 'AnalysisType')
+                obj.Opts.mode.type = eigenInfo.AnalysisType;
+            end
+            obj.Opts.mode.type = lower(char(string(obj.Opts.mode.type)));
+            if ~ismember(obj.Opts.mode.type, {'modal', 'buckling'})
+                error('plotter:polyscope:plotEigen:InvalidModeType', ...
+                    'mode.type must be ''modal'' or ''buckling''.');
+            end
             obj.App = plotter.polyscope.PolyscopeApp();
             obj.P0_ = plotter.polyscope.ModelAdapter.nodeCoords(modelInfo);
             obj.L_  = plotter.polyscope.ModelAdapter.modelLength(modelInfo);
@@ -1181,6 +1191,20 @@ classdef plotEigen < plotter.polyscope.ViewerBase
 
         function updateProgramName_(obj)
             tag = obj.modeTags_(obj.currentIdx_);
+            if strcmp(obj.Opts.mode.type, 'buckling')
+                titleStr = sprintf('Buckling Mode %g', tag);
+                if isfield(obj.EigenInfo, 'BucklingFactors') && ...
+                        numel(obj.EigenInfo.BucklingFactors) >= obj.currentIdx_
+                    factor = double(obj.EigenInfo.BucklingFactors(obj.currentIdx_));
+                    if isfinite(factor)
+                        titleStr = sprintf('%s | Load factor = %.6g', ...
+                            titleStr, factor);
+                    end
+                end
+                obj.App.polyscopeHandle().set_program_name( ...
+                    ['OpenSeesMatlab | ' titleStr]);
+                return;
+            end
             titleStr = sprintf('Mode %g', tag);
             if isfield(obj.EigenInfo, 'ModalProps') && ...
                isfield(obj.EigenInfo.ModalProps, 'raw') && ...
@@ -1200,6 +1224,20 @@ classdef plotEigen < plotter.polyscope.ViewerBase
         function labels = modeLabels_(obj)
             tags = obj.modeTags_;
             labels = cell(numel(tags), 1);
+            if strcmp(obj.Opts.mode.type, 'buckling')
+                factors = [];
+                if isfield(obj.EigenInfo, 'BucklingFactors')
+                    factors = double(obj.EigenInfo.BucklingFactors(:));
+                end
+                for i = 1:numel(tags)
+                    labels{i} = sprintf('%g', tags(i));
+                    if numel(factors) >= i && isfinite(factors(i))
+                        labels{i} = sprintf('%g  (factor %.4g)', ...
+                            tags(i), factors(i));
+                    end
+                end
+                return;
+            end
             freqs = [];
             if isfield(obj.EigenInfo, 'ModalProps') && ...
                isfield(obj.EigenInfo.ModalProps, 'raw') && ...
@@ -1224,6 +1262,22 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             lines = {};
             lines{end+1} = sprintf('Available modes: %d', numel(tags));
             lines{end+1} = sprintf('Selected mode: %g', double(modeTag));
+
+            if strcmp(obj.Opts.mode.type, 'buckling')
+                if ~isempty(idx) && isfield(obj.EigenInfo, 'BucklingFactors') && ...
+                        numel(obj.EigenInfo.BucklingFactors) >= idx
+                    factor = double(obj.EigenInfo.BucklingFactors(idx));
+                    if isfinite(factor)
+                        lines{end+1} = sprintf( ...
+                            'Buckling load factor: %.6g', factor);
+                    end
+                end
+                if isempty(idx)
+                    lines{end+1} = ...
+                        'Selected mode was not found in eigenInfo.ModeTags.';
+                end
+                return;
+            end
 
             if ~isempty(idx) && isfield(obj.EigenInfo, 'ModalProps') && ...
                isfield(obj.EigenInfo.ModalProps, 'raw')

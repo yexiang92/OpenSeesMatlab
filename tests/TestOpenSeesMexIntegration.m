@@ -109,6 +109,70 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             clear cleanup
         end
 
+        function linearBucklingPostCollectsAndSavesMultipleModes(testCase)
+            opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
+            cleanup = onCleanup(@() opsmat.opensees.wipe());
+            outputDir = tempname;
+            mkdir(outputDir);
+            outputCleanup = onCleanup(@() ...
+                TestOpenSeesMexIntegration.deleteDirectory(outputDir));
+            ops = opsmat.opensees;
+
+            TestOpenSeesMexIntegration.buildPinnedColumn(ops, 12);
+            testCase.assertEqual(double(ops.linearBuckling('capture')), 0);
+            testCase.assertEqual(double(ops.analyze(1)), 0);
+            factors = double(ops.linearBuckling('solve', 2));
+            testCase.assertNumElements(factors, 2);
+
+            data = opsmat.post.getLinearBucklingData( ...
+                factors, IncludeModelInfo=true);
+            testCase.verifyEqual(string(data.AnalysisType), "buckling");
+            testCase.verifyEqual(data.ModeTags, [1; 2]);
+            testCase.verifyEqual(data.BucklingFactors, factors(:), ...
+                'AbsTol', 1.0e-12);
+            testCase.verifySize(data.EigenVectors.data, [2 13 6]);
+            testCase.verifyNotEmpty(data.InterpolatedEigenVectors);
+
+            opsmat.post.setOutputDir(outputDir);
+            opsmat.post.saveLinearBucklingData( ...
+                'column', factors, IncludeModelInfo=true);
+            restored = opsmat.post.getLinearBucklingData(odbTag='column');
+            testCase.verifyEqual(restored.ModeTags, [1; 2]);
+            testCase.verifyEqual(restored.BucklingFactors, factors(:), ...
+                'AbsTol', 1.0e-12);
+            testCase.verifySize(restored.EigenVectors.data, [2 13 6]);
+
+            % Mode data carrying ModelInfo must remain self-contained after the
+            % native domain has been cleared.
+            ops.wipe();
+
+            fig = figure('Visible', 'off');
+            figureCleanup = onCleanup(@() close(fig));
+            ax = axes('Parent', fig);
+            opsmat.vis.plotEigen(1, data, ax=ax);
+            testCase.verifyTrue(contains( ...
+                string(ax.Title.String), "Buckling Mode 1"));
+            testCase.verifyTrue(contains( ...
+                string(ax.Title.String), "Load factor"));
+
+            oldVisibility = get(groot, 'defaultFigureVisible');
+            visibilityCleanup = onCleanup(@() ...
+                set(groot, 'defaultFigureVisible', oldVisibility));
+            set(groot, 'defaultFigureVisible', 'off');
+            app = opsmat.vis.plotEigenGUI(data);
+            testCase.verifyTrue(contains( ...
+                string(app.Figure.Name), "Buckling Mode Plotter"));
+            close(app.Figure);
+
+            polyOpts = plotter.polyscope.Options.defaultEigenOptions();
+            polyOpts.polyscope.backend = 'openGL_mock';
+            polyOpts.polyscope.autoShow = false;
+            viewer = opsmat.vis.polyscope.plotEigen(data, polyOpts);
+            testCase.verifyClass(viewer, 'plotter.polyscope.plotEigen');
+
+            clear viewer visibilityCleanup figureCleanup outputCleanup cleanup
+        end
+
         function postModelDataMatchesNativeSnapshot(testCase)
             opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
             cleanup = onCleanup(@() opsmat.opensees.wipe());
@@ -158,6 +222,12 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
         function deleteIfPresent(path)
             if isfile(path)
                 delete(path);
+            end
+        end
+
+        function deleteDirectory(path)
+            if isfolder(path)
+                rmdir(path, 's');
             end
         end
 
@@ -211,6 +281,31 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             ops.constraints('Plain');
             ops.integrator('LoadControl', 1.0);
             ops.algorithm('Linear');
+            ops.analysis('Static');
+        end
+
+        function buildPinnedColumn(ops, numElements)
+            length = 10.0;
+            ops.wipe();
+            ops.model('basic', '-ndm', 2, '-ndf', 3);
+            for node = 0:numElements
+                ops.node(node + 1, 0.0, length * node / numElements);
+            end
+            ops.fix(1, 1, 1, 0);
+            ops.fix(numElements + 1, 1, 0, 0);
+            ops.geomTransf('Corotational', 1);
+            for element = 1:numElements
+                ops.element('elasticBeamColumn', element, element, ...
+                    element + 1, 1.0e6, 200.0, 1.0, 1);
+            end
+            ops.timeSeries('Linear', 1);
+            ops.pattern('Plain', 1, 1);
+            ops.load(numElements + 1, 0.0, -1.0, 0.0);
+            ops.constraints('Transformation');
+            ops.numberer('RCM');
+            ops.system('UmfPack');
+            ops.algorithm('Linear');
+            ops.integrator('LoadControl', 1.0);
             ops.analysis('Static');
         end
     end
