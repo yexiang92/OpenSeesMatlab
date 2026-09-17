@@ -1,8 +1,8 @@
-%% Package the toolbox for the current operating system
+%% Package the toolbox for all supported operating systems
 %
-% OpenSeesNexus is embedded as +ops/OpenSeesNexus. This script refreshes that
-% complete sublibrary, then packages only the current native platform together
-% with the higher-level OpenSeesMatlab features.
+% OpenSeesNexus and Polyscope are already embedded in the toolbox tree. This
+% script leaves those files untouched and creates one self-contained toolbox
+% for Windows x86-64 and one for macOS Apple silicon.
 
 clc;
 
@@ -16,16 +16,23 @@ srcExamplesDir = fullfile(projectRoot, "examples");
 srcUtilsDir = fullfile(srcExamplesDir, "utils");
 srcInstallScript = fullfile(projectRoot, "installOpenSeesMatlab.m");
 
-[platformTag, nativePlatform, mexExtension, minimumRelease] = currentPackagePlatform();
-bindingsPackageDir = locateBindingsPackage(projectRoot);
-syncBindingsPackage(bindingsPackageDir, toolboxRootDir, nativePlatform);
+prjFiles = dir(fullfile(toolboxRootDir, "*.prj"));
+assert(isscalar(prjFiles), ...
+    "Exactly one toolbox .prj file is required in: %s", toolboxRootDir);
+prjFile = fullfile(prjFiles(1).folder, prjFiles(1).name);
+projectOptions = matlab.addons.toolbox.ToolboxOptions(prjFile);
+version = string(projectOptions.ToolboxVersion);
+assert(strlength(version) > 0, ...
+    "The OpenSeesMatlab toolbox project has no version.");
+
+platforms = [ ...
+    struct("tag", "win64", "native", "windows-x86_64", ...
+        "mex", "mexw64", "minimumRelease", "R2023a"), ...
+    struct("tag", "maca64", "native", "macos-aarch64", ...
+        "mex", "mexmaca64", "minimumRelease", "R2023b")];
+
 nexusLibraryDir = fullfile(opsPackageDir, "OpenSeesNexus");
-ops.connectOpenSeesNexus();
 implementationDir = fullfile(nexusLibraryDir, "+nexus");
-nativeDir = fullfile(nexusLibraryDir, "derived", nativePlatform);
-mexFile = fullfile(nativeDir, "OpenSeesMATLAB." + mexExtension);
-polyscopeMexFile = fullfile(polyscopePrivateDir, ...
-    "polyscope_mex." + mexExtension);
 opsFoundationFiles = [ ...
     "Commands.m", ...
     "Runtime.m", ...
@@ -33,21 +40,10 @@ opsFoundationFiles = [ ...
     "setBackend.m", ...
     "SparseFactorizationCache.m", ...
     fullfile("+internal", "matrixOperator.m")];
-if platformTag == "win64"
-    spLauncherFiles = fullfile(nexusLibraryDir, [ ...
-        "OpenSeesSPMatlab.cmd"; ...
-        "OpenSeesSPMatlab.ps1"]);
-else
-    spLauncherFiles = fullfile(nexusLibraryDir, "OpenSeesSPMatlab.sh");
-end
 
 assert(isfolder(toolboxRootDir), "Toolbox folder does not exist: %s", toolboxRootDir);
 assert(isfolder(srcExamplesDir), "Examples folder does not exist: %s", srcExamplesDir);
 assert(isfile(srcInstallScript), "Install script does not exist: %s", srcInstallScript);
-assert(isfile(mexFile), "The %s OpenSeesNexus module is missing: %s", ...
-    platformTag, mexFile);
-assert(isfile(polyscopeMexFile), ...
-    "The %s Polyscope module is missing: %s", platformTag, polyscopeMexFile);
 assert(isfolder(opsPackageDir), ...
     "The ops MATLAB package is missing: %s", opsPackageDir);
 assert(isfolder(implementationDir), ...
@@ -57,137 +53,97 @@ for i = 1:numel(opsFoundationFiles)
     assert(isfile(helperFile), ...
         "The OpenSeesNexus file is missing: %s", helperFile);
 end
-for i = 1:numel(spLauncherFiles)
-    assert(isfile(spLauncherFiles(i)), ...
-        "The OpenSeesSP launcher is missing: %s", spLauncherFiles(i));
+
+%% Package the complete project once for each native platform
+allToolboxFiles = filesInFolder(toolboxRootDir);
+commonSourceFiles = allToolboxFiles(endsWith(lower(allToolboxFiles), ".m"));
+
+for p = 1:numel(platforms)
+    platform = platforms(p);
+    platformTag = string(platform.tag);
+    nativePlatform = string(platform.native);
+    mexExtension = string(platform.mex);
+    minimumRelease = string(platform.minimumRelease);
+    nativeDir = fullfile(nexusLibraryDir, "derived", nativePlatform);
+    mexFile = fullfile(nativeDir, "OpenSeesMATLAB." + mexExtension);
+    polyscopeMexFile = fullfile(polyscopePrivateDir, ...
+        "polyscope_mex." + mexExtension);
+
+    assert(isfile(mexFile), "The %s OpenSeesNexus module is missing: %s", ...
+        platformTag, mexFile);
+    assert(isfile(polyscopeMexFile), ...
+        "The %s Polyscope module is missing: %s", platformTag, polyscopeMexFile);
+
+    if platformTag == "win64"
+        spLauncherFiles = fullfile(nexusLibraryDir, [ ...
+            "OpenSeesSPMatlab.cmd"; ...
+            "OpenSeesSPMatlab.ps1"]);
+    else
+        spLauncherFiles = fullfile(nexusLibraryDir, "OpenSeesSPMatlab.sh");
+    end
+    for i = 1:numel(spLauncherFiles)
+        assert(isfile(spLauncherFiles(i)), ...
+            "The OpenSeesSP launcher is missing: %s", spLauncherFiles(i));
+    end
+
+    releasePlatformDir = fullfile(projectRoot, "release", version, nativePlatform);
+    ensureDir(releasePlatformDir);
+    packageName = "OpenSeesMatlab-" + version + "-" + platformTag + ".mltbx";
+    packageFile = fullfile(releasePlatformDir, packageName);
+    if isfile(packageFile)
+        delete(packageFile);
+    end
+
+    opts = matlab.addons.toolbox.ToolboxOptions(prjFile);
+    opts.ToolboxVersion = version;
+    opts.MinimumMatlabRelease = minimumRelease;
+    opts.MaximumMatlabRelease = "";
+    opts.OutputFile = packageFile;
+    opts.SupportedPlatforms = supportedPlatformsFor( ...
+        opts.SupportedPlatforms, platformTag);
+
+    % Start from the complete toolbox tree rather than the project's cached
+    % file list. filterPackageFiles removes only generated project metadata,
+    % linker products, and native files belonging to the other platform.
+    packageFiles = filterPackageFiles(allToolboxFiles, platformTag);
+    assert(all(ismember(commonSourceFiles, packageFiles)), ...
+        "The %s package would omit one or more MATLAB source files.", platformTag);
+    opts.ToolboxFiles = packageFiles;
+
+    fprintf("Packaging OpenSeesMatlab %s for %s (%d files)...\n", ...
+        version, platformTag, numel(packageFiles));
+    matlab.addons.toolbox.packageToolbox(opts);
+    assert(isfile(packageFile), ...
+        "Failed to generate toolbox package: %s", packageFile);
+
+    %% Export example scripts beside the release asset
+    targetExamplesDir = fullfile(releasePlatformDir, "examples");
+    targetUtilsDir = fullfile(targetExamplesDir, "utils");
+    targetOutputDir = fullfile(targetExamplesDir, "output_data");
+    ensureDir(targetExamplesDir);
+    ensureDir(targetOutputDir);
+
+    exampleFiles = dir(fullfile(srcExamplesDir, "*.m"));
+    exampleFiles = exampleFiles(arrayfun(@(file) isPlainTextLiveCodeFile( ...
+        fullfile(file.folder, file.name)), exampleFiles));
+    for i = 1:numel(exampleFiles)
+        sourceFile = fullfile(exampleFiles(i).folder, exampleFiles(i).name);
+        [~, baseName] = fileparts(exampleFiles(i).name);
+        export(sourceFile, fullfile(targetExamplesDir, baseName + ".m"), ...
+            Format="m");
+    end
+
+    if isfolder(srcUtilsDir)
+        copyFolderExcludeExt(srcUtilsDir, targetUtilsDir, [".png", ".mp4"]);
+    end
+    copyfile(srcInstallScript, ...
+        fullfile(releasePlatformDir, "installOpenSeesMatlab.m"));
+
+    fprintf("Created: %s\n", packageFile);
+    fprintf("Platform release directory: %s\n", releasePlatformDir);
 end
-
-%% Read the product version from the embedded OpenSeesNexus interface
-nexus = OpenSeesNexus();
-version = string(nexus.matlabversion());
-assert(strlength(version) > 0, "The native interface returned an empty version.");
-
-%% Locate the toolbox project
-prjFiles = dir(fullfile(toolboxRootDir, "*.prj"));
-assert(isscalar(prjFiles), ...
-    "Exactly one toolbox .prj file is required in: %s", toolboxRootDir);
-prjFile = fullfile(prjFiles(1).folder, prjFiles(1).name);
-
-%% Configure one self-contained platform release
-releasePlatformDir = fullfile(projectRoot, "release", version, nativePlatform);
-ensureDir(releasePlatformDir);
-
-packageName = "OpenSeesMatlab-" + version + "-" + platformTag + ".mltbx";
-packageFile = fullfile(releasePlatformDir, packageName);
-if isfile(packageFile)
-    delete(packageFile);
-end
-
-opts = matlab.addons.toolbox.ToolboxOptions(prjFile);
-opts.ToolboxVersion = version;
-opts.MinimumMatlabRelease = minimumRelease;
-opts.MaximumMatlabRelease = "";
-opts.OutputFile = packageFile;
-opts.SupportedPlatforms = supportedPlatformsFor(opts.SupportedPlatforms, platformTag);
-
-% A project can remember binaries from a previous host. Add the complete
-% current native bundle, then remove linker products and foreign binaries.
-projectFiles = string(opts.ToolboxFiles(:));
-nativeFiles = filesInFolder(nativeDir);
-opsFiles = filesInFolder(opsPackageDir);
-polyscopeNativeFiles = filesInFolder(polyscopePrivateDir);
-opts.ToolboxFiles = filterPackageFiles( ...
-    unique([projectFiles; nativeFiles; opsFiles; spLauncherFiles; polyscopeNativeFiles]), ...
-    platformTag);
-
-fprintf("Packaging OpenSeesMatlab %s for %s...\n", version, platformTag);
-matlab.addons.toolbox.packageToolbox(opts);
-assert(isfile(packageFile), "Failed to generate toolbox package: %s", packageFile);
-
-%% Export example scripts beside the release asset
-targetExamplesDir = fullfile(releasePlatformDir, "examples");
-targetUtilsDir = fullfile(targetExamplesDir, "utils");
-targetOutputDir = fullfile(targetExamplesDir, "output_data");
-ensureDir(targetExamplesDir);
-ensureDir(targetOutputDir);
-
-exampleFiles = dir(fullfile(srcExamplesDir, "*.m"));
-exampleFiles = exampleFiles(arrayfun(@(file) isPlainTextLiveCodeFile( ...
-    fullfile(file.folder, file.name)), exampleFiles));
-for i = 1:numel(exampleFiles)
-    sourceFile = fullfile(exampleFiles(i).folder, exampleFiles(i).name);
-    [~, baseName] = fileparts(exampleFiles(i).name);
-    export(sourceFile, fullfile(targetExamplesDir, baseName + ".m"), ...
-        Format="m");
-end
-
-if isfolder(srcUtilsDir)
-    copyFolderExcludeExt(srcUtilsDir, targetUtilsDir, [".png", ".mp4"]);
-end
-copyfile(srcInstallScript, fullfile(releasePlatformDir, "installOpenSeesMatlab.m"));
-
-fprintf("Created: %s\n", packageFile);
-fprintf("Platform release directory: %s\n", releasePlatformDir);
 
 %% Local functions
-function [platformTag, nativePlatform, mexExtension, minimumRelease] = currentPackagePlatform()
-    arch = string(computer("arch"));
-    switch arch
-        case "win64"
-            platformTag = "win64";
-            nativePlatform = "windows-x86_64";
-            mexExtension = "mexw64";
-            minimumRelease = "R2023a";
-        case "maca64"
-            platformTag = "maca64";
-            nativePlatform = "macos-aarch64";
-            mexExtension = "mexmaca64";
-            minimumRelease = "R2023b";
-        otherwise
-            error("OpenSeesMatlab:UnsupportedPackagingPlatform", ...
-                "Packaging supports Windows x86-64 and macOS Apple silicon; current architecture is %s.", ...
-                arch);
-    end
-end
-
-function packageDir = locateBindingsPackage(projectRoot)
-    packageDir = string(getenv("OPENSEES_NEXUS_MATLAB_ROOT"));
-    if strlength(packageDir) == 0
-        packageDir = fullfile(fileparts(projectRoot), ...
-            "OpenSeesBindings", "packages", "matlab", "OpenSeesNexus");
-    end
-    assert(isfile(fullfile(packageDir, "OpenSeesNexus.m")), ...
-        ["The OpenSeesNexus MATLAB package was not found at %s. Set " ...
-         "OPENSEES_NEXUS_MATLAB_ROOT to its extracted package root."], ...
-        packageDir);
-end
-
-function syncBindingsPackage(packageDir, toolboxRootDir, nativePlatform)
-    sourceImplementation = fullfile(packageDir, "+nexus");
-    sourceNative = fullfile(packageDir, "derived", nativePlatform);
-    targetOps = fullfile(toolboxRootDir, "+ops");
-    targetLibrary = fullfile(targetOps, "OpenSeesNexus");
-
-    assert(isfile(fullfile(sourceImplementation, "Runtime.m")), ...
-        "OpenSeesNexus does not contain +nexus/Runtime.m: %s", packageDir);
-    assert(isfolder(sourceNative), ...
-        "OpenSeesNexus does not contain native files for %s: %s", ...
-        nativePlatform, sourceNative);
-    assert(isfile(fullfile(targetOps, "OpenSeesMatlabCmds.m")), ...
-        "Refusing to modify an unrecognized +ops directory: %s", targetOps);
-
-    % OpenSeesNexus is a self-contained sublibrary. Replacing this one plain
-    % directory preserves every high-level MATLAB file beside it in +ops.
-    if isfolder(targetLibrary)
-        clear mex;
-        fileattrib(targetLibrary, "+w", "", "s");
-        rmdir(targetLibrary, "s");
-    end
-    [copied, message] = copyfile(packageDir, targetLibrary, "f");
-    assert(copied, "Could not embed OpenSeesNexus: %s", message);
-    fprintf("Embedded OpenSeesNexus from: %s\n", packageDir);
-end
-
 function supported = supportedPlatformsFor(supported, platformTag)
     names = string(fieldnames(supported));
     for i = 1:numel(names)
@@ -223,9 +179,13 @@ function files = filterPackageFiles(files, platformTag)
         "UniformOutput", false);
     extensions = string(extensions);
 
-    excluded = endsWith(lowerFiles, ...
-        [".exp", ".lib", ".pdb", ".ilk", ".obj", ".o", ".a"]);
     normalized = replace(lowerFiles, "\", "/");
+    excluded = contains(normalized, "/resources/") | ...
+        contains(normalized, "/release/") | ...
+        endsWith(normalized, ["/openseesmatlab.prj", "/toolbox.ignore", ...
+            "/deploymentlog.html", "/.gitignore", "/.gitattributes"]) | ...
+        endsWith(lowerFiles, ...
+        [".exp", ".lib", ".pdb", ".ilk", ".obj", ".o", ".a"]);
     if platformTag == "win64"
         excluded = excluded | ...
             contains(normalized, "/derived/macos-aarch64/") | ...
