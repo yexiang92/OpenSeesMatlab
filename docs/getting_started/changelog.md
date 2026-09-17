@@ -2,6 +2,21 @@
 
 ## v3.8.0.3
 
+- Add native macOS Apple-silicon support for OpenSeesNexus, OpenSeesSP and the
+  Polyscope visualization backend. Windows x86-64 and macOS Apple-silicon
+  toolboxes are distributed as separate platform packages.
+- Add ``ops.linearBuckling`` for linearized buckling analysis using the active
+  OpenSees model and sparse eigensolver backend. The command captures the base
+  tangent, evaluates the reference-load tangent, and returns positive critical
+  load factors together with the corresponding node mode vectors.
+- Add ``post.getLinearBucklingData`` and ``post.saveLinearBucklingData`` to
+  collect, retain and reload multiple buckling modes and their load factors.
+- Extend ``vis.plotEigen``, ``vis.plotEigenGUI`` and
+  ``vis.polyscope.plotEigen`` to recognize modal and buckling datasets
+  automatically, including self-contained model geometry and buckling-factor
+  labels.
+- Add a six-mode plate-buckling example and dedicated linear-buckling extension
+  documentation.
 - Add configurable ODB storage options.
 - Add the ``adaptiveAnalyze`` extension for adaptive nonlinear analysis.
 - Add the optional SUNDIALS KINSOL nonlinear algorithm with Newton, line-search,
