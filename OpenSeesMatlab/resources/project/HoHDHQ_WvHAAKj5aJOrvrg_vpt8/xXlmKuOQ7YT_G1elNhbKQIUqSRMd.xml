@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Info description="OpenSeesMatlab is a MATLAB interface for the OpenSees finite element framework. It is designed to provide a more natural MATLAB workflow for structural modeling, analysis, post-processing, and visualization, while preserving the full power of OpenSees."/>
