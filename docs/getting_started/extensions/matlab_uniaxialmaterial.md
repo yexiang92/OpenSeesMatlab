@@ -322,7 +322,7 @@ cyclic increments as needed to resolve the response.
 
 ## Related documentation
 
-- [`callbackUniaxialMaterial` API][ops.OpenSeesMatlabCmds.callbackUniaxialMaterial]
+- [`callbackUniaxialMaterial` API](../../api/OpenSeesNexusExtensions.md#matlab-callback-extensions)
 - [MATLAB substructure callbacks](substructure_analysis.md)
 - [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
 - [Extension examples](../../examples/extension/index.md)

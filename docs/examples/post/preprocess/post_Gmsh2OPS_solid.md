@@ -9,7 +9,7 @@ This example reads a Gmsh mesh by physical groups and converts it into an OpenSe
 
 This example is based on GMSH Example [t15](<https://gmsh.info/doc/texinfo/gmsh.html#t15>).
 
-**msh** file can be found in [](../utils/t15.msh).
+The [Gmsh mesh file](../../utils/t15.msh) is included with the example.
 
 ```matlab
 clc; clear;

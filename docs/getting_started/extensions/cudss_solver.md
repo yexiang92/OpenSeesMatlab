@@ -334,7 +334,7 @@ the GPU.
 | Analysis path | Matrix factored by cuDSS | Reuse during one solve | Limitation |
 | --- | --- | --- | --- |
 | [`eigen("-genBandArpack", modes)`][ops.OpenSeesMatlabCmds.eigen] | Shifted stiffness `K - sigma*M` | One factorization is reused for ARPACK right-hand sides | `-fullGenLapack`, `-symmBandLapack`, and `callbackSparseEigen` do not use the active cuDSS system |
-| [`linearBuckling("solve", modes)`][ops.OpenSeesMatlabCmds.linearBuckling] | Captured base tangent `K0` | One factorization is reused while ARPACK applies `Kg = K0 - K1` | Requires symmetric `K0` and `Kg`, with constrained `K0` positive definite |
+| [`linearBuckling("solve", modes)`](linear_buckling.md) | Captured base tangent `K0` | One factorization is reused while ARPACK applies `Kg = K0 - K1` | Requires symmetric `K0` and `Kg`, with constrained `K0` positive definite |
 
 For a compatible model, select the system before the eigen or buckling call:
 

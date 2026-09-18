@@ -82,7 +82,7 @@ transient analysis.
 
 ## Linear buckling analysis
 
-[`linearBuckling`][ops.OpenSeesMatlabCmds.linearBuckling] captures the unloaded
+[`linearBuckling`](extensions/linear_buckling.md) captures the unloaded
 tangent, uses a converged reference-load state to obtain geometric stiffness,
 and solves a sparse generalized eigenproblem for critical load factors and
 mode shapes. The command uses the current OpenSees constraint handler,

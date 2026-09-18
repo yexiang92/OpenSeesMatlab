@@ -94,7 +94,7 @@ opsMAT.vis.polyscope.plotEigen(1, eigenData);
 ## Linear Buckling Mode Visualization
 
 The analysis sequence remains under user control. After
-[`linearBuckling`][ops.OpenSeesMatlabCmds.linearBuckling]
+[`linearBuckling`](extensions/linear_buckling.md)
 solves the requested modes, post-processing can collect all factors and mode
 shapes in one data structure:
 
