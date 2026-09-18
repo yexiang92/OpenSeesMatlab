@@ -26,15 +26,15 @@ selected by an existing OpenSees command family, such as
 | Method | Purpose | Main return value |
 | --- | --- | --- |
 | [`adaptiveAnalyze`][ops.OpenSeesMatlabCmds.adaptiveAnalyze] | Retry failed static or transient steps with explicitly configured recovery strategies | OpenSees analysis status |
-| [`linearBuckling`][ops.OpenSeesMatlabCmds.linearBuckling] | Capture the unloaded tangent and solve the sparse linearized buckling problem | Status for `capture`; load-factor vector for `solve` |
-| [`FEMDataRecorder`][ops.OpenSeesMatlabCmds.FEMDataRecorder] | Create the native HDF5 FEMData recorder | Recorder status/tag |
-| [`getFEMModel`][ops.OpenSeesMatlabCmds.getFEMModel] | Return the active domain geometry and metadata | MATLAB structure |
-| [`writeFEMModel`][ops.OpenSeesMatlabCmds.writeFEMModel] | Write the active domain model to an FEMData file | Status |
-| [`readFEMData`][ops.OpenSeesMatlabCmds.readFEMData] | Read an FEMData HDF5 file | MATLAB structure |
-| [`writeFEMDataPVD`][ops.OpenSeesMatlabCmds.writeFEMDataPVD] | Write a ParaView collection for FEMData results | Status |
-| [`getDomainGeoTag`][ops.OpenSeesMatlabCmds.getDomainGeoTag] | Return the domain topology revision | Integer revision |
-| [`updateMaterials`][ops.OpenSeesMatlabCmds.updateMaterials] | Apply supported material parameter updates without modifying upstream OpenSees | Number/status of updates |
-| [`constraintGraphValidator`][ops.OpenSeesMatlabCmds.constraintGraphValidator] | Validate SP/MP constraint topology before analysis | Validation result |
+| [`linearBuckling`](#linear-buckling) | Capture the unloaded tangent and solve the sparse linearized buckling problem | Status for `capture`; load-factor vector for `solve` |
+| [`FEMDataRecorder`](#femdata-and-model-state-utilities) | Create the native HDF5 FEMData recorder | Recorder status/tag |
+| [`getFEMModel`](#femdata-and-model-state-utilities) | Return the active domain geometry and metadata | MATLAB structure |
+| [`writeFEMModel`](#femdata-and-model-state-utilities) | Write the active domain model to an FEMData file | Status |
+| [`readFEMData`](#femdata-and-model-state-utilities) | Read an FEMData HDF5 file | MATLAB structure |
+| [`writeFEMDataPVD`](#femdata-and-model-state-utilities) | Write a ParaView collection for FEMData results | Status |
+| [`getDomainGeoTag`](#femdata-and-model-state-utilities) | Return the domain topology revision | Integer revision |
+| [`updateMaterials`](#femdata-and-model-state-utilities) | Apply supported material parameter updates without modifying upstream OpenSees | Number/status of updates |
+| [`constraintGraphValidator`](#femdata-and-model-state-utilities) | Validate SP/MP constraint topology before analysis | Validation result |
 
 ### Adaptive analysis
 
@@ -166,10 +166,10 @@ OpenSeesMatlab does not yet provide its dedicated MATLAB command wrappers.
 
 | Method | Purpose |
 | --- | --- |
-| [`callbackUniaxialMaterial`][ops.OpenSeesMatlabCmds.callbackUniaxialMaterial] | Define a history-dependent uniaxial material with a MATLAB callback |
+| `callbackUniaxialMaterial` | Define a history-dependent uniaxial material with a MATLAB callback |
 | [`callbackSubstructure`][ops.OpenSeesMatlabCmds.callbackSubstructure] | Define a condensed or component element evaluated by MATLAB |
-| [`callbackSparseSystem`][ops.OpenSeesMatlabCmds.callbackSparseSystem] | Solve the assembled sparse linear system in MATLAB |
-| [`callbackSparseEigen`][ops.OpenSeesMatlabCmds.callbackSparseEigen] | Solve a sparse eigenproblem in MATLAB |
+| `callbackSparseSystem` | Solve the assembled sparse linear system in MATLAB |
+| `callbackSparseEigen` | Solve a sparse eigenproblem in MATLAB |
 | [`hasMatlabSubstructure`][ops.OpenSeesMatlabCmds.hasMatlabSubstructure] | Test whether a substructure callback is registered |
 | [`unregisterMatlabSubstructure`][ops.OpenSeesMatlabCmds.unregisterMatlabSubstructure] | Remove one registered substructure callback |
 | [`clearMatlabSubstructures`][ops.OpenSeesMatlabCmds.clearMatlabSubstructures] | Remove all registered substructure callbacks |

@@ -1,6 +1,6 @@
 # Linear Buckling Analysis
 
-[`linearBuckling`][ops.OpenSeesMatlabCmds.linearBuckling] calculates
+`linearBuckling` calculates
 linearized bifurcation load factors and mode shapes while retaining the normal
 OpenSees model-building and static-analysis workflow. OpenSeesMatlab does not
 construct or modify the model for this command; the user controls the unloaded
@@ -148,7 +148,7 @@ to store the complete mode set in an OpenSeesMatlab result file.
 ## Related API and examples
 
 - [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
-- [`linearBuckling` command API][ops.OpenSeesMatlabCmds.linearBuckling]
+- [`linearBuckling` extension API](../../api/OpenSeesNexusExtensions.md#linear-buckling)
 - [`getLinearBucklingData` API][post.OpenSeesMatlabPost.getLinearBucklingData]
 - [`plotEigen` MATLAB graphics API][plotter.OpenSeesMatlabVis.plotEigen]
 - [`plotEigen` Polyscope API][plotter.OpenSeesMatlabVisPolyscope.plotEigen]
