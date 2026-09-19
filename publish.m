@@ -20,10 +20,19 @@ prjFiles = dir(fullfile(toolboxRootDir, "*.prj"));
 assert(isscalar(prjFiles), ...
     "Exactly one toolbox .prj file is required in: %s", toolboxRootDir);
 prjFile = fullfile(prjFiles(1).folder, prjFiles(1).name);
-projectOptions = matlab.addons.toolbox.ToolboxOptions(prjFile);
-version = string(projectOptions.ToolboxVersion);
+
+% The class constant is the single source of truth for the product version.
+% Add the toolbox root only when the caller has not already placed it on the
+% MATLAB path; this also permits publish.m to run without an open project.
+pathFolders = string(strsplit(path, pathsep));
+toolboxRootWasOnPath = any(strcmpi(pathFolders, string(toolboxRootDir)));
+if ~toolboxRootWasOnPath
+    addpath(toolboxRootDir);
+    toolboxPathCleanup = onCleanup(@() rmpath(toolboxRootDir));
+end
+version = string(OpenSeesMatlab.ToolboxVersion);
 assert(strlength(version) > 0, ...
-    "The OpenSeesMatlab toolbox project has no version.");
+    "OpenSeesMatlab.ToolboxVersion must not be empty.");
 
 platforms = [ ...
     struct("tag", "win64", "native", "windows-x86_64", ...
