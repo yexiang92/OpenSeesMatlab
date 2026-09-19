@@ -53,39 +53,6 @@ After installation, explore and run example models in the `examples/` directory
 The generated scripts and illustrated walkthroughs are also available in the
 [online examples](https://openseesmatlab.readthedocs.io/en/latest/examples/).
 
-### Building release toolboxes
-
-Before publishing, populate the Windows x86-64 and macOS Apple-silicon native
-files under `OpenSeesMatlab/+ops/OpenSeesNexus/derived`. The Polyscope MEX
-binaries are built in the polyscope-matlab repository; place both platform
-files here:
-
-```text
-OpenSeesMatlab/+plotter/+polyscope/vendor/+polyscope/private/polyscope_mex.<mexext>
-```
-
-Keep any required runtime DLLs or dylibs beside the MEX module that uses them.
-These generated binaries are ignored by Git. Run `publish.m` once to package
-the complete toolbox tree for both platforms. The script does not copy or
-replace the embedded OpenSeesNexus directory. The output files are:
-
-```text
-release/<version>/windows-x86_64/
-├── OpenSeesMatlab-<version>-win64.mltbx
-├── installOpenSeesMatlab.m
-└── examples/
-
-release/<version>/macos-aarch64/
-├── OpenSeesMatlab-<version>-maca64.mltbx
-├── installOpenSeesMatlab.m
-└── examples/
-```
-
-Distribute the matching platform directory, or archive each platform directory
-as one release asset. The script preserves the toolbox identifier, records the
-supported platform, includes every MATLAB source file in the toolbox project,
-verifies both Nexus and Polyscope native modules, and excludes binaries for the
-other operating system.
 
 ## Quick Start
 
@@ -132,7 +99,6 @@ with the standard OpenSees analysis workflow:
 
 - Recover failed nonlinear steps with `adaptiveAnalyze`
 - Compute sparse linear buckling factors and mode shapes with `linearBuckling`
-- Use `TrustRegion` or SUNDIALS `KINSOL` nonlinear algorithms
 - Define linear or history-dependent uniaxial materials with MATLAB callbacks
 - Couple MATLAB numerical substructures to an OpenSees domain
 - Solve supported sparse systems with the NVIDIA cuDSS GPU backend, including
