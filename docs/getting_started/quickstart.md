@@ -6,7 +6,9 @@ All values in the example use a consistent SI unit system. You can paste the cod
 
 ## Install and verify OpenSeesMatlab
 
-OpenSeesMatlab currently supports Windows with MATLAB R2023a or later. Download a release from either location:
+OpenSeesMatlab provides separate packages for Windows x86-64 with MATLAB
+R2023a or later and macOS Apple silicon with native MATLAB R2023b or later.
+Download the package that matches your MATLAB host from either location:
 
 - [GitHub Releases](https://github.com/yexiang92/OpenSeesMatlab/releases)
 - [Gitee Releases](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases)
@@ -14,7 +16,7 @@ OpenSeesMatlab currently supports Windows with MATLAB R2023a or later. Download 
 Extract the package to a directory where you have write permission. In MATLAB, change to that directory and run the installer:
 
 ```matlab
-cd('D:\path\to\OpenSeesMatlab');
+cd('path/to/extracted/OpenSeesMatlab');
 installOpenSeesMatlab;
 ```
 
