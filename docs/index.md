@@ -1,6 +1,8 @@
 # OpenSeesMatlab
 
-**OpenSeesMatlab** brings the OpenSees finite-element engine into MATLAB. You build and analyze a model with familiar OpenSees-style commands, then use MATLAB variables and the toolbox modules to prepare inputs, manage analyses, retrieve results, and visualize them.
+**OpenSeesMatlab** lets you build and run OpenSees models directly in MATLAB.
+The model and analysis commands keep the familiar OpenSees names, while inputs,
+results, plots, loops, and parameter studies use ordinary MATLAB code.
 
 <div class="grid cards" markdown>
 
@@ -37,6 +39,11 @@ Most projects follow the same sequence:
 3. Read values directly during analysis, use standard OpenSees recorders, or create an OpenSeesMatlab ODB for structured results.
 4. Use MATLAB or [`opsMat.vis`][plotter.OpenSeesMatlabVis] to inspect and visualize the results.
 5. Call `wipe` before building an unrelated model in the same MATLAB session.
+
+In practice, a script normally has five visible blocks: create the interface,
+build the model, apply loads, configure the analysis, and read the results. Keep
+those blocks separate at first. It makes unit, boundary-condition, and
+convergence problems much easier to locate.
 
 ```matlab
 opsMat = OpenSeesMatlab();
@@ -85,7 +92,7 @@ workflow tools.
 | Model automation | Tcl loops and procedures | Python functions, classes, packages, and notebooks | MATLAB functions, classes, scripts, Live Scripts, and apps |
 | Built-in workflow in this project | Standard OpenSees commands and recorders | Provided by the separate OpenSeesPy ecosystem | [Preprocessing][pre.OpenSeesMatlabPre], [analysis helpers][analysis.OpenSeesMatlabAnalysis], [ODB post-processing][post.OpenSeesMatlabPost], and [visualization][plotter.OpenSeesMatlabVis] |
 | Interactive visualization | Normally external or script-based | Python plotting/viewer packages | MATLAB figures plus the recommended [Polyscope GUI][plotter.OpenSeesMatlabVisPolyscope] |
-| Current OpenSeesMatlab platform scope | OpenSees itself is available on multiple platforms | Available on multiple platforms | The distributed OpenSeesMatlab toolbox currently targets Windows and requires MATLAB |
+| Current OpenSeesMatlab platform scope | OpenSees itself is available on multiple platforms | Available on multiple platforms | Windows x86-64 (MATLAB R2023a+) and macOS Apple silicon (native MATLAB R2023b+) |
 
 Choose **Tcl** when you want the traditional OpenSees scripting environment
 and maximum compatibility with established Tcl examples. Choose
@@ -128,10 +135,15 @@ For large transient models, record only the data you need. Convenience layers ma
 
 ## Scope and requirements
 
-- MATLAB R2023a or later
-- Windows (the currently supported platform)
+- Windows x86-64 with MATLAB R2023a or later
+- macOS Apple silicon with native MATLAB R2023b or later
+- Separate platform packages; install the package matching the MATLAB host
+- Intel-based macOS and Linux packages are not currently distributed
 - Command syntax aligned as closely as possible with OpenSees and OpenSeesPy
 - MATLAB-native access to returned numeric and structured data
+
+See [Installation](getting_started/installation.md#supported-platforms) for the
+platform matrix and installation procedure.
 
 <div class="grid cards" markdown>
 

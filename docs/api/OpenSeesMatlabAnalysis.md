@@ -1,3 +1,10 @@
+# OpenSeesMatlabAnalysis
+
+Higher-level analysis workflows available as `opsMAT.anlys`. Native analysis
+extensions invoked directly through `opsMAT.opensees`, such as
+`adaptiveAnalyze` and `linearBuckling`, are documented in the
+[OpenSeesNexus extensions API](OpenSeesNexusExtensions.md).
+
 ::: analysis.OpenSeesMatlabAnalysis
     handler: matlab
     options:
@@ -65,3 +72,10 @@
         - plotFiberResponses
         - buildNMM
         - plotNMM
+
+## Related documentation
+
+- [Extensions overview](../getting_started/extensions.md)
+- [Adaptive analysis guide](../getting_started/extensions/adaptive_analysis.md)
+- [Linear buckling guide](../getting_started/extensions/linear_buckling.md)
+- [OpenSeesNexus extensions API](OpenSeesNexusExtensions.md)

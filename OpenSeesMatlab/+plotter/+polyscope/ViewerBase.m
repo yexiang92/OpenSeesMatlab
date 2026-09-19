@@ -23,14 +23,41 @@ classdef (Abstract) ViewerBase < handle
         windowSizeCache_ double = zeros(0, 2)
         windowSizeCacheTimer_ = []
         screenAxesUpdateTimer_ = []
+        guiEnabled_ logical = false
+        logoTextures_ struct = struct()
+        videoRecording_ logical = false
+        videoLastStep_ double = -1
+        videoFrameFiles_ cell = {}
+        videoTempDir_ char = ''
+        videoOutputFile_ char = ''
+        videoFormat_ char = 'mp4'
+        videoFps_ double = 12
+        videoStatus_ char = ''
+        lastGuiCallbackError_ char = ''
+        slicePlotData_ struct = struct()
     end
 
     methods
-        function show(obj)
+        function show(obj, forFrames)
             if ~obj.built_
                 obj.build();
             end
-            obj.App.show();
+            if obj.guiEnabled_
+                obj.App.setUserCallback(@obj.guiCallback_);
+                % MATLAB owns the callback render loop. Never allow the
+                % native frame_begin() to enter its idle wait path, because
+                % that blocks MATLAB before the next event-polling frame and
+                % leaves the GLFW window completely unresponsive.
+                obj.keepGuiEventLoopAlive_();
+            end
+            % Treat closing the native window as the end of this Polyscope
+            % session. onCleanup also covers callback/MEX exceptions.
+            cleanup = onCleanup(@() obj.closeViewerSession_()); %#ok<NASGU>
+            if nargin < 2
+                obj.App.show();
+            else
+                obj.App.show(forFrames);
+            end
         end
 
         function frameTick(obj)
@@ -52,7 +79,13 @@ classdef (Abstract) ViewerBase < handle
                 obj.build();
             end
             obj.initGuiState_();
+            % Reapply the selected theme before the first GUI frame. This is
+            % important when a new viewer reuses an initialized Polyscope app.
+            themes = {'light', 'dark'};
+            obj.applyPlotTheme_(themes{obj.gui_.plotThemeIdx});
+            obj.guiEnabled_ = true;
             obj.App.setUserCallback(@obj.guiCallback_);
+            obj.keepGuiEventLoopAlive_();
         end
 
         function screenshot(obj, filename, varargin)
@@ -79,6 +112,19 @@ classdef (Abstract) ViewerBase < handle
         function applySlicePlanes(obj)
             %APPLYSLICEPLANES Apply current slice-plane state to Polyscope.
             obj.applySlicePlane_();
+        end
+
+        function close(obj)
+            %CLOSE Close the native window and release its graphics session.
+            % The MATLAB viewer remains valid and may be shown again.
+            obj.closeViewerSession_();
+        end
+
+        function delete(obj)
+            try
+                obj.closeViewerSession_();
+            catch
+            end
         end
     end
 
@@ -114,6 +160,13 @@ classdef (Abstract) ViewerBase < handle
                 obj.gui_.viewIdx = 1;
             end
             obj.gui_.ssaaFactor = obj.getOptField_(obj.Opts.polyscope, 'ssaaFactor', 2);
+            themes = {'light', 'dark'};
+            theme = lower(char(string(obj.getOptField_(obj.Opts.polyscope, 'plotTheme', 'light'))));
+            obj.gui_.plotThemeIdx = find(strcmp(themes, theme), 1);
+            if isempty(obj.gui_.plotThemeIdx), obj.gui_.plotThemeIdx = 1; end
+            % Polyscope may initialize/reset ImGui when the native window is
+            % first shown. Reapply once from the first real GUI frame.
+            obj.gui_.uiThemeAppliedInFrame = false;
         end
 
         function name = structName_(obj, base, prefix)
@@ -288,15 +341,105 @@ classdef (Abstract) ViewerBase < handle
             rgb = max(0, min(1, rgb));
         end
 
+        function rgba = asRgba_(obj, c, defaultAlpha)
+            if nargin < 3, defaultAlpha = 1; end
+            vals = double(c(:).');
+            if isempty(vals), vals = [1, 1, 1, defaultAlpha]; end
+            rgb = obj.asRgb_(vals(1:min(3, numel(vals))));
+            if numel(vals) >= 4
+                alpha = vals(4);
+                if alpha > 1, alpha = alpha / 255; end
+            else
+                alpha = defaultAlpha;
+            end
+            rgba = [rgb, max(0, min(1, alpha))];
+        end
+
         function names = colormapNames_(~)
             names = {'viridis', 'blues', 'reds', 'coolwarm', 'pink-green', ...
                      'phase', 'spectral', 'rainbow', 'jet', 'turbo'};
         end
 
+        function changed = drawPlotThemeGui_(obj, idSuffix)
+            if nargin < 2 || isempty(idSuffix), idSuffix = ''; end
+            GB = plotter.polyscope.GuiBuilder;
+            themes = {'light', 'dark'};
+            oldIdx = obj.gui_.plotThemeIdx;
+            obj.gui_.plotThemeIdx = GB.combo(['Plot theme' char(string(idSuffix))], oldIdx, themes);
+            changed = obj.gui_.plotThemeIdx ~= oldIdx;
+            if changed
+                obj.applyPlotTheme_(themes{obj.gui_.plotThemeIdx});
+            end
+            GB.separator();
+        end
+
+        function applyPlotTheme_(obj, theme)
+            theme = lower(char(string(theme)));
+            if strcmp(theme, 'dark')
+                bg = [0, 0, 0];
+                fg = [1, 1, 1, 1];
+            else
+                theme = 'light';
+                bg = [1, 1, 1];
+                fg = [0, 0, 0, 1];
+            end
+            obj.Opts.polyscope.plotTheme = theme;
+            obj.Opts.polyscope.backgroundColor = bg;
+            obj.Opts.polyscope.colorbarBackgroundColor = [bg, 0.70];
+            obj.Opts.polyscope.colorbarTickColor = fg;
+            obj.Opts.polyscope.colorbarLabelColor = fg;
+            obj.Opts.polyscope.colorbarTitleColor = fg;
+            if isfield(obj.gui_, 'colorbarBackgroundColor')
+                obj.gui_.colorbarBackgroundColor = [bg, 0.70];
+                obj.gui_.colorbarTickColor = fg;
+                obj.gui_.colorbarLabelColor = fg;
+                obj.gui_.colorbarTitleColor = fg;
+            end
+            try
+                obj.App.setBackgroundColor(bg);
+                plotter.polyscope.applyUiTheme(theme);
+                obj.App.polyscopeHandle().request_redraw();
+            catch
+            end
+        end
+
+        function ensureUiThemeForFrame_(obj)
+            if isfield(obj.gui_, 'uiThemeAppliedInFrame') && ...
+                    obj.gui_.uiThemeAppliedInFrame
+                return;
+            end
+            theme = obj.getOptField_(obj.Opts.polyscope, 'plotTheme', 'light');
+            plotter.polyscope.applyUiTheme(theme);
+            obj.gui_.uiThemeAppliedInFrame = true;
+        end
+
         function fps = defaultAnimationFps_(~, nSteps)
-            % Target roughly a 20-second pass, bounded for usability and by
-            % the default interactive render-loop limit.
-            fps = max(5, min(60, round(double(max(1, nSteps)) / 20)));
+            % A responsive default which leaves rendering headroom.
+            fps = min(30, max(10, round(double(max(1, nSteps)) / 20)));
+        end
+
+        function fps = animationFpsUpperBound_(~, nSteps)
+            % Keep the animation rate proportional to the available samples.
+            % Short histories retain a practical 10 FPS upper limit.
+            fps = min(60, max(10, double(max(0, nSteps)) / 10));
+        end
+
+        function fps = clampAnimationFps_(obj, fps, nSteps)
+            fps = min(obj.animationFpsUpperBound_(nSteps), ...
+                max(1, double(fps)));
+        end
+
+        function stride = recommendedFrameStride_(~, nSteps, fps, duration)
+            fps = max(1, double(fps));
+            duration = max(1, double(duration));
+            stride = max(1, ceil(double(max(0, nSteps - 1)) / ...
+                (fps * duration)));
+        end
+
+        function duration = estimatedAnimationDuration_(~, nSteps, fps, stride)
+            nFrames = ceil(double(max(0, nSteps - 1)) / ...
+                max(1, double(stride)));
+            duration = nFrames / max(1, double(fps));
         end
 
         function initColorbarGuiState_(obj, defaultTitle)
@@ -307,8 +450,22 @@ classdef (Abstract) ViewerBase < handle
                 'onscreenColorbar', false);
             obj.gui_.onscreenColorbarLocation = obj.getOptField_(obj.Opts.polyscope, ...
                 'onscreenColorbarLocation', []);
+            if numel(obj.gui_.onscreenColorbarLocation) ~= 2 || ...
+                    any(~isfinite(obj.gui_.onscreenColorbarLocation))
+                obj.gui_.onscreenColorbarLocation = obj.defaultColorbarLocation_();
+                obj.Opts.polyscope.onscreenColorbarLocation = ...
+                    obj.gui_.onscreenColorbarLocation;
+            end
             obj.gui_.colorbarTitle = char(string(obj.getOptField_(obj.Opts.polyscope, ...
                 'colorbarTitle', defaultTitle)));
+            obj.gui_.colorbarBackgroundColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarBackgroundColor', [1, 1, 1, 0.70]), 0.70);
+            obj.gui_.colorbarTickColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarTickColor', [0, 0, 0, 1]), 1);
+            obj.gui_.colorbarLabelColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarLabelColor', [0, 0, 0, 1]), 1);
+            obj.gui_.colorbarTitleColor = obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, ...
+                'colorbarTitleColor', [0, 0, 0, 1]), 1);
         end
 
         function changed = drawColorbarGui_(obj, idSuffix, includeTitle)
@@ -316,16 +473,24 @@ classdef (Abstract) ViewerBase < handle
             if nargin < 3, includeTitle = true; end
             changed = false;
             labelSuffix = char(string(idSuffix));
-            oldState = obj.gui_;
             GB = plotter.polyscope.GuiBuilder;
+            oldShow = obj.gui_.onscreenColorbar;
             obj.gui_.onscreenColorbar = GB.checkbox(['Colorbar' labelSuffix], obj.gui_.onscreenColorbar);
+            GB.helpMarker('Show or hide the on-screen legend for the active scalar response.');
+            changed = changed || oldShow ~= obj.gui_.onscreenColorbar;
             obj.Opts.polyscope.onscreenColorbar = logical(obj.gui_.onscreenColorbar);
             if obj.gui_.onscreenColorbar
+                GB.subtitle('Colorbar settings');
                 loc = obj.gui_.onscreenColorbarLocation;
                 if numel(loc) < 2 || any(~isfinite(loc))
-                    loc = [1200, 800];
+                    loc = obj.defaultColorbarLocation_();
+                    obj.gui_.onscreenColorbarLocation = loc;
+                    obj.Opts.polyscope.onscreenColorbarLocation = loc;
                 end
                 [moved, loc] = polyscope.ImGui.InputFloat2(['Colorbar pos' labelSuffix], double(loc(:).'));
+                GB.helpMarker(['Edit the X and Y pixel coordinates to move the colorbar. ' ...
+                    'The origin is at the upper-left of the Polyscope window.']);
+                changed = changed || obj.itemEditCommitted_(moved);
                 if moved
                     obj.gui_.onscreenColorbarLocation = loc;
                     obj.Opts.polyscope.onscreenColorbarLocation = loc;
@@ -333,20 +498,69 @@ classdef (Abstract) ViewerBase < handle
                 if includeTitle
                     title = char(string(obj.gui_.colorbarTitle));
                     [tchg, title] = polyscope.ImGui.InputText(['Colorbar title' labelSuffix], title);
+                    changed = changed || obj.itemEditCommitted_(tchg);
                     if tchg
                         obj.gui_.colorbarTitle = title;
                         obj.Opts.polyscope.colorbarTitle = title;
                     end
                 end
-            end
-            fields = {'onscreenColorbar','onscreenColorbarLocation','colorbarTitle'};
-            for i = 1:numel(fields)
-                nm = fields{i};
-                if isfield(oldState, nm) && isfield(obj.gui_, nm) && ~isequal(oldState.(nm), obj.gui_.(nm))
-                    changed = true;
-                    return;
+                GB.subtitle('Colorbar colors');
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar background' labelSuffix], obj.gui_.colorbarBackgroundColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
+                if cchg
+                    obj.gui_.colorbarBackgroundColor = obj.asRgba_(color, 0.70);
+                    obj.Opts.polyscope.colorbarBackgroundColor = obj.gui_.colorbarBackgroundColor;
+                end
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar ticks' labelSuffix], obj.gui_.colorbarTickColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
+                if cchg
+                    obj.gui_.colorbarTickColor = obj.asRgba_(color, 1);
+                    obj.Opts.polyscope.colorbarTickColor = obj.gui_.colorbarTickColor;
+                end
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar labels' labelSuffix], obj.gui_.colorbarLabelColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
+                if cchg
+                    obj.gui_.colorbarLabelColor = obj.asRgba_(color, 1);
+                    obj.Opts.polyscope.colorbarLabelColor = obj.gui_.colorbarLabelColor;
+                end
+                [cchg, color] = polyscope.ImGui.ColorEdit4( ...
+                    ['Colorbar title color' labelSuffix], obj.gui_.colorbarTitleColor);
+                changed = changed || obj.itemEditCommitted_(cchg);
+                if cchg
+                    obj.gui_.colorbarTitleColor = obj.asRgba_(color, 1);
+                    obj.Opts.polyscope.colorbarTitleColor = obj.gui_.colorbarTitleColor;
                 end
             end
+        end
+
+        function committed = itemEditCommitted_(~, changed)
+            % Expensive native updates should run once when a continuous
+            % text/position/color edit is released, not on every drag frame.
+            committed = logical(changed);
+            try
+                if polyscope.ImGui.IsItemActive()
+                    committed = false;
+                elseif polyscope.ImGui.IsItemDeactivatedAfterEdit()
+                    committed = true;
+                end
+            catch
+            end
+        end
+
+        function loc = defaultColorbarLocation_(obj)
+            % ImGui coordinates use the upper-left window corner as origin.
+            % Reserve the docked response panel and place the colorbar near
+            % the lower-right corner of the remaining model viewport.
+            ws = obj.safeWindowSize_([1280, 720]);
+            panelWidth = 400;
+            colorbarWidth = 150;
+            bottomOffset = 210;
+            margin = 20;
+            loc = [max(margin, round(ws(1) - panelWidth - colorbarWidth - margin)), ...
+                   max(margin, round(ws(2) - bottomOffset))];
         end
 
         function cb = colorbarArgs_(obj)
@@ -359,6 +573,12 @@ classdef (Abstract) ViewerBase < handle
             if ~isempty(loc) && numel(loc) == 2 && all(isfinite(loc))
                 cb = [cb, {'onscreen_colorbar_location', double(loc(:).')}];
             end
+            cb = [cb, { ...
+                'onscreen_colorbar_title', char(string(obj.getOptField_(obj.Opts.polyscope, 'colorbarTitle', ''))), ...
+                'onscreen_colorbar_background_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarBackgroundColor', [1,1,1,0.70]), 0.70), ...
+                'onscreen_colorbar_tick_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarTickColor', [0,0,0,1]), 1), ...
+                'onscreen_colorbar_label_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarLabelColor', [0,0,0,1]), 1), ...
+                'onscreen_colorbar_title_color', obj.asRgba_(obj.getOptField_(obj.Opts.polyscope, 'colorbarTitleColor', [0,0,0,1]), 1)}];
         end
 
         function changed = drawSsaaGui_(obj, idSuffix)
@@ -403,7 +623,8 @@ classdef (Abstract) ViewerBase < handle
                        'center', [0, 0, 0], 'normal', [0, 0, 1], ...
                        'widgetSize', 0.75, 'transparency', 0.45, ...
                        'color', [0.90, 0.35, 0.55], 'gridColor', [1, 1, 1], ...
-                       'cullWholeElements', false);
+                       'cullWholeElements', false, 'showContour', false, ...
+                       'showContourEdges', true, 'showContourWindow', false);
         end
 
         function g = slicePlaneOptsToGui_(obj, p)
@@ -422,6 +643,9 @@ classdef (Abstract) ViewerBase < handle
             g.color = plotter.polyscope.utils.colorToRgb(obj.getOptField_(p, 'color', [0.90, 0.35, 0.55]));
             g.gridColor = plotter.polyscope.utils.colorToRgb(obj.getOptField_(p, 'gridColor', [1, 1, 1]));
             g.cullWholeElements = logical(obj.getOptField_(p, 'cullWholeElements', false));
+            g.showContour = logical(obj.getOptField_(p, 'showContour', false));
+            g.showContourEdges = logical(obj.getOptField_(p, 'showContourEdges', true));
+            g.showContourWindow = logical(obj.getOptField_(p, 'showContourWindow', false));
         end
 
         function normalizeSliceOpts_(obj)
@@ -442,7 +666,10 @@ classdef (Abstract) ViewerBase < handle
                               'color', [0.90, 0.35, 0.55], ...
                               'gridColor', [1, 1, 1], ...
                               'transparency', 0.45, ...
-                              'cullWholeElements', false);
+                              'cullWholeElements', false, ...
+                              'showContour', false, ...
+                              'showContourEdges', true, ...
+                              'showContourWindow', false);
             fields = fieldnames(defaults);
             % Legacy scalar slice options -> wrap into planes(1)
             if ~isfield(s, 'planes')
@@ -801,6 +1028,7 @@ classdef (Abstract) ViewerBase < handle
         end
 
         function drawScreenAxesOverlay_(obj)
+            obj.drawLogoOverlay_();
             if ~obj.getOptField_(obj.Opts.polyscope, 'showScreenAxes', true)
                 return;
             end
@@ -823,10 +1051,12 @@ classdef (Abstract) ViewerBase < handle
                 leftPanelW = min(420, displaySize(1) * 0.22);
                 origin = [leftPanelW + margin + sizePx, displaySize(2) - margin - sizePx];
 
-                bg = double(polyscope.ImGui.GetColorU32Vec4([1, 1, 1, 0.55]));
-                border = double(polyscope.ImGui.GetColorU32Vec4([0.15, 0.15, 0.15, 0.35]));
-                dl.AddCircleFilled(origin, sizePx * 0.72, bg, 32);
-                dl.AddCircle(origin, sizePx * 0.72, border, 32, 1.0);
+                if strcmpi(char(string(obj.getOptField_(obj.Opts.polyscope, 'plotTheme', 'light'))), 'dark')
+                    axesText = [1, 1, 1, 1];
+                else
+                    axesText = [0, 0, 0, 1];
+                end
+                textColor = double(polyscope.ImGui.GetColorU32Vec4(axesText));
 
                 dirs = obj.screenAxisDirections_();
                 axes = {'X', 'Y', 'Z'};
@@ -835,10 +1065,293 @@ classdef (Abstract) ViewerBase < handle
                           0.12, 0.32, 0.92, 1.0];
                 for ia = 1:3
                     obj.drawScreenAxisArrow_(dl, origin, dirs(ia, :), sizePx, ...
-                        double(polyscope.ImGui.GetColorU32Vec4(colors(ia, :))), axes{ia});
+                        double(polyscope.ImGui.GetColorU32Vec4(colors(ia, :))), textColor, axes{ia});
                 end
+                % Tie the three axes together visually with a compact hub.
+                hubOuter = double(polyscope.ImGui.GetColorU32Vec4([0.18, 0.22, 0.28, 0.90]));
+                hubInner = double(polyscope.ImGui.GetColorU32Vec4([0.80, 0.88, 0.96, 1.00]));
+                dl.AddCircleFilled(origin, sizePx * 0.090, hubOuter, 18);
+                dl.AddCircleFilled(origin, sizePx * 0.057, hubInner, 18);
             catch
             end
+        end
+
+        function drawLogoOverlay_(obj)
+            if ~obj.getOptField_(obj.Opts.polyscope, 'showLogo', true), return; end
+            try
+                theme = lower(char(string(obj.getOptField_( ...
+                    obj.Opts.polyscope, 'plotTheme', 'light'))));
+                if ~strcmp(theme, 'dark'), theme = 'light'; end
+                if ~isfield(obj.logoTextures_, theme)
+                    classPath = which('plotter.polyscope.ViewerBase');
+                    imagePath = fullfile(fileparts(classPath), '+utils', ...
+                        ['logo-' theme '.png']);
+                    if ~isfile(imagePath), return; end
+                    [handle, width, height] = ...
+                        obj.App.polyscopeHandle().load_image_texture(imagePath);
+                    obj.logoTextures_.(theme) = struct( ...
+                        'handle', handle, 'width', width, 'height', height);
+                end
+                texture = obj.logoTextures_.(theme);
+                io = polyscope.ImGui.GetIO();
+                displaySize = double(io.DisplaySize);
+                if numel(displaySize) < 2 || any(displaySize(1:2) <= 0), return; end
+                width = double(obj.getOptField_(obj.Opts.polyscope, 'logoWidth', 280));
+                width = max(100, min(360, width));
+                height = width * double(texture.height) / max(1, double(texture.width));
+                margin = double(obj.getOptField_(obj.Opts.polyscope, 'logoMargin', 22));
+                copyrightLines = { ...
+                    char(string(obj.getOptField_(obj.Opts.polyscope, ...
+                        'copyrightLine1', 'Copyright © Yexiang Yan.'))), ...
+                    char(string(obj.getOptField_(obj.Opts.polyscope, ...
+                        'copyrightLine2', 'All rights reserved.')))};
+                % Reserve a stable two-line footer height. Text metrics are
+                % queried later so a missing glyph can never hide the logo.
+                footerHeight = 36;
+                logoGap = 7;
+                pMax = [displaySize(1) - margin, ...
+                    displaySize(2) - margin - footerHeight - logoGap];
+                pMin = pMax - [width, height];
+                tint = double(polyscope.ImGui.GetColorU32Vec4([1, 1, 1, 1]));
+                dl = polyscope.ImGui.GetForegroundDrawList();
+                dl.AddImage(texture.handle, pMin, pMax, [0, 0], [1, 1], tint);
+                try
+                    if strcmp(theme, 'dark')
+                        textRgba = [0.90, 0.92, 0.95, 0.92];
+                    else
+                        textRgba = [0.14, 0.17, 0.22, 0.88];
+                    end
+                    textColor = double(polyscope.ImGui.GetColorU32Vec4(textRgba));
+                    lineGap = 2;
+                    line2Size = double(polyscope.ImGui.CalcTextSize(copyrightLines{2}));
+                    line2Pos = [displaySize(1) - margin - line2Size(1), ...
+                        displaySize(2) - margin - line2Size(2)];
+                    line1Size = double(polyscope.ImGui.CalcTextSize(copyrightLines{1}));
+                    line1Pos = [displaySize(1) - margin - line1Size(1), ...
+                        line2Pos(2) - lineGap - line1Size(2)];
+                    dl.AddText(line1Pos, textColor, copyrightLines{1});
+                    dl.AddText(line2Pos, textColor, copyrightLines{2});
+                catch
+                    % Older MEX builds cannot convert non-ASCII MATLAB text;
+                    % the logo remains visible until the pending MEX updates.
+                end
+            catch
+                % Decorative overlay must never interrupt viewer interaction.
+            end
+        end
+
+        function startRequested = drawVideoRecorderGui_(obj, idSuffix, fps)
+            % Shared controls for response-animation GIF/MP4 export.
+            if nargin < 2, idSuffix = ''; end
+            if nargin < 3, fps = 12; end
+            startRequested = false;
+            if ~isfield(obj.gui_, 'videoFilename') || isempty(obj.gui_.videoFilename)
+                obj.gui_.videoFilename = 'OpenSeesMatlab_animation';
+            end
+            GB = plotter.polyscope.GuiBuilder;
+            GB.separator();
+            GB.subtitle('Animation export');
+            if ~obj.videoRecording_
+                [changed, name] = polyscope.ImGui.InputText( ...
+                    ['File name' char(string(idSuffix))], char(obj.gui_.videoFilename));
+                GB.helpMarker(['Enter a file name or path. The GIF or MP4 button replaces the extension ' ...
+                    'automatically and exports using the current FPS and frame stride.']);
+                if changed, obj.gui_.videoFilename = name; end
+                if GB.button(['Export GIF' char(string(idSuffix))])
+                    obj.startVideoRecording_(obj.gui_.videoFilename, fps, 'gif');
+                    startRequested = obj.videoRecording_;
+                end
+                GB.sameLine();
+                if GB.button(['Export MP4' char(string(idSuffix))])
+                    obj.startVideoRecording_(obj.gui_.videoFilename, fps, 'mp4');
+                    startRequested = obj.videoRecording_;
+                end
+            else
+                polyscope.ImGui.Text(sprintf('Recording: %d frames', ...
+                    numel(obj.videoFrameFiles_)));
+                if GB.button(['Cancel recording' char(string(idSuffix))])
+                    obj.cancelVideoRecording_('Animation export cancelled.');
+                end
+            end
+            if ~isempty(obj.videoStatus_)
+                polyscope.ImGui.TextWrapped(obj.videoStatus_);
+            end
+        end
+
+        function captureAnimationVideoFrame_(obj, step, playing)
+            % Capture the framebuffer rendered by the preceding GUI frame.
+            if ~obj.videoRecording_, return; end
+            step = double(step);
+            if step ~= obj.videoLastStep_
+                try
+                    file = fullfile(obj.videoTempDir_, ...
+                        sprintf('frame_%06d.png', numel(obj.videoFrameFiles_) + 1));
+                    obj.App.screenshot(file);
+                    obj.videoFrameFiles_{end + 1} = file;
+                    obj.videoLastStep_ = step;
+                catch ME
+                    obj.cancelVideoRecording_(['Animation capture failed: ' ME.message]);
+                    return;
+                end
+            end
+            if ~playing
+                obj.finishVideoRecording_();
+            end
+        end
+
+        function startVideoRecording_(obj, filename, fps, format)
+            obj.cancelVideoRecording_('');
+            filename = char(string(filename));
+            format = lower(char(string(format)));
+            if ~any(strcmp(format, {'gif', 'mp4'})), format = 'mp4'; end
+            if isempty(filename), filename = 'OpenSeesMatlab_animation'; end
+            [folder, base] = fileparts(filename);
+            if isempty(folder), folder = pwd; end
+            if ~isfolder(folder)
+                obj.videoStatus_ = ['Animation folder does not exist: ' folder];
+                return;
+            end
+            obj.videoFormat_ = format;
+            obj.videoOutputFile_ = fullfile(folder, [base '.' format]);
+            obj.videoTempDir_ = tempname;
+            mkdir(obj.videoTempDir_);
+            obj.videoFrameFiles_ = {};
+            obj.videoLastStep_ = -1;
+            obj.videoFps_ = max(1, double(fps));
+            obj.videoStatus_ = ['Recording to ' obj.videoOutputFile_];
+            obj.videoRecording_ = true;
+        end
+
+        function finishVideoRecording_(obj)
+            if ~obj.videoRecording_, return; end
+            files = obj.videoFrameFiles_;
+            output = obj.videoOutputFile_;
+            obj.videoRecording_ = false;
+            if isempty(files)
+                obj.videoStatus_ = 'Animation export stopped before any frame was captured.';
+                obj.clearVideoTemp_();
+                return;
+            end
+            try
+                if strcmp(obj.videoFormat_, 'gif')
+                    delay = 1 / max(1, obj.videoFps_);
+                    for i = 1:numel(files)
+                        rgb = imread(files{i});
+                        [indexed, map] = rgb2ind(rgb, 256);
+                        if i == 1
+                            imwrite(indexed, map, output, 'gif', ...
+                                'LoopCount', inf, 'DelayTime', delay);
+                        else
+                            imwrite(indexed, map, output, 'gif', ...
+                                'WriteMode', 'append', 'DelayTime', delay);
+                        end
+                    end
+                else
+                    writer = VideoWriter(output, 'MPEG-4');
+                    writer.FrameRate = max(1, obj.videoFps_);
+                    writer.Quality = 95;
+                    open(writer);
+                    cleanup = onCleanup(@() close(writer));
+                    frameSize = [];
+                    for i = 1:numel(files)
+                        rgb = imread(files{i});
+                        % MPEG-4 requires an even, constant frame size.
+                        h = size(rgb, 1) - mod(size(rgb, 1), 2);
+                        w = size(rgb, 2) - mod(size(rgb, 2), 2);
+                        rgb = rgb(1:h, 1:w, :);
+                        if isempty(frameSize)
+                            frameSize = [h, w];
+                        elseif any([h, w] ~= frameSize)
+                            error('OpenSeesMatlab:VideoFrameSizeChanged', ...
+                                'The viewer window size changed during recording.');
+                        end
+                        writeVideo(writer, rgb);
+                    end
+                    clear cleanup
+                end
+                obj.videoStatus_ = sprintf('Saved %d frames: %s', numel(files), output);
+            catch ME
+                obj.videoStatus_ = ['Animation encoding failed: ' ME.message];
+            end
+            obj.clearVideoTemp_();
+        end
+
+        function cancelVideoRecording_(obj, status)
+            obj.videoRecording_ = false;
+            obj.clearVideoTemp_();
+            if nargin >= 2, obj.videoStatus_ = char(string(status)); end
+        end
+
+        function clearVideoTemp_(obj)
+            if ~isempty(obj.videoTempDir_) && isfolder(obj.videoTempDir_)
+                files = dir(fullfile(obj.videoTempDir_, '*.png'));
+                for i = 1:numel(files)
+                    delete(fullfile(files(i).folder, files(i).name));
+                end
+                rmdir(obj.videoTempDir_);
+            end
+            obj.videoTempDir_ = '';
+            obj.videoFrameFiles_ = {};
+            obj.videoLastStep_ = -1;
+        end
+
+        function [lineColor, markerFill, markerOutline] = historyPlotColors_(obj)
+            theme = lower(char(string(obj.getOptField_( ...
+                obj.Opts.polyscope, 'plotTheme', 'light'))));
+            if strcmp(theme, 'dark')
+                lineColor = [0.30, 0.76, 1.00, 1.00];
+                markerFill = [1.00, 0.78, 0.05, 1.00];
+                markerOutline = [0.96, 0.97, 1.00, 1.00];
+            else
+                lineColor = [0.10, 0.38, 0.72, 1.00];
+                markerFill = [0.95, 0.58, 0.05, 1.00];
+                markerOutline = [0.12, 0.15, 0.20, 1.00];
+            end
+        end
+
+        function rgb = supportColor_(obj)
+            color = obj.getOptField_(obj.Opts.polyscope, 'supportColor', '#21FC0D');
+            rgb = obj.asRgb_(plotter.polyscope.utils.colorToRgb(color));
+        end
+
+        function h = registerMPConstraintStructure_(obj, modelInfo, P, name)
+            h = [];
+            edges = plotter.polyscope.ModelAdapter.mpConstraintEdges(modelInfo);
+            if isempty(edges) || isempty(P), return; end
+            h = obj.App.polyscopeHandle().register_curve_network(name, P, edges);
+            h.set_color(obj.asRgb_(obj.getOptField_(obj.Opts.polyscope, ...
+                'mpConstraintColor', [0.64, 0.28, 0.34])));
+            h.set_radius(obj.Opts.polyscope.edgeRadius, true);
+            h.set_material('flat');
+            h.set_enabled(logical(obj.getOptField_(obj.Opts.polyscope, ...
+                'showMPConstraints', true)));
+        end
+
+        function initHistoryPlotAppearanceGui_(obj)
+            [themeColor, ~, ~] = obj.historyPlotColors_();
+            color = obj.getOptField_(obj.Opts.color, 'historyLineColor', []);
+            if isempty(color), color = themeColor(1:3); end
+            obj.gui_.historyLineColor = obj.asRgb_(color);
+            obj.gui_.historyLineAlpha = min(1, max(0, double( ...
+                obj.getOptField_(obj.Opts.color, 'historyLineAlpha', 1.0))));
+        end
+
+        function drawHistoryPlotAppearanceGui_(obj, idSuffix)
+            if nargin < 2, idSuffix = '##history'; end
+            GB = plotter.polyscope.GuiBuilder;
+            GB.subtitle('Plot appearance');
+            [~, obj.gui_.historyLineColor] = GB.colorEdit3( ...
+                ['Curve color' idSuffix], obj.gui_.historyLineColor);
+            obj.gui_.historyLineAlpha = GB.sliderFloat( ...
+                ['Curve opacity' idSuffix], obj.gui_.historyLineAlpha, 0, 1);
+            obj.Opts.color.historyLineColor = obj.asRgb_(obj.gui_.historyLineColor);
+            obj.Opts.color.historyLineAlpha = double(obj.gui_.historyLineAlpha);
+        end
+
+        function [lineColor, markerFill, markerOutline] = historyLineStyle_(obj)
+            [~, markerFill, markerOutline] = obj.historyPlotColors_();
+            lineColor = [obj.asRgb_(obj.gui_.historyLineColor), ...
+                min(1, max(0, double(obj.gui_.historyLineAlpha)))];
         end
 
         function dirs = screenAxisDirections_(obj)
@@ -862,7 +1375,7 @@ classdef (Abstract) ViewerBase < handle
             end
         end
 
-        function drawScreenAxisArrow_(~, dl, origin, dir2, sizePx, color, label)
+        function drawScreenAxisArrow_(~, dl, origin, dir2, sizePx, color, textColor, label)
             dir2 = double(dir2(:)).';
             if numel(dir2) < 2
                 return;
@@ -870,13 +1383,13 @@ classdef (Abstract) ViewerBase < handle
             n = norm(dir2(1:2));
             if n <= 0.18
                 dl.AddCircleFilled(origin, sizePx * 0.13, color, 12);
-                dl.AddText(origin + [sizePx * 0.16, -sizePx * 0.12], color, label);
+                dl.AddText(origin + [sizePx * 0.22, -sizePx * 0.14], textColor, label);
                 return;
             end
             dir2 = dir2(1:2) ./ n;
             len = 0.62 * sizePx * min(1.0, n);
             tip = origin + len * dir2;
-            base = origin + 0.14 * sizePx * dir2;
+            base = origin;
             perp = [-dir2(2), dir2(1)];
             headLen = 0.18 * sizePx;
             headHalf = 0.08 * sizePx;
@@ -886,7 +1399,7 @@ classdef (Abstract) ViewerBase < handle
 
             dl.AddLine(base, tip, color, 2.2);
             dl.AddTriangleFilled(p1, p2, p3, color);
-            dl.AddText(tip + 5 * dir2 + [-4, -7], color, label);
+            dl.AddText(tip + 11 * dir2 + [-4, -7], textColor, label);
         end
 
         function drawModelInfoWindow_(obj)
@@ -1036,6 +1549,7 @@ classdef (Abstract) ViewerBase < handle
             end
             obj.registerSlicePlanes_();
             obj.applySliceCullWholeElements_();
+            obj.updateSliceVisualization_();
             try
                 obj.App.polyscopeHandle().request_redraw();
             catch
@@ -1157,6 +1671,25 @@ classdef (Abstract) ViewerBase < handle
                 g.cullWholeElements = tf;
                 sliceDirty = true;
             end
+            tf = GB.checkbox(['Filled contour##slice_contour' tag], g.showContour);
+            if tf ~= g.showContour
+                g.showContour = tf;
+                sliceDirty = true;
+            end
+            if g.showContour
+                GB.sameLine();
+                tf = GB.checkbox(['Boundary##slice_contour_edges' tag], g.showContourEdges);
+                if tf ~= g.showContourEdges
+                    g.showContourEdges = tf;
+                    sliceDirty = true;
+                end
+                GB.helpMarker('Intersects supported 3-D solid elements and interpolates the active nodal scalar field on the cut surface.');
+                tf = GB.checkbox(['2-D ImPlot window##slice_contour_window' tag], g.showContourWindow);
+                if tf ~= g.showContourWindow
+                    g.showContourWindow = tf;
+                    sliceDirty = true;
+                end
+            end
             % Write back
             obj.gui_.slicePlanes(idx) = g;
             obj.syncOptsSlicePlaneFromGui_(idx);
@@ -1233,11 +1766,11 @@ classdef (Abstract) ViewerBase < handle
             end
             % Updating the six axis/label curve networks is relatively costly
             % because each operation crosses the MEX boundary. Camera motion is
-            % still visually smooth at 30 Hz, even when the main UI renders at
-            % 60 Hz.
+            % remains responsive at 15 Hz and avoids six sets of geometry MEX
+            % calls competing with response and colorbar updates.
             if ~isempty(obj.screenAxesUpdateTimer_)
                 try
-                    if toc(obj.screenAxesUpdateTimer_) < (1 / 30)
+                    if toc(obj.screenAxesUpdateTimer_) < (1 / 15)
                         return;
                     end
                 catch
@@ -1449,7 +1982,10 @@ classdef (Abstract) ViewerBase < handle
                                   'color', [0.90, 0.35, 0.55], ...
                                   'gridColor', [1, 1, 1], ...
                                   'transparency', 0.45, ...
-                                  'cullWholeElements', false);
+                                  'cullWholeElements', false, ...
+                                  'showContour', false, ...
+                                  'showContourEdges', true, ...
+                                  'showContourWindow', false);
                 newPlane = defaults;
                 newIdx = 1;
             else
@@ -1507,7 +2043,181 @@ classdef (Abstract) ViewerBase < handle
             p.color = g.color;
             p.gridColor = g.gridColor;
             p.cullWholeElements = g.cullWholeElements;
+            p.showContour = g.showContour;
+            p.showContourEdges = g.showContourEdges;
+            p.showContourWindow = g.showContourWindow;
             obj.Opts.slice.planes(idx) = p;
+        end
+
+        function updateSliceVisualization_(~)
+            % Optional subclass hook for generated slice intersections.
+        end
+
+        function cacheSlicePlotData_(obj, idx, V, F, values, center, normal, clim)
+            field = sprintf('Plane_%d', idx);
+            data = struct('uv', zeros(0, 2), 'faces', zeros(0, 3), ...
+                'values', zeros(0, 1), 'heatmap', zeros(0, 1), ...
+                'heatmapSize', [0 0], 'boundaryX', [], 'boundaryY', [], ...
+                'contourLevels', [], 'contourX', {{}}, 'contourY', {{}}, ...
+                'bounds', [0 0 1 1], ...
+                'clim', double(clim(:)).', 'cmap', char(string( ...
+                obj.getOptField_(obj.Opts.polyscope, 'scalarColorMap', 'coolwarm'))));
+            if isempty(F), obj.slicePlotData_.(field) = data; return; end
+            normal = double(normal(:)).'; normal = normal / max(norm(normal), eps);
+            [~, axisIdx] = min(abs(normal));
+            seed = zeros(1, 3); seed(axisIdx) = 1;
+            u = cross(normal, seed); u = u / max(norm(u), eps);
+            v = cross(normal, u);
+            Q = double(V) - double(center(:)).';
+            uv = [Q * u(:), Q * v(:)];
+            mn = min(uv, [], 1); mx = max(uv, [], 1);
+            span = mx - mn;
+            flat = span <= eps;
+            mn(flat) = mn(flat) - 0.5;
+            mx(flat) = mx(flat) + 0.5;
+            mergeTol = max(norm(mx - mn), 1) * 1e-9;
+            [~, ~, vertexMap] = unique(round(uv / mergeTol), 'rows', 'stable');
+            nVertex = max(vertexMap);
+            uvMerged = [accumarray(vertexMap, uv(:,1), [nVertex 1], @mean), ...
+                        accumarray(vertexMap, uv(:,2), [nVertex 1], @mean)];
+            c0 = double(values(:));
+            c0(~isfinite(c0)) = 0;
+            valuesMerged = accumarray(vertexMap, c0, [nVertex 1], @mean);
+            facesMerged = reshape(vertexMap(double(F)), size(F));
+            facesMerged = facesMerged(facesMerged(:,1) ~= facesMerged(:,2) & ...
+                facesMerged(:,2) ~= facesMerged(:,3) & ...
+                facesMerged(:,3) ~= facesMerged(:,1), :);
+            if ~isempty(facesMerged)
+                [~, keepFaces] = unique(sort(facesMerged, 2), 'rows', 'stable');
+                facesMerged = facesMerged(sort(keepFaces), :);
+            end
+            data.uv = uvMerged;
+            data.faces = facesMerged;
+            data.values = valuesMerged;
+            data.bounds = [mn(1), mn(2), mx(1), mx(2)];
+            if numel(data.clim) ~= 2 || ~all(isfinite(data.clim))
+                finite = data.values(isfinite(data.values));
+                if isempty(finite), data.clim = [0 1]; else, data.clim = [min(finite), max(finite)]; end
+            end
+            if data.clim(1) == data.clim(2), data.clim(2) = data.clim(1) + eps; end
+            try
+                tr = triangulation(data.faces, data.uv);
+                boundary = freeBoundary(tr);
+                data.boundaryX = reshape([data.uv(boundary(:,1),1), ...
+                    data.uv(boundary(:,2),1), nan(size(boundary,1),1)].', [], 1);
+                data.boundaryY = reshape([data.uv(boundary(:,1),2), ...
+                    data.uv(boundary(:,2),2), nan(size(boundary,1),1)].', [], 1);
+            catch
+            end
+            data.contourLevels = linspace(data.clim(1), data.clim(2), 14);
+            data.contourX = cell(size(data.contourLevels));
+            data.contourY = cell(size(data.contourLevels));
+            edgePairs = [1 2; 2 3; 3 1];
+            for il = 1:numel(data.contourLevels)
+                level = data.contourLevels(il);
+                xs = zeros(0, 1); ys = zeros(0, 1);
+                for it = 1:size(data.faces, 1)
+                    ids = data.faces(it, :);
+                    c = data.values(ids);
+                    q = data.uv(ids, :);
+                    hits = zeros(0, 2);
+                    for ie = 1:3
+                        a = edgePairs(ie, 1); b = edgePairs(ie, 2);
+                        ca = c(a); cb = c(b);
+                        if ~isfinite(ca) || ~isfinite(cb) || ca == cb, continue; end
+                        if level < min(ca, cb) || level > max(ca, cb), continue; end
+                        t = (level - ca) / (cb - ca);
+                        hits(end+1, :) = q(a, :) + t * (q(b, :) - q(a, :)); %#ok<AGROW>
+                    end
+                    if size(hits, 1) >= 2
+                        xs = [xs; hits(1,1); hits(2,1); NaN]; %#ok<AGROW>
+                        ys = [ys; hits(1,2); hits(2,2); NaN]; %#ok<AGROW>
+                    end
+                end
+                data.contourX{il} = xs;
+                data.contourY{il} = ys;
+            end
+            obj.slicePlotData_.(field) = data;
+        end
+
+        function drawSlicePlotWindows_(obj)
+            if ~isfield(obj.Opts, 'slice') || ~isfield(obj.Opts.slice, 'planes'), return; end
+            GB = plotter.polyscope.GuiBuilder;
+            for i = 1:numel(obj.Opts.slice.planes)
+                p = obj.Opts.slice.planes(i);
+                if ~logical(obj.getOptField_(p, 'show', false)) || ...
+                        ~logical(obj.getOptField_(p, 'showContour', false)) || ...
+                        ~logical(obj.getOptField_(p, 'showContourWindow', false))
+                    continue;
+                end
+                field = sprintf('Plane_%d', i);
+                if ~isfield(obj.slicePlotData_, field) || isempty(obj.slicePlotData_.(field).faces), continue; end
+                d = obj.slicePlotData_.(field);
+                GB.begin(sprintf('Slice contour | %s##slice_plot_%d', ...
+                    char(string(p.name)), i), [30 + 24*i, 40 + 24*i], [760, 520]);
+                cleanup = onCleanup(@() GB.finish());
+                plotCleanup = [];
+                cmapCleanup = [];
+                try
+                    cmapIdx = int32(-1);
+                    try, cmapIdx = int32(polyscope.ImPlot.GetColormapIndex(d.cmap)); catch, end
+                    if cmapIdx < 0
+                        try, cmapIdx = int32(polyscope.ImPlot.GetColormapIndex('Cool')); catch, end
+                    end
+                    polyscope.ImPlot.PushColormap(cmapIdx);
+                    cmapCleanup = onCleanup(@() obj.safePopImPlotColormap_());
+                    flags = int32(0);
+                    try, flags = int32(polyscope.ImPlot.get_constant('ImPlotFlags_Equal')); catch, end
+                    try
+                        flags = bitor(flags, int32(polyscope.ImPlot.get_constant('ImPlotFlags_NoLegend')));
+                    catch
+                    end
+                    if polyscope.ImPlot.BeginPlot(sprintf('Plane coordinates##slice_heatmap_%d', i), [-135, -1], flags)
+                        plotCleanup = onCleanup(@() obj.safeEndImPlot_());
+                        polyscope.ImPlot.SetupAxes('U', 'V');
+                        always = int32(polyscope.ImPlot.get_constant('ImPlotCond_Always'));
+                        polyscope.ImPlot.SetupAxesLimits(d.bounds(1), d.bounds(3), ...
+                            d.bounds(2), d.bounds(4), always);
+                        denom = max(d.clim(2) - d.clim(1), eps);
+                        for il = 1:numel(d.contourLevels)
+                            if isempty(d.contourX{il}), continue; end
+                            t = (d.contourLevels(il) - d.clim(1)) / denom;
+                            rgba = polyscope.ImPlot.SampleColormap(max(0,min(1,t)), cmapIdx);
+                            polyscope.ImPlot.SetNextLineStyle(rgba, 2.0);
+                            polyscope.ImPlot.PlotLineXY(sprintf('%.5g##slice_level_%d', ...
+                                d.contourLevels(il), il), d.contourX{il}, ...
+                                d.contourY{il}, int32(0));
+                        end
+                        if ~isempty(d.boundaryX)
+                            polyscope.ImPlot.SetNextLineStyle([0.95 0.95 0.95 0.75], 1.0);
+                            polyscope.ImPlot.PlotLineXY('Cut boundary##slice_boundary', ...
+                                d.boundaryX, d.boundaryY, int32(0));
+                        end
+                        clear plotCleanup
+                    end
+                    polyscope.ImGui.SameLine();
+                    polyscope.ImPlot.ColormapScale('##slice_scale', d.clim(1), d.clim(2), ...
+                        [110, -1], '%.5g', int32(0), cmapIdx);
+                    clear cmapCleanup
+                catch ME
+                    clear plotCleanup
+                    clear cmapCleanup
+                    GB.labelDisabled(['2-D slice plot unavailable: ' ME.message]);
+                end
+                clear cleanup
+            end
+        end
+
+        function safeEndImPlot_(~)
+            try, polyscope.ImPlot.EndPlot(); catch, end
+        end
+
+        function safePopImPlotClip_(~)
+            try, polyscope.ImPlot.PopPlotClipRect(); catch, end
+        end
+
+        function safePopImPlotColormap_(~)
+            try, polyscope.ImPlot.PopColormap(int32(1)); catch, end
         end
 
         function [axisPts, labelPts, labelEdges, ok] = screenAxes3DGeometry_(obj)
@@ -1683,6 +2393,21 @@ classdef (Abstract) ViewerBase < handle
         end
 
         function configureAnimationRenderLoop_(obj, isRunning, fps)
+            % Arguments are optional because viewers also call this after a
+            % natural stop and during initial construction.
+            if nargin < 2 || isempty(isRunning)
+                isRunning = isfield(obj.gui_, 'playing') && ...
+                    logical(obj.gui_.playing);
+            end
+            if nargin < 3 || isempty(fps)
+                if isfield(obj.gui_, 'fps')
+                    fps = obj.gui_.fps;
+                elseif isfield(obj.Opts, 'animation')
+                    fps = obj.getOptField_(obj.Opts.animation, 'fps', 12);
+                else
+                    fps = 12;
+                end
+            end
             try
                 ps = obj.App.polyscopeHandle();
                 if isRunning
@@ -1692,11 +2417,39 @@ classdef (Abstract) ViewerBase < handle
                     ps.set_enable_vsync(false);
                 else
                     ps.set_max_fps(max(1, double(obj.getOptField_(obj.Opts.polyscope, 'maxFps', 30))));
-                    ps.set_always_redraw(obj.getOptField_(obj.Opts.polyscope, 'alwaysRedraw', false));
+                    % GUI callbacks execute from the MATLAB-managed frame
+                    % loop. Its event pump must not be suspended by the
+                    % native idle-redraw optimization.
+                    idleRedraw = obj.guiEnabled_ || ...
+                        logical(obj.getOptField_(obj.Opts.polyscope, 'alwaysRedraw', false));
+                    ps.set_always_redraw(idleRedraw);
                     ps.set_enable_vsync(obj.getOptField_(obj.Opts.polyscope, 'enableVsync', true));
                 end
             catch
             end
+        end
+
+        function keepGuiEventLoopAlive_(obj)
+            if ~obj.guiEnabled_ || isempty(obj.App), return; end
+            try
+                ps=obj.App.polyscopeHandle();
+                ps.set_always_redraw(true);
+                ps.request_redraw();
+            catch
+            end
+        end
+
+        function clearGuiCallbackError_(obj)
+            obj.lastGuiCallbackError_ = '';
+        end
+
+        function reportGuiCallbackError_(obj, source, ME)
+            message = char(string(ME.message));
+            if strcmp(obj.lastGuiCallbackError_, message)
+                return;
+            end
+            fprintf('%s.guiCallback_ error: %s\n', char(string(source)), message);
+            obj.lastGuiCallbackError_ = message;
         end
 
         function val = cachedRange_(obj, namespace, key, computeFcn)
@@ -1719,11 +2472,31 @@ classdef (Abstract) ViewerBase < handle
             end
         end
 
-        function delete(obj)
+        function closeViewerSession_(obj)
+            % Break callback ownership first, then destroy the native window,
+            % OpenGL/GLFW context, and process-global Polyscope state.
+            if obj.videoRecording_
+                obj.cancelVideoRecording_('Animation export cancelled because the viewer closed.');
+            end
             try
-                obj.App.shutdown();
+                obj.App.clearUserCallback();
             catch
             end
+            try
+                obj.App.closeWindow();
+            catch
+            end
+
+            % Native structure handles become invalid after shutdown. Force a
+            % complete rebuild if this MATLAB viewer is shown again.
+            obj.built_ = false;
+            obj.handles_ = struct();
+            obj.query_ = struct();
+            obj.highlight_ = struct();
+            obj.windowSizeCache_ = zeros(0, 2);
+            obj.windowSizeCacheTimer_ = [];
+            obj.screenAxesUpdateTimer_ = [];
+            obj.logoTextures_ = struct();
         end
 
     end

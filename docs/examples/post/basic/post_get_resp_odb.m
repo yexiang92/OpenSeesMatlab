@@ -1,9 +1,7 @@
 %% *Analysis results retrieval, saving and visualization*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% This example follows response data from analysis to storage and visualization. 
+% It distinguishes direct command queries from data recorded by the response database 
+% and shows when each approach is useful.
 % 
 % This document mainly introduces how to use the post-processing functions provided 
 % by OpenSeesMatlab to save, retrieve, and visualize analysis results.
@@ -12,7 +10,7 @@ clc; clear; close all;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-% Model 
+% OpenSees Model Creating
 % Nodes
 
 %% Model
@@ -180,15 +178,9 @@ ops.element(eleType, 24, 18, 15, 2, beamSec);
 
 dofs = ops.sectionResponseType(1, 1);
 % Plot Model
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 opsMAT.vis.plotModel();
-%% 
-% 
 % Gravity load
-% This section applies the actions on the model. The load pattern and scaling 
-% determine what response the analysis will try to reproduce.
 
 %% Gravity load applied at each corner node
 % 10% of column capacity
@@ -217,9 +209,12 @@ for i = [5, 6, 7, 8, 10, 11, 12, 13, 15, 16, 17, 18]
     ops.load(i, 0.0, 0.0, -p, 0.0, 0.0, 0.0);
 end
 % Earthquake Analysis
-% [tabasFN.txt](../utils/tabasFN.txt)   
+% Acceleration input:
 % 
-% [tabasFP.txt](../utils/tabasFP.txt)
+% [tabasFN.txt](../../utils/tabasFN.txt)
+% 
+% [tabasFP.txt](../../utils/tabasFP.txt)
+% Rayleigh damping
 
 % set rayleigh damping factors
 ops.rayleigh(0.0, 0.0, 0.0, 0.0018);
@@ -240,8 +235,7 @@ ops.timeSeries("Path", 3, "-values", tabasFP(:), "-dt", dt, "-factor", g);
 %                         tag dir         accel series args
 ops.pattern("UniformExcitation", 2, 1, "-accel", 2);
 ops.pattern("UniformExcitation", 3, 2, "-accel", 3);
-%% 
-% Analysis:
+% Analysis parameters
 
 % create the system of equation
 ops.system("UmfPack");
@@ -257,29 +251,40 @@ ops.algorithm("KrylovNewton");
 ops.integrator("Newmark", 0.5, 0.25);
 % create the analysis object
 ops.analysis("Transient");
-%% 
-% Create ODB object.
-% 
-% OpenSeesMatlab creates a *new recorder object* in C++ for post-processing 
-% data. Therefore, data is automatically recorded during subsequent analysis.
 
 tic;
-ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=7);  % Create ODB
-ops.analyze(npts, dt);  % Automatically write data to the ODB.
+% Create ODB object
+% OpenSeesMatlab creates a *new recorder object* in C++ for post-processing 
+% data. Therefore, data is automatically recorded during subsequent analysis.
+% 
+% Here:
+%% 
+% * |interpolateBeamDisp=7| means that 7 points are used for interpolation within 
+% the beam element;
+% * |floatPrecision="float"| means that "float32" precision is used for floating-point 
+% numbers, which reduces memory usage by half compared to the default "double 
+% 64" precision, but at the cost of precision. However, this is sufficient for 
+% general analysis;
+% * |compressionLevel=4| compresses the saved HDF5 file. The higher the value, 
+% the higher the compression level, but the more time it will take. 4 is a recommended 
+% value.
 
+ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=7, floatPrecision="float", compressionLevel=4);  % Create ODB
+% Implementation Analysis
+
+ops.analyze(npts, dt);  % Automatically write data to the ODB.
 elapsedTime = toc;
 fprintf('Elapsed time for analysis %.2f sec\n', elapsedTime);
-
+% wipe model, this will ensure that the ODB file is written to disk.
 ops.wipe();
 fprintf("Analysis Done!")
 % Post-processing
 % Nodal results
+% Let's take a look at the native struct.
 
 nodeResp = opsMAT.post.getNodalResponse("myODB");
-nodeTags = nodeResp.nodeTags;
-%% 
-% 
-
+nodeTags = nodeResp.nodeTags;  % node tags to track
+disp(nodeResp);
 figure;
 idx = nodeTags == 18;  % node 18
 plot(nodeResp.time, nodeResp.disp.ux(:, idx), 'LineWidth', 1.5);
@@ -288,9 +293,6 @@ xlabel('Time (s)');
 ylabel('Top Displacement (inch)');
 xlim([0 50]);
 title('Node 18 Disp');
-%% 
-% 
-
 figure;
 idx = nodeTags == 1;
 idxDof = 1;  % 1-ux; 2-uy; 3-uz; 4-rx; 5-ry; 6-rz
@@ -300,20 +302,69 @@ xlabel('Time (s)');
 ylabel('Reaction (kip)');
 xlim([0 50]);
 title('Node 1 Reaction');
+%% 
+% In fact, we also provide a more user-friendly label-based structure, similar 
+% to the |xarray| style:
+
+nodeResp = opsMAT.post.getNodalResponse("myODB");
+
+ds = opsMAT.post.toResponseDataset(nodeResp);  % to dataset
+
+
+disp_ux = ds("disp.ux");   % get disp-ux
+resp = disp_ux.sel("node", 18);  % sel node-18
+disp_ux.Dimensions
+
+figure;
+plot(disp_ux.time, resp.Data, 'LineWidth', 1.5);
+grid on;
+xlabel('Time (s)');
+ylabel('Top Displacement (inch)');
+xlim([0 50]);
+title('Node 18 Disp');
+
+
+reaction_ux = ds("reaction.ux");  % get reaction-ux
+resp = reaction_ux.sel("node", 1);  % sel by node 1
+
+figure;
+plot(reaction_ux.time, resp.Data, 'LineWidth', 1.5);
+grid on;
+xlabel('Time (s)');
+ylabel('Reaction (kip)');
+xlim([0 50]);
+title('Node 1 Reaction');
 % Element results
 
 eleResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
+eleTags = eleResp.eleTags;
+disp(eleResp);
 sectionForces = eleResp.sectionForces;
 sectionDefos = eleResp.sectionDeformations;
-eleTags = eleResp.eleTags;
 disp(fieldnames(sectionForces));
-%% 
-% 
-
 figure;
 idx = eleTags == 1;
 secIdx = 1;
 plot(sectionDefos.Mz(:,idx, secIdx), sectionForces.Mz(:,idx, secIdx), 'LineWidth', 1.5);
+grid on;
+xlabel('curvature (1/inch)');
+ylabel('Force (kip * inch)');
+title('Element 1 section 1 deformation-force');
+%% 
+% By xarray-style:
+
+eleResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
+ds = opsMAT.post.toResponseDataset(eleResp);  % to Dataset
+
+sectionForcesMZ = ds("sectionForces.Mz");
+sectionDefosMZ = ds("sectionDeformations.Mz");
+
+
+defo = sectionDefosMZ.sel("element", 1, "section", 1);  % sel by element 1 and section 1
+fo = sectionForcesMZ.sel("element", 1, "section", 1);
+
+figure;
+plot(defo.Data, fo.Data, 'LineWidth', 1.5);
 grid on;
 xlabel('curvature (1/inch)');
 ylabel('Force (kip * inch)');
@@ -324,13 +375,13 @@ opsMAT.vis.plotNodalResponse(nodeResp, stepIdx="absMax");
 opsMAT.vis.plotDeformation(nodeResp, stepIdx="absMax");
 %% 
 % Because MATLAB's animation performance is relatively poor, the node response 
-% data of the ODB file can be converted into a ``PVD`` file and then visualized 
-% using ``ParaView``. Note that deformation can be set using the ``wrap by vectors`` 
+% data of the ODB file can be converted into a |PVD| file and then visualized 
+% using |ParaView|. Note that deformation can be set using the |wrap by vectors| 
 % filter.
 
 %opsMAT.post.writeResponsePVD("myODB")
 %% 
-% ![](../utils/paraview-3dFrame.png)
+% 
 % 
 % Frame responses
 
@@ -346,9 +397,10 @@ opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
 opsMAT.vis.polyscope.plotFrameResponse(frameResp);
 %% 
 % 
-% RCSection Function 
-% This section defines the material or section properties. These choices control 
-% stiffness, strength, and the nonlinear behavior observed later.
+% RCSection Function
+% The fiber section helper is kept at the end because it is model construction, 
+% not response retrieval. Its section and material tags must agree with the element 
+% definitions in the first part of the script.
 
 function RCsection(ops, id, h, b, cover, coreID, coverID, steelID, ...
     numBars, barArea, nfCoreY, nfCoreZ, nfCoverY, nfCoverZ, GJ)
@@ -424,11 +476,8 @@ function RCsection(ops, id, h, b, cover, coreID, coverID, steelID, ...
         (-coreY + spacingY), -coreZ);
 
 end
-%% 
-% 
-% 
-% 
-% 
-% 
-% 
-%
+
+% Choosing a response path
+% Direct queries are convenient for the current domain state, while the ODB 
+% retains a time history for later use. Confirm node, element, component, and 
+% step labels before comparing the two forms.

@@ -50,12 +50,17 @@ function initialize(ps, opts, varargin)
             tryCall_(ps, 'set_SSAA_factor', ssaa);
             tryCall_(ps, 'set_ssaa_factor', ssaa);
             applyProgramOptions_(ps, psOpts);
-            applyUiStyle_();
+            uiTheme = 'light';
+            if isfield(psOpts, 'plotTheme'), uiTheme = psOpts.plotTheme; end
+            plotter.polyscope.applyUiTheme(uiTheme);
             if ~is2D
                 tryCall_(ps, 'set_up_dir', 'z_up', false);
             end
             if isfield(opts, 'polyscope')
-                if isfield(opts.polyscope, 'backgroundColor')
+                if isfield(opts.polyscope, 'plotTheme') && ...
+                        strcmpi(char(string(opts.polyscope.plotTheme)), 'dark')
+                    tryCall_(ps, 'set_background_color', [0, 0, 0]);
+                elseif isfield(opts.polyscope, 'backgroundColor')
                     tryCall_(ps, 'set_background_color', opts.polyscope.backgroundColor);
                 end
                 if ~isHeadless_(opts)
@@ -73,36 +78,35 @@ function initialize(ps, opts, varargin)
         case 'postupdate'
             tryCall_(ps, 'set_program_name', programName);
             applyProgramOptions_(ps, psOpts);
+            % An initialized Polyscope instance can retain the style from a
+            % previous viewer/session, so restore the requested theme here.
+            applyTheme_(ps, psOpts);
     end
 end
 
-function applyUiStyle_()
-    % Apply one shared, compact visual language to every viewer. This runs
-    % once after ImGui initialization rather than on every callback frame.
-    try
-        style = polyscope.ImGui.GetStyle();
-        style.WindowPadding = [12, 10];
-        style.WindowRounding = 7;
-        style.ChildRounding = 5;
-        style.PopupRounding = 5;
-        style.FramePadding = [8, 4];
-        style.FrameRounding = 4;
-        style.ItemSpacing = [8, 6];
-        style.ItemInnerSpacing = [6, 4];
-        style.IndentSpacing = 18;
-        style.ScrollbarSize = 13;
-        style.ScrollbarRounding = 7;
-        style.GrabMinSize = 10;
-        style.GrabRounding = 4;
-        style.TabRounding = 4;
-        style.SeparatorTextPadding = [10, 4];
-    catch
-        % Older bundled MEX builds may not expose every style field.
+function applyTheme_(ps, psOpts)
+    uiTheme = 'light';
+    if isfield(psOpts, 'plotTheme')
+        uiTheme = lower(char(string(psOpts.plotTheme)));
+    end
+    plotter.polyscope.applyUiTheme(uiTheme);
+    if strcmp(uiTheme, 'dark')
+        tryCall_(ps, 'set_background_color', [0, 0, 0]);
+    elseif isfield(psOpts, 'backgroundColor')
+        tryCall_(ps, 'set_background_color', psOpts.backgroundColor);
+    else
+        tryCall_(ps, 'set_background_color', [1, 1, 1]);
     end
 end
 
 function applyProgramOptions_(ps, psOpts)
     if ~isstruct(psOpts), return; end
+    if isfield(psOpts, 'verbosity')
+        tryCall_(ps, 'set_verbosity', round(double(psOpts.verbosity)));
+    end
+    if isfield(psOpts, 'giveFocusOnShow')
+        tryCall_(ps, 'set_give_focus_on_show', logical(psOpts.giveFocusOnShow));
+    end
     if isfield(psOpts, 'maxFps')
         tryCall_(ps, 'set_max_fps', max(1, double(psOpts.maxFps)));
     end
@@ -118,8 +122,7 @@ function applyProgramOptions_(ps, psOpts)
 end
 
 function name = programName_(opts)
-    authorStr = 'by Yexiang Yan';
-    name = ['OpenSeesMatlab - ' authorStr];
+    name = 'OpenSeesMatlab';
     if isfield(opts, 'polyscope') && isfield(opts.polyscope, 'programName') && ...
             ~isempty(opts.polyscope.programName)
         name = char(string(opts.polyscope.programName));
@@ -128,7 +131,7 @@ function name = programName_(opts)
     if isfield(opts, 'general') && isfield(opts.general, 'title')
         titleStr = strtrim(char(string(opts.general.title)));
         if ~isempty(titleStr) && ~strcmpi(titleStr, 'auto')
-            name = ['OpenSeesMatlab | ' titleStr ' - ' authorStr];
+            name = ['OpenSeesMatlab | ' titleStr];
         end
     end
 end

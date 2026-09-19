@@ -137,7 +137,7 @@ markdown_extensions:
       custom_checkbox: true
   - toc:
       permalink: "¤"
-      toc_depth: 3
+      toc_depth: 4
 
 plugins:
   - search
@@ -194,11 +194,20 @@ nav:
 
   - Getting Started:
       - OpenSeesMatlab at a Glance: "getting_started/overview.md"
+      - 中文入门教程: "getting_started/tutorial_zh.md"
       - Installation: "getting_started/installation.md"
       - Your First Analysis: "getting_started/quickstart.md"
       - OpenSees Command Interface: "getting_started/opensees.md"
       - Pre- and post-processing and visualization: "getting_started/post.md"
-      - Extensions: "getting_started/extensions.md"
+      - Extensions:
+          - Overview: "getting_started/extensions.md"
+          - Adaptive Analysis: "getting_started/extensions/adaptive_analysis.md"
+          - Linear Buckling: "getting_started/extensions/linear_buckling.md"
+          - cuDSS Solver: "getting_started/extensions/cudss_solver.md"
+          - KINSOL Solver: "getting_started/extensions/kinsol_solver.md"
+          - Trust-Region Solver: "getting_started/extensions/trust_region_solver.md"
+          - MATLAB Uniaxial Material: "getting_started/extensions/matlab_uniaxialmaterial.md"
+          - MATLAB Substructure: "getting_started/extensions/substructure_analysis.md"
       - Changelog: "getting_started/changelog.md"
 
   - Examples:
@@ -211,9 +220,11 @@ nav:
   - API Reference:
       - OpenSeesMatlab: "api/OpenSeesMatlab.md"
       - OpenSeesMatlabCmds: "api/OpenSeesMatlabCmds.md"
+      - OpenSeesNexus Extensions: "api/OpenSeesNexusExtensions.md"
       - OpenSeesMatlabVis: "api/OpenSeesMatlabVis.md"
       - OpenSeesMatlabVisPolyscope: "api/OpenSeesMatlabVisPolyscope.md"
       - OpenSeesMatlabPost: "api/OpenSeesMatlabPost.md"
+      - ResponseArray and ResponseDataset: "api/ResponseArrayDataset.md"
       - OpenSeesMatlabPre: "api/OpenSeesMatlabPre.md"
       - OpenSeesMatlabAnalysis: "api/OpenSeesMatlabAnalysis.md"
       - OpenSeesMatlabTool: "api/OpenSeesMatlabTool.md"

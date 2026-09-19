@@ -27,8 +27,12 @@ OpenSeesMatlab leverages MATLAB's C++ mex interface to encapsulate the [OpenSees
 
 ## Installation
 
-1. Go to the [release directory](https://github.com/yexiang92/OpenSeesMatlab/releases) or [gitee 发行版](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases) and choose the version you want. Download it.
-2. Open this release directory in MATLAB, then install the toolbox package by running:
+1. Open [GitHub Releases](https://github.com/yexiang92/OpenSeesMatlab/releases) or [Gitee Releases](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases), then download only the package for your computer:
+
+   - Windows x86-64: `OpenSeesMatlab-<version>-win64.mltbx`
+   - macOS Apple silicon: `OpenSeesMatlab-<version>-maca64.mltbx`
+
+2. Put the downloaded `.mltbx` and `installOpenSeesMatlab.m` in one directory, open that directory in MATLAB, and run:
 
    ```matlab
    installOpenSeesMatlab
@@ -48,6 +52,7 @@ After installation, explore and run example models in the `examples/` directory
 
 The generated scripts and illustrated walkthroughs are also available in the
 [online examples](https://openseesmatlab.readthedocs.io/en/latest/examples/).
+
 
 ## Quick Start
 
@@ -78,18 +83,37 @@ opsMat.post.getModelData();  % Collect model data
 opsMat.vis.plotModel();      % Visualize the model
 ```
 
+`OpenSeesMatlab()` selects the serial backend by default. Run an OpenSeesSP
+model through the bundled `OpenSeesSPMatlab` launcher; it discovers MATLAB and
+common MPI installations and selects the SP backend inside the launched job.
+`OpenSeesMatlab(backend="sp")` is intended for that configured MPI process,
+not for switching an already initialized interactive session. The top-level
+object reports the interface and engine versions separately as
+`bindingVersion` and `openseesVersion`; `version` remains an alias of
+`bindingVersion` for existing code.
+
 ## OpenSeesMatlab Extensions
 
 Optional extensions integrate MATLAB-native components and GPU acceleration
 with the standard OpenSees analysis workflow:
 
+- Recover failed nonlinear steps with `adaptiveAnalyze`
+- Compute sparse linear buckling factors and mode shapes with `linearBuckling`
 - Define linear or history-dependent uniaxial materials with MATLAB callbacks
 - Couple MATLAB numerical substructures to an OpenSees domain
-- Solve supported sparse systems with the NVIDIA cuDSS GPU backend
+- Solve supported sparse systems with the NVIDIA cuDSS GPU backend, including
+  CPU crossover, configurable ordering/pivoting, hybrid execution,
+  single-node multi-GPU and Schur-complement controls
 
 See the [extension guides](https://openseesmatlab.readthedocs.io/en/latest/getting_started/extensions/)
 for setup instructions and runnable examples. CUDA and cuDSS are optional; CPU
 solvers remain available without them.
+
+These extensions have targeted tests and examples, but they have not yet
+received the same breadth of independent use as established upstream OpenSees
+features. Verify critical numerical results against benchmarks or an
+independent formulation. Please report reproducible problems through
+[GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
 
 ## 🌟 Features
 
@@ -103,9 +127,10 @@ solvers remain available without them.
 
 ## Requirements
 
-MATLAB R2023a or later
+- Windows x86-64: MATLAB R2023a or later
+- macOS Apple silicon: native MATLAB R2023b or later
 
-Windows operating system (currently only supported on Windows)
+Intel-based macOS and Linux MATLAB are not currently distributed.
 
 ## License
 

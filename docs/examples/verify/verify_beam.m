@@ -1,24 +1,21 @@
 %% *Beam stresses and deflections (Beam-Column)*
-% This live script is written as a guided walkthrough for a verification benchmark. 
-% It compares a known structural response with the result produced by the OpenSeesMatlab 
-% workflow. Read the text cells first, then run each code cell in order so that 
-% the variables, model state, and recorded results are available for the later 
-% sections.
+% Beam-column results are compared with closed-form beam theory at selected 
+% locations. The comparison checks displacement, bending response, sign convention, 
+% and the effect of the chosen element discretization.
 % 
 % <https://examples.mapdl.docs.pyansys.com/version/dev/verif-manual/vm-002-beam_stresses_and_deflections.html 
 % Beam stresses and deflections — PyMAPDL Examples>
 % 
-% 
-% 
 % ![](../utils/verify-beam.png)
+% Model and loading
+% Four elastic beam-column elements represent two equal overhangs and the span 
+% between simple supports. Uniform load is applied only to the overhang elements, 
+% matching the reference problem.
 
 clc; clear;
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-%% 
-% 
-
 ops.wipe();
 ops.model('basic', '-ndm', 2, '-ndf', 3);
 
@@ -71,25 +68,20 @@ ops.pattern('Plain', 1, 1);
 % downward load => negative
 ops.eleLoad('-ele', 1, '-type', '-beamUniform', -w);
 ops.eleLoad('-ele', 4, '-type', '-beamUniform', -w);
-%% 
-% 
-
 opts = opsMAT.vis.defaultPlotModelOptions;
 opts.nodes.showLabels = true;
 opts.elements.showLabels = true;
 opts.loads.showElement = true;
 
 
+% Solve and record the response
+% The response database interpolates beam displacement and stores section forces. 
+% This allows deflection and bending stress to be checked from the same completed 
+% analysis.
+
 opsMAT.vis.plotModel(opts=opts);
 ylim([0 1])
 axis off
-%% 
-% 
-% 
-% 
-% 
-% 
-
 Nsteps = 2;
 ops.constraints('Plain');
 ops.numberer('RCM');
@@ -98,23 +90,20 @@ ops.test('NormDispIncr', 1.0e-12, 50);
 ops.algorithm('Linear');
 ops.integrator('LoadControl', 1.0 / Nsteps);
 ops.analysis('Static');
-%% 
-% 
-
 ODB = opsMAT.post.createODB("myODB", interpolateBeamDisp=9);  % create ODB, 6 points in interpolateBeamDisp
 ok = ops.analyze(Nsteps);
 ODB.close();
-%% 
-% 
-% 
-% 
-
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 
 nodeTags = nodeResp.nodeTags;
 idx = nodeTags == 3;
 dispN3 = nodeResp.disp.uy(:, idx);  % nsteps * 1
 uy_mid = max(dispN3(:));
+
+% Compare with the reference values
+% Midspan deflection is read from node 3. Maximum bending stress is reconstructed 
+% from the recorded section moment using (\sigma=Mc/I); ratios close to one indicate 
+% agreement.
 
 deflection_target = 0.182;     % in
 deflection_ratio = abs(uy_mid) / deflection_target;
@@ -136,9 +125,6 @@ stress_ratio     = sigma_max / stress_target;
 
 fprintf('Stress (psi)        %12.6f %20.6f %12.6f\n', ...
     stress_target, sigma_max, stress_ratio);
-%% 
-% 
-
 opts = opsMAT.vis.defaultPlotFrameResponseOptions;
 opts.style = "wireframe";
 
@@ -151,19 +137,8 @@ t = ax.Title;
 t.Units = "normalized";
 t.Position = [0.5, -40, 0];
 axis off
-%% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-%
+
+% Acceptance check
+% The printed ratios compare OpenSees results with the reference deflection 
+% and stress. Values near one verify the element formulation, loading, response 
+% extraction, and (Mc/I) stress reconstruction together.

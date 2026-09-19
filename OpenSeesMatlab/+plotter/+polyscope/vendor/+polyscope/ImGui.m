@@ -1340,6 +1340,18 @@ classdef ImGui < handle
             s = polyscope.ImGuiStyle(h);
         end
 
+        function StyleColorsDark()
+            call_mex('imgui_style_colors_dark');
+        end
+
+        function StyleColorsLight()
+            call_mex('imgui_style_colors_light');
+        end
+
+        function SetStyleColor(idx, color)
+            call_mex('imgui_set_style_color', int32(idx), color);
+        end
+
         function dl = GetBackgroundDrawList()
             h = call_mex('imgui_get_background_draw_list');
             dl = polyscope.ImDrawList(h);

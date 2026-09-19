@@ -3,40 +3,35 @@
 
 # <span style="color:var(--md-accent-fg-color)">**Fiber section mesh generation**</span>
 
-This live script is written as a guided walkthrough for a post\-processing workflow. It focuses on retrieving, organizing, and visualizing model or response data after an OpenSees analysis. Read the text cells first, then run each code cell in order so that the variables, model state, and recorded results are available for the later sections.
+The section\-meshing utilities turn geometric regions and reinforcement definitions into OpenSees fibers. The plots should be inspected for area, centroid, material tags, and mesh density before the section is assigned to an element.
 
 **Here we demonstrate how to generate fiber cross sections using Matlab and OpenSees.**
 
- **The** [Partial Differential Equation Toolbox \- MATLAB](https://www.mathworks.com/products/pde.html) **is required.**
+**The** [Partial Differential Equation Toolbox \- MATLAB](https://www.mathworks.com/products/pde.html) **is required.**
 
 ```matlab
 clear; clc;
-```
-
-```matlab
 opsmat = OpenSeesMatlab();
 ops    = opsmat.opensees;
 fs     = opsmat.pre.fiberSectionMesh;
 disp(fs);
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-FiberSectionMesh with properties:
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">8 lines</span></div>
+<pre>  FiberSectionMesh with properties:
 
 
            parts: [1x1 struct]
           rebars: []
           secTag: NaN
       meshFibers: []
-    sectionProps: []
-</div>
+    sectionProps: []</pre>
 </div>
 
-##  `EXAMPLE 1 —` Steel section
+## `EXAMPLE 1 —` Steel section
 
-This section defines the material or section properties. These choices control stiffness, strength, and the nonlinear behavior observed later.
+The material tags assigned here are carried into the generated fiber commands. Check the plotted regions and bar locations before using the section in a member model.
 
 ```matlab
 ops.wipe();
@@ -57,11 +52,9 @@ sec1 = fs.new(parts, secTag=1);       % no rebars; secTag = 1
 sec1.mesh();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Meshing complete: 146 fiber cells generated.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Meshing complete: 146 fiber cells generated.</pre>
 </div>
 
 ```matlab
@@ -70,10 +63,9 @@ sectionProps = sec1.sectionProps;
 sec1.printProps();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-========== Cross-Section Properties ==========
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">13 lines</span></div>
+<pre>========== Cross-Section Properties ==========
   Total area         A     = 8192.0000
   Centroid           Cy    = 0.0000
                      Cz    = -0.0000
@@ -85,8 +77,7 @@ sec1.printProps();
   Principal inertia  I1    = 229587479.6202
                      I2    = 17296957.6049
   Principal angle    theta = 89.9982  deg
-===============================================
-</div>
+===============================================</pre>
 </div>
 
 ```matlab
@@ -102,11 +93,9 @@ opsmat.pre.setSectionGeometryRecorder(true);
 sec1.build();  % Write to OpenSees domain
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-build: section Fiber 1 written to ops (146 solid fibers, GJ = 1e+12).
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>build: section Fiber 1 written to ops (146 solid fibers, GJ = 1e+12).</pre>
 </div>
 
 ```matlab
@@ -121,7 +110,7 @@ opsmat.pre.setSectionGeometryRecorder(false);
 
 ## `EXAMPLE 2 — RC box section`
 
- `Matlab's geometric functions:` [Polygonal Shapes \- MATLAB & Simulink](https://www.mathworks.com/help/matlab/elementary-polygons.html)
+`Matlab's geometric functions:` [Polygonal Shapes \- MATLAB & Simulink](https://www.mathworks.com/help/matlab/elementary-polygons.html)
 
 ```matlab
 %% --- Materials ---
@@ -242,19 +231,14 @@ rebars(1).name   = 'HRB400 D25';
 rebars(1).matTag = 4;
 rebars(1).coords = allBarCoords;
 rebars(1).area   = pi * rebarR^2;
-```
-
-```matlab
 %% --- Construct, mesh, inspect ---
 sec2 = fs.new(parts, rebars=rebars, secTag=2);
 sec2.mesh();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-Meshing complete: 1268 fiber cells generated.
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>Meshing complete: 1268 fiber cells generated.</pre>
 </div>
 
 ```matlab
@@ -263,10 +247,9 @@ sectionProps = sec2.sectionProps;
 sec2.printProps();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-========== Cross-Section Properties ==========
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">13 lines</span></div>
+<pre>========== Cross-Section Properties ==========
   Total area         A     = 2080000.0000
   Centroid           Cy    = -0.0000
                      Cz    = 0.0000
@@ -278,8 +261,7 @@ sec2.printProps();
   Principal inertia  I1    = 1115233182245.6423
                      I2    = 641139454973.3702
   Principal angle    theta = -0.0000  deg
-===============================================
-</div>
+===============================================</pre>
 </div>
 
 ```matlab
@@ -295,11 +277,9 @@ opsmat.pre.setSectionGeometryRecorder(true);
 sec2.build();
 ```
 
-<div style="font-size:0.85em; color:var(--md-accent-fg-color);">
-<div style="font-weight:600;">Output</div>
-<div style="white-space:pre-wrap; font-family:Consolas;">
-build: section Fiber 2 written to ops (1268 solid fibers, 84 rebar fibers, GJ = 1e+12).
-</div>
+<div class="example-output">
+<div class="example-output__header"><img class="example-component__logo" src="../../../static/images/matlab.svg" alt=""><span>Run output</span><span class="example-output__count">1 line</span></div>
+<pre>build: section Fiber 2 written to ops (1268 solid fibers, 84 rebar fibers, GJ = 1e+12).</pre>
 </div>
 
 ```matlab
@@ -310,4 +290,9 @@ opsmat.pre.plotSection(2);
 
 ```matlab
 opsmat.pre.setSectionGeometryRecorder(false);
+
 ```
+
+## Mesh checks
+
+Compare fiber area and centroid with the source geometry, then inspect material tags and reinforcement locations. Increase mesh density only where the expected strain gradient requires it.

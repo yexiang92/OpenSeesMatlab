@@ -1,3 +1,7 @@
+# OpenSeesMatlabTool
+
+General toolbox utilities available as `opsMAT.utils`.
+
 ::: utils.OpenSeesMatlabTool
     handler: matlab
     options:
@@ -14,3 +18,9 @@
       docstring_section_style: list
       members:
         - loadExamples
+
+## Related documentation
+
+- [Examples](../examples/index.md)
+- [Installation](../getting_started/installation.md)
+- [OpenSeesMatlab API](OpenSeesMatlab.md)

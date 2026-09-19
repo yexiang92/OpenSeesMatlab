@@ -1,9 +1,9 @@
-classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
+classdef OpenSeesMatlabCmds < OpenSeesNexus
     % OpenSees command interface used by OpenSeesMatlab.
     %
     %   OpenSeesMatlabCmds exposes MATLAB methods that forward OpenSees commands
     %   to the configured OpenSees MATLAB MEX module. Most command wrappers are
-    %   inherited from OpenSeesMatlabBase and follow the same argument order as
+    %   inherited from OpenSeesNexus and follow the same argument order as
     %   OpenSees/OpenSeesPy where possible.
     %
     %   Users normally access this class through the opensees property of an
@@ -36,10 +36,12 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %       Parent OpenSeesMatlab object that owns this command interface.
             %
             % mexName : string or char, optional
-            %     Name of the OpenSees MATLAB MEX module. Default is 'OpenSeesMATLAB'.
+            %     Explicit OpenSees MATLAB MEX module name. Leave empty to use
+            %     the module selected by OpenSeesNexus.setBackend.
             %
             % mexDir : string or char, optional
-            %     Directory containing the MEX module. Default is 'derived/'.
+            %     Directory containing the MEX module. By default the matching
+            %     platform directory under OpenSeesNexus/derived is selected.
             %
             % Note
             % ----
@@ -48,21 +50,21 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %
             % Example
             % -------
-            %       opsmat = OpenSeesMatlab(mexName='OpenSeesMATLAB', mexDir='derived/');
+            %       opsmat = OpenSeesMatlab(mexName='OpenSeesMATLAB');
             %       ops = opsmat.opensees;
 
             arguments
                 parentObj (1,1) OpenSeesMatlab
-                mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
-                mexDir {mustBeTextScalar} = 'derived/'
+                mexName  {mustBeTextScalar} = ''
+                mexDir {mustBeTextScalar} = ''
             end
-            obj@ops.OpenSeesMatlabBase(mexName, mexDir);
+            obj@OpenSeesNexus(mexName, mexDir);
             obj.parent = parentObj;
         end
     end
 
     %% OpenSees command overrides
-    %   Most OpenSees command wrappers are implemented in OpenSeesMatlabBase.
+    %   Most OpenSees command wrappers are implemented in OpenSeesNexus.
     %   The overrides below add lightweight bookkeeping around section geometry
     %   commands and then delegate to the base implementation so the actual
     %   OpenSees command is still executed by the MEX module.
@@ -144,14 +146,14 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             [varargout{1:nargout}] = obj.mexHandle('node', nodeTag, varargin{:});
         end
 
-        function varargout = matlabSubstructure(obj, eleTag, callback, initialState, initialStiffness, interfacePairs, varargin)
+        function varargout = callbackSubstructure(obj, eleTag, callback, initialState, initialStiffness, interfacePairs, varargin)
             % Create a MATLAB-backed OpenSees substructure Element. This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
             %
             % Syntax
             % ------
-            %     ops.matlabSubstructure(eleTag, callback, initialState, ...
+            %     ops.callbackSubstructure(eleTag, callback, initialState, ...
             %         K0, interfacePairs)
-            %     ops.matlabSubstructure(eleTag, callback, initialState, ...
+            %     ops.callbackSubstructure(eleTag, callback, initialState, ...
             %         K0, interfacePairs, "tangentMode", "initial")
             %
             % The five inputs through interfacePairs are required positional
@@ -290,7 +292,7 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             %     K0 = eye(6);
             %     state0 = createPileSoilState();
             %     interface = [100 1; 100 2; 100 3; 100 4; 100 5; 100 6];
-            %     ops.matlabSubstructure(5001, ...
+            %     ops.callbackSubstructure(5001, ...
             %         @pileSoilModel, state0, K0, interface);
             %
             % If MATLAB contains the pile, soil, and fixed far-field reference,
@@ -325,7 +327,7 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             end
 
             parser = inputParser;
-            parser.FunctionName = 'ops.matlabSubstructure';
+            parser.FunctionName = 'ops.callbackSubstructure';
             parser.CaseSensitive = false;
             parser.PartialMatching = false;
             addParameter(parser, 'tangentMode', "matlab", ...
@@ -350,13 +352,21 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
                     'interfacePairs cannot contain duplicate [nodeTag, DOF] rows.');
             end
 
-            [varargout{1:nargout}] = obj.mexHandle('matlabSubstructure', ...
+            [varargout{1:nargout}] = obj.mexHandle('callbackSubstructure', ...
                 eleTag, callback, initialState, initialStiffness, interfacePairs, ...
                 'tangentMode', tangentMode);
         end
 
-        function tf = hasMatlabSubstructure(obj, eleTag)
-            % Check whether a MATLAB substructure callback tag is registered.
+        function varargout = matlabSubstructure(obj, varargin)
+            %MATLABSUBSTRUCTURE Compatibility alias for callbackSubstructure.
+            %   Existing models may continue to call matlabSubstructure. New
+            %   code should use callbackSubstructure, which is the common name
+            %   exposed by the MATLAB, Python, and Julia interfaces.
+            [varargout{1:nargout}] = obj.callbackSubstructure(varargin{:});
+        end
+
+        function tf = hasCallbackSubstructure(obj, eleTag)
+            % Check whether a substructure callback tag is registered.
             %
             % Notes
             % -----
@@ -368,8 +378,8 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             tf = obj.mexHandle('hasMatlabSubstructure', eleTag);
         end
 
-        function varargout = unregisterMatlabSubstructure(obj, eleTag)
-            % Remove one MATLAB substructure callback registry record.
+        function varargout = unregisterCallbackSubstructure(obj, eleTag)
+            % Remove one substructure callback registry record.
             % Call ops.wipe() first if the associated Element is still active.
             %
             % Notes
@@ -383,8 +393,8 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
                 'unregisterMatlabSubstructure', eleTag);
         end
 
-        function varargout = clearMatlabSubstructures(obj)
-            % Remove every MATLAB substructure callback registry record.
+        function varargout = clearCallbackSubstructures(obj)
+            % Remove every substructure callback registry record.
             % This does not wipe the OpenSees Domain; normally call ops.wipe()
             % before clearing records used by active Elements.
             %
@@ -392,6 +402,21 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % -----
             % This is an additional feature added to OpenSeesMatlab and is not a native OpenSees command.
             [varargout{1:nargout}] = obj.mexHandle('clearMatlabSubstructures');
+        end
+
+        function tf = hasMatlabSubstructure(obj, varargin)
+            %HASMATLABSUBSTRUCTURE Compatibility alias for hasCallbackSubstructure.
+            tf = obj.hasCallbackSubstructure(varargin{:});
+        end
+
+        function varargout = unregisterMatlabSubstructure(obj, varargin)
+            %UNREGISTERMATLABSUBSTRUCTURE Compatibility alias for unregisterCallbackSubstructure.
+            [varargout{1:nargout}] = obj.unregisterCallbackSubstructure(varargin{:});
+        end
+
+        function varargout = clearMatlabSubstructures(obj, varargin)
+            %CLEARMATLABSUBSTRUCTURES Compatibility alias for clearCallbackSubstructures.
+            [varargout{1:nargout}] = obj.clearCallbackSubstructures(varargin{:});
         end
 
         function varargout = element(obj, eleType, eleTag, varargin)
@@ -1369,15 +1394,6 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
         function varargout = uniaxialMaterial(obj, matType, matTag, matArgs)
             % This command is used to construct a UniaxialMaterial object which represents uniaxial stress-strain (or force-deformation) relationships.
             %
-            % MATLAB extension syntax
-            % -----------------------
-            %   ops.uniaxialMaterial("MatlabUniaxialMaterial", matTag, ...
-            %       callback, initialState, initialTangent)
-            %
-            % MatlabUniaxialMaterial is routed internally to the MEX
-            % extensionMaterial dispatcher. Native OpenSees material types
-            % continue to use the upstream uniaxialMaterial command.
-            %
             % See also
             % ---------
             %   - [uniaxialMaterial commands (Python)](https://openseespydoc.readthedocs.io/en/latest/src/uniaxialMaterial.html)
@@ -1402,17 +1418,8 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
                 matArgs
             end
 
-            if strcmpi(string(matType), "MatlabUniaxialMaterial")
-                % MATLAB-aware materials need direct MATLAB arrays/function
-                % handles, so the wrapper routes them to the internal MEX
-                % extension dispatcher while preserving the standard public
-                % uniaxialMaterial API.
-                [varargout{1:nargout}] = obj.mexHandle( ...
-                    'extensionMaterial', matType, matTag, matArgs{:});
-            else
-                [varargout{1:nargout}] = obj.mexHandle( ...
-                    'uniaxialMaterial', matType, matTag, matArgs{:});
-            end
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'uniaxialMaterial', matType, matTag, matArgs{:});
         end
 
         function varargout = nDMaterial(obj, matType, matTag, matArgs)
@@ -1616,25 +1623,64 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % systemType : str
-            %   The system type. CuDSS variants use the optional GPU extension.
+            %   The system type. CuDSS, CuDSSGeneral, CuDSSSymmetric, and
+            %   CuDSSSPD use the optional NVIDIA GPU extension. SUNDIALS exposes
+            %   the bundled CPU linear solvers: dense, band, pcg, spbcgs,
+            %   spfgmr, spgmr, and sptfqmr. Native and extension types are
+            %   forwarded identically; the shared C++ dispatcher selects the
+            %   extension factory or delegates to upstream OpenSees.
             % systemArgs : varargin
-            %   Additional arguments for the system.
+            %   Additional arguments for the system. CuDSS accepts:
+            %
+            %   Runtime and device selection:
+            %     '-cudaMajor', auto|12|13
+            %     '-cudaPath', directory
+            %     '-cudssPath', directory
+            %     '-device', auto|index
+            %     '-devices', 'i,j,...'       single-node multi-GPU
+            %
+            %   Numerical and performance controls:
+            %     '-cpuThreshold', equations  CPU SparseLU below this size (0)
+            %     '-reuseFactorization'       reuse bitwise-identical tangents (default)
+            %     '-noReuseFactorization'     force numerical refactorization
+            %     '-indexBits', auto|32|64    CSR index width (default auto)
+            %     '-reorder', default|btf|colamd|amd|nd|none
+            %     '-factorization', default|multiblock|general
+            %     '-pivot', auto|none|globalCol|globalRow|diagonal|local
+            %     '-pivotThreshold', value
+            %     '-pivotEpsilon', value
+            %     '-refinement', count        default 0
+            %     '-tolerance', value         default 1e-12
+            %     '-deterministic'
+            %
+            %   Advanced execution controls:
+            %     '-hybridMemory'
+            %     '-hybridMemoryLimit', bytes
+            %     '-hybridExecute'
+            %     '-hostThreads', count
+            %     '-threadingLayer', library
+            %     '-schurSize', equations     symmetric systems only
+            %     '-estimates', '-diagnostics', '-verbose'
+            %
+            %   Options are forwarded unchanged to the cuDSS extension. Disable
+            %   diagnostics, verbose output, estimates, and deterministic mode
+            %   for representative performance timing.
+            %
+            %   SUNDIALS accepts '-type' dense|band|pcg|spbcgs|spfgmr|spgmr|
+            %   sptfqmr. Iterative types accept '-preconditioner'
+            %   auto|none|jacobi|ssor|ilu0, '-relativeTolerance',
+            %   '-absoluteTolerance', '-maxIter', '-maxDim', '-maxRestarts', and
+            %   '-gramSchmidt' modified|classical. '-tolerance' remains an alias
+            %   for '-relativeTolerance'.
             arguments
                 obj
-                systemType {mustBeTextScalar, mustBeMember(systemType, ["BandGeneral", "BandGEN", "BandGen", "BandSPD", "Diagonal","MPIDiagonal", "SProfileSPD", ...
-                 "ProfileSPD", "ParallelProfileSPD", "PFEM", "SparseGeneral", "SuperLU", "SparseGEN", ...
-                 "SparseSPD", "SparseSYM", "UmfPack", "Umfpack", "FullGeneral", "Petsc", "Mumps", "Itpack", ...
-                 "CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"])}
+                systemType {mustBeTextScalar}
             end
             arguments (Repeating)
                 systemArgs
             end
 
-            if any(strcmp(string(systemType), ["CuDSS", "CuDSSGeneral", "CuDSSSymmetric", "CuDSSSPD"]))
-                [varargout{1:nargout}] = obj.mexHandle('extensionSystem', systemType, systemArgs{:});
-            else
-                [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
-            end
+            [varargout{1:nargout}] = obj.mexHandle('system', systemType, systemArgs{:});
         end
 
         function varargout = test(obj, testType, testArgs)
@@ -1677,16 +1723,18 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             % Parameters
             % ----------
             % algoType : char | string
-            %   Algorithm type.
+            %   Algorithm type. Native and extension types are dispatched in
+            %   the shared C++ layer.
             % algoArgs : varargin
-            %   Additional arguments for the algorithm.
+            %   Additional arguments for the algorithm. After a TrustRegion or
+            %   KINSOL solve, pass '-info' to return one structure containing
+            %   the latest statistics and returnReason:
+            %
+            %       info = ops.algorithm("TrustRegion", "-info");
+            %       info = ops.algorithm("KINSOL", "-info");
             arguments
                 obj
-                algoType {mustBeTextScalar, mustBeMember(algoType, ...
-                         ["Linear", "Newton", "ModifiedNewton", ...
-                          "KrylovNewton", "RaphsonNewton", "MillerNewton", ...
-                          "SecantNewton", "PeriodicNewton", "ExpressNewton", ...
-                          "Broyden", "BFGS", "NewtonLineSearch"])}
+                algoType {mustBeTextScalar}
             end
             arguments (Repeating)
                 algoArgs
@@ -1837,6 +1885,125 @@ classdef OpenSeesMatlabCmds < ops.OpenSeesMatlabBase
             end
 
             [varargout{1:nargout}] = obj.mexHandle('analyze', numIncr, analyzeArgs{:});
+        end
+
+        function varargout = adaptiveAnalyze(obj, numSteps, adaptiveArgs)
+            % Run a static or transient analysis with isolated recovery attempts.
+            %
+            % .. Note::
+            %
+            %    This command is not part of the OpenSees core. It is
+            %    implemented by the OpenSeesMatlab extension.
+            %
+            % adaptiveAnalyze advances the configured OpenSees analysis one
+            % attempted step at a time. A successful attempt is committed. After
+            % a failed attempt, OpenSees reverts to the last committed state and
+            % adaptiveAnalyze may increase the iteration limit, try fallback
+            % algorithms or tests, and subdivide the current target step.
+            %
+            % Outer variable stepping and inner failed-step subdivision are
+            % separate. The current outer target must be completed in full before
+            % the next static increment or VariableTransient time step is chosen.
+            %
+            % Syntax
+            % ------
+            %     % Static; the step comes from LoadControl or
+            %     % DisplacementControl:
+            %     ok = ops.adaptiveAnalyze(numSteps)
+            %     ok = ops.adaptiveAnalyze(numSteps, groups...)
+            %
+            %     % Fixed-step transient:
+            %     ok = ops.adaptiveAnalyze(numSteps, dt, groups...)
+            %
+            %     % VariableTransient:
+            %     ok = ops.adaptiveAnalyze(numSteps, dt, ...
+            %         '-variableTransient', dtMin, dtMax, Jd, groups...)
+            %
+            % Parameters
+            % ----------
+            % numSteps : int
+            %     Number of static/fixed-transient outer targets. For
+            %     VariableTransient, numSteps*dt defines the total requested
+            %     model-time increment.
+            % dt : double
+            %     Initial outer time step for Transient or VariableTransient.
+            % groups : varargin
+            %     Optional grouped recovery controls listed as follows. The
+            %     presence of a group name enables that feature; no Boolean
+            %     switch follows it. Omitted recovery groups are disabled.
+            %
+            %     - '-iterations', multiplier, maxIterations
+            %         - Retry a failed substep with a larger convergence-test maxIter.
+            %           Suggested values are 3 and 200.
+            %     - '-algorithms', algorithmSpec...
+            %         - Try fallback algorithms in order. Argument-free algorithms may be
+            %           consecutive strings. Parameterized algorithms must use cells,
+            %           where each outer cell element is one complete algorithm command.
+            %     - '-subdivision', reduction, minStep, maxSubdivisions
+            %         - Subdivide only the current failed outer target. Suggested
+            %           values are 0.5, abs(initialStep)*1e-6, and 10.
+            %     - '-tests', testSpecs
+            %         - Configure fallback tests. Each inner cell is
+            %           {testType, tolerance, maxIter, printFlag}.
+            %     - '-variableTransient', dtMin, dtMax, Jd
+            %         - Required only after analysis('VariableTransient'). This group
+            %           has no Boolean switch because the analysis type controls it.
+            %     - '-limits', maxRecoveryAttempts
+            %         - Maximum real analysis attempts within one outer target.
+            %            Defaults to 1000.
+            %     - '-log', filePath
+            %         - Write a CSV record of every recovery attempt.
+            %     - '-debug'
+            %         - Print every attempt. A final success or failure summary is
+            %           printed regardless of this setting.
+            %
+            % Returns
+            % -------
+            % ok : int
+            %     Zero when the requested analysis range is complete; negative
+            %     when recovery or configuration restoration fails.
+            %
+            % Examples
+            % --------
+            %     ops.integrator('LoadControl', 0.01);
+            %     ops.analysis('Static');
+            %     ok = ops.adaptiveAnalyze(100, ...
+            %         '-algorithms', 'KrylovNewton', 'Newton', ...
+            %         '-subdivision', 0.5, 1e-6, 10);
+            %
+            %     ops.analysis('VariableTransient');
+            %     algorithms = { ...
+            %         {'KrylovNewton', '-maxDim', 20}, ...
+            %         {'Newton'}};
+            %     ok = ops.adaptiveAnalyze(1000, 0.01, ...
+            %         '-algorithms', algorithms, ...
+            %         '-subdivision', 0.5, 1e-6, 10, ...
+            %         '-variableTransient', 1e-5, 0.02, 8);
+            %
+            % Notes
+            % -----
+            %     Static outer variable stepping is read from the configured
+            %     LoadControl or DisplacementControl numIter/min/max arguments.
+            %     VariableTransient parameters are rejected for Static or
+            %     ordinary Transient analysis.
+            %
+            %     With no recovery groups, adaptiveAnalyze performs only the
+            %     original one-step analysis attempts and does not change the
+            %     algorithm, convergence test, or step size.
+            %
+            %     After every successful or failed attempt, the user's original
+            %     algorithm, convergence test, and static integrator are restored.
+
+            arguments
+                obj
+                numSteps (1,1) {mustBeNumeric}
+            end
+            arguments (Repeating)
+                adaptiveArgs
+            end
+
+            [varargout{1:nargout}] = obj.mexHandle( ...
+                'adaptiveAnalyze', numSteps, adaptiveArgs{:});
         end
 
         function varargout = eigen(obj, varargin)
