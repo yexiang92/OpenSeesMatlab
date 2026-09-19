@@ -4,7 +4,9 @@
 
 ## 安装与验证
 
-OpenSeesMatlab 目前支持 Windows 和 MATLAB R2023a 及以上版本。可以从以下任一地址下载发布包：
+OpenSeesMatlab 分别提供 Windows x86-64 和 macOS Apple silicon 发布包。
+Windows 版本要求 MATLAB R2023a 或更高版本；macOS 版本要求 Apple silicon
+原生 MATLAB R2023b 或更高版本。请从以下任一地址下载与当前 MATLAB 平台匹配的发布包：
 
 - [GitHub Releases](https://github.com/yexiang92/OpenSeesMatlab/releases)
 - [Gitee Releases（国内镜像）](https://gitee.com/yexiang-yan/opensees-interface-for-matlab/releases)
@@ -12,7 +14,7 @@ OpenSeesMatlab 目前支持 Windows 和 MATLAB R2023a 及以上版本。可以�
 下载后解压到一个具有写入权限的目录。在 MATLAB 中进入该目录并运行安装脚本：
 
 ```matlab
-cd('D:\path\to\OpenSeesMatlab');
+cd('path/to/extracted/OpenSeesMatlab');
 installOpenSeesMatlab;
 ```
 

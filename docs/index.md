@@ -92,7 +92,7 @@ workflow tools.
 | Model automation | Tcl loops and procedures | Python functions, classes, packages, and notebooks | MATLAB functions, classes, scripts, Live Scripts, and apps |
 | Built-in workflow in this project | Standard OpenSees commands and recorders | Provided by the separate OpenSeesPy ecosystem | [Preprocessing][pre.OpenSeesMatlabPre], [analysis helpers][analysis.OpenSeesMatlabAnalysis], [ODB post-processing][post.OpenSeesMatlabPost], and [visualization][plotter.OpenSeesMatlabVis] |
 | Interactive visualization | Normally external or script-based | Python plotting/viewer packages | MATLAB figures plus the recommended [Polyscope GUI][plotter.OpenSeesMatlabVisPolyscope] |
-| Current OpenSeesMatlab platform scope | OpenSees itself is available on multiple platforms | Available on multiple platforms | The distributed OpenSeesMatlab toolbox currently targets Windows and requires MATLAB |
+| Current OpenSeesMatlab platform scope | OpenSees itself is available on multiple platforms | Available on multiple platforms | Windows x86-64 (MATLAB R2023a+) and macOS Apple silicon (native MATLAB R2023b+) |
 
 Choose **Tcl** when you want the traditional OpenSees scripting environment
 and maximum compatibility with established Tcl examples. Choose
@@ -135,10 +135,15 @@ For large transient models, record only the data you need. Convenience layers ma
 
 ## Scope and requirements
 
-- MATLAB R2023a or later
-- Windows (the currently supported platform)
+- Windows x86-64 with MATLAB R2023a or later
+- macOS Apple silicon with native MATLAB R2023b or later
+- Separate platform packages; install the package matching the MATLAB host
+- Intel-based macOS and Linux packages are not currently distributed
 - Command syntax aligned as closely as possible with OpenSees and OpenSeesPy
 - MATLAB-native access to returned numeric and structured data
+
+See [Installation](getting_started/installation.md#supported-platforms) for the
+platform matrix and installation procedure.
 
 <div class="grid cards" markdown>
 
