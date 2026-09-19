@@ -74,6 +74,12 @@ classdef OpenSeesMatlab < handle
     %       h = opsmat.vis.plotModel();
     %
 
+    properties (Constant)
+        % Toolbox release version. publish.m copies this value into the
+        % metadata and file name of every platform-specific toolbox package.
+        ToolboxVersion = "3.8.0.3"
+    end
+
     properties (SetAccess = private, GetAccess = public)
         % Keep this property untyped so the embedded OpenSeesNexus library can
         % be connected before MATLAB resolves OpenSeesMatlabCmds and its
