@@ -13,10 +13,11 @@ This is a topic guide rather than a first tutorial. New users should begin with 
 3. [Eigenvalue Analysis Visualization](#eigenvalue-analysis-visualization)
 4. [Response Data Recording (ODB)](#response-data-recording-odb)
 5. [Retrieving Responses](#retrieving-responses)
-6. [Visualization of Analysis Results](#visualization-of-analysis-results)
-7. [Interactive GUI Plotters](#interactive-gui-plotters)
-8. [Export to ParaView (PVD)](#export-to-paraview-pvd)
-9. [Preprocessing Utilities](#preprocessing-utilities)
+6. [Label-Aware Response Data](#label-aware-response-data)
+7. [Visualization of Analysis Results](#visualization-of-analysis-results)
+8. [Interactive GUI Plotters](#interactive-gui-plotters)
+9. [Export to ParaView (PVD)](#export-to-paraview-pvd)
+10. [Preprocessing Utilities](#preprocessing-utilities)
 
 ---
 
@@ -90,6 +91,48 @@ opsMAT.vis.polyscope.plotEigen(1, eigenData);
 
 ---
 
+## Linear Buckling Mode Visualization
+
+The analysis sequence remains under user control. After
+[`linearBuckling`](extensions/linear_buckling.md)
+solves the requested modes, post-processing can collect all factors and mode
+shapes in one data structure:
+
+```matlab
+ops.linearBuckling("capture");
+assert(ops.analyze(1) == 0);
+factors = ops.linearBuckling("solve", 6);
+
+bucklingData = opsMAT.post.getLinearBucklingData(factors);
+opsMAT.post.saveLinearBucklingData("plate", factors);
+
+% All mode-shape viewers recognize bucklingData.AnalysisType automatically.
+opsMAT.vis.plotEigen(1, bucklingData);
+opsMAT.vis.plotEigenGUI(bucklingData);
+opsMAT.vis.polyscope.plotEigen(bucklingData);
+```
+
+[`getLinearBucklingData`][post.OpenSeesMatlabPost.getLinearBucklingData] does
+not run, repeat, or modify the analysis. It reads
+the node mode vectors stored by the preceding `linearBuckling("solve", ...)`
+call. Buckling views display load factors rather than modal periods,
+frequencies, or participation masses. Existing eigen workflows remain modal by
+default. To override data auto-detection explicitly, set
+`opts.mode.type` to `"modal"` or `"buckling"`.
+
+Modal and buckling data also carry `AnalysisType`, so all three mode-shape
+viewers select the correct labels automatically. When `ModelInfo` is included,
+the viewers use that stored geometry before consulting the current OpenSees
+domain; saved results therefore remain viewable after `ops.wipe()`.
+
+See the [linear buckling guide](extensions/linear_buckling.md) for the tangent
+difference problem, analysis sequence, matrix assumptions, solver selection,
+and validation checks. The
+[rectangular plate example](../examples/extension/analysis/extension_linear_buckling_plate.md)
+collects and plots six modes.
+
+---
+
 ## Response Data Recording (ODB)
 
 OpenSeesMatlab uses an **ODB (Output Database)** system to record analysis results in HDF5 format.
@@ -155,6 +198,183 @@ sectionDefos  = frameResp.sectionDeformations;
 % Shell/Plane/Solid element responses
 eleResp = opsMAT.post.getElementResponse("myODB", eleType="Shell");
 ```
+
+---
+
+## Label-Aware Response Data
+
+The response retrieval functions return ordinary MATLAB structs so that all
+existing visualization functions remain compatible. For interactive data
+analysis, a response struct can also be wrapped in a label-aware
+[`ResponseDataset`][post.xarray.ResponseDataset], similar to the basic data-selection
+workflow provided by xarray:
+
+```matlab
+nodeResp = opsMAT.post.getNodalResponse("myODB");
+ds = opsMAT.post.toResponseDataset(nodeResp);
+```
+
+The concrete object types are [`ResponseDataset`][post.xarray.ResponseDataset] and
+[`ResponseArray`][post.xarray.ResponseArray]. The shorter conversion entry point remains in
+the main ``post`` package for convenience.
+
+The conversion does not modify or copy fields back into `nodeResp`. Continue to
+pass the original response struct to the visualization functions.
+
+### Variables and Dot Access
+
+Nested response fields become named variables. Access a variable using a dotted
+path or a string path:
+
+```matlab
+ux = ds.disp.ux;
+ux = ds("disp.ux");       % equivalent
+
+ds.names()                % all available variable paths
+ds.has("disp.ux")         % test whether a variable exists
+```
+
+Each variable is a [`ResponseArray`][post.xarray.ResponseArray] containing the numeric
+data, dimension names, coordinates, and source metadata:
+
+```matlab
+ux.Data
+ux.Dimensions             % for example: ["time", "node"]
+ux.Coordinates
+ux.Name
+ux.Attributes
+```
+
+Dimension coordinates are also available directly through dot access:
+
+```matlab
+t = ds.disp.ux.time;
+nodeTags = ds.disp.ux.node;
+
+t3 = ds.disp.ux.time(3);
+u3 = ds.disp.ux.Data(3, :);
+```
+
+### Select by Coordinate with `sel`
+
+Use `sel` when the requested values are coordinate values, such as actual node
+tags, element tags, section numbers, or analysis times:
+
+```matlab
+% Displacement history at node tag 18
+u18 = ds.disp.ux.sel("node", 18);
+
+% Multiple nodes and an exact recorded time
+u = ds.disp.ux.sel("node", [18 25], "time", 1.5);
+
+% Use the closest recorded time when an exact value is unavailable
+u = ds.disp.ux.sel("time", 1.53, "Method", "nearest");
+```
+
+Selections return another `ResponseArray`; use `.Data` when a plain MATLAB
+array is required:
+
+```matlab
+plot(u18.time, u18.Data);
+```
+
+### Select by Position with `isel`
+
+Use `isel` for ordinary one-based MATLAB positions along named dimensions:
+
+```matlab
+% First 100 steps and the second stored node
+u = ds.disp.ux.isel("time", 1:100, "node", 2);
+```
+
+`sel("node", 18)` selects node **tag 18**, whereas `isel("node", 18)` selects
+the **18th stored node**.
+
+### Element, Gauss-Point, Section, and Fiber Responses
+
+Dimension labels are assigned automatically from schema metadata supplied by
+the FEMData reader. Users do not need to specify array layouts manually. Common
+layouts include:
+
+| Response | Dimensions |
+|----------|------------|
+| Nodal displacement, velocity, acceleration, reaction | `time, node` |
+| Plane/solid response at Gauss points | `time, element, gaussPoint` |
+| Plane/solid response projected to nodes | `time, node` |
+| Shell stress/strain at Gauss points | `time, element, gaussPoint, fiber` |
+| Shell stress/strain at nodes | `time, node, fiber` |
+| Frame section force/deformation | `time, element, section` |
+| Frame fiber stress/strain | `time, element, section, fiber` |
+| MVLEM fiber response | `time, element, fiber` |
+
+For example:
+
+```matlab
+frameResp = opsMAT.post.getElementResponse("myODB", eleType="Frame");
+frameDS = post.toResponseDataset(frameResp);
+
+sectionDefosMZ = frameDS.sectionDeformations.Mz;
+defo = sectionDefosMZ.sel("element", 1, "section", 1);
+plot(defo.time, defo.Data);
+
+solidResp = opsMAT.post.getElementResponse("myODB", eleType="Solid");
+solidDS = post.toResponseDataset(solidResp);
+sxx = solidDS.StressAtGP.sxx.sel("element", 10, "gaussPoint", 2);
+```
+
+MATLAB may display a selection with trailing singleton dimensions as a lower
+rank numeric array. For example, logical dimensions `time, element, section`
+can have a physical size of `[nTime, 1]` after selecting one element and one
+section. `ResponseArray` preserves the dimension names and scalar coordinates.
+
+### Conversion and Compatibility
+
+```matlab
+raw = ux.toArray();        % plain numeric array
+s = ux.toStruct();         % data plus labels and metadata
+t = ux.toTable();          % variables with at most two dimensions
+```
+
+### Common Array Operations
+
+`ResponseArray` provides vectorized operations along named dimensions. These
+methods call MATLAB's native array functions directly:
+
+```matlab
+uMean = ux.mean("time");
+uMax = ux.max("time", "omitmissing");
+uSum = ux.sum("node");
+uStd = ux.std("time", "omitmissing");
+
+u = ux.transpose(["node", "time"]);
+u = ux.squeeze();
+u = ux.where(ux.Data >= 0, NaN);
+
+sz = ux.sizes();
+nodeTags = ux.coordinate("node");
+u = ux.renameDimension("node", "joint");
+u = u.assignCoordinates("joint", newJointTags);
+```
+
+The supported named reductions are `mean`, `sum`, `min`, `max`, `std`,
+`median`, `any`, and `all`. A reduction removes its dimension and preserves the
+remaining coordinates.
+
+Selection and reductions can also be applied to a complete Dataset. Only
+variables containing the requested dimension are processed:
+
+```matlab
+selected = ds.sel("node", [10 20], "time", 1.0);
+selected = ds.isel("time", 1:100);
+timeMean = ds.mean("time");
+jointDS = ds.renameDimension("node", "joint");
+```
+
+New FEMData readers return a `responseSchema` field containing the exact
+variable paths and dimension names. `toResponseDataset` consumes this metadata
+automatically and excludes it from the response variables. For response structs
+created by older readers, an internal MATLAB schema provides a compatibility
+fallback.
 
 ---
 
@@ -461,3 +681,5 @@ opsMAT.vis.plotDeformation(nodeResp, stepIdx="absMax");
 
 - [Detailed Examples](../examples/post/index.md)
 - [API Reference](../api/index.md)
+- [OpenSeesNexus Extensions API](../api/OpenSeesNexusExtensions.md)
+- [Linear Buckling Analysis](extensions/linear_buckling.md)

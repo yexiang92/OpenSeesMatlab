@@ -110,7 +110,8 @@ addText('Elements', y); y = y - dy * 0.9;
     'Solid', state.opts.elements.showSolid, y); y = y - dy;
 [controls.showContact, controls.wireframeOnly] = addCheckPair('Contact', state.opts.elements.showContact, ...
     'Wireframe', state.opts.elements.wireframeOnly, y); y = y - dy;
-controls.faceWireframe = addCheck('Face edges', state.opts.elements.showWireframeOnFaces, y); y = y - dy;
+[controls.showMVLEM, controls.faceWireframe] = addCheckPair('MVLEM', state.opts.elements.showMVLEM, ...
+    'Face edges', state.opts.elements.showWireframeOnFaces, y); y = y - dy;
 
 addSeparator(y); y = y - dy * 0.55;
 addText('Axes / loads', y); y = y - dy * 0.9;
@@ -291,6 +292,7 @@ end
             'Shell family',  {'style','familyColors','Shell'}
             'Solid family',  {'style','familyColors','Solid'}
             'Contact family',{'style','familyColors','Contact'}
+            'MVLEM family',  {'style','familyColors','MVLEM'}
             };
 
         colorFig = figure('Name', 'PlotModel Colors | by Yexiang Yan', 'NumberTitle', 'off', ...
@@ -471,6 +473,7 @@ end
         opts.elements.showShell = logical(controls.showShell.Value);
         opts.elements.showSolid = logical(controls.showSolid.Value);
         opts.elements.showContact = logical(controls.showContact.Value);
+        opts.elements.showMVLEM = logical(controls.showMVLEM.Value);
         opts.elements.wireframeOnly = logical(controls.wireframeOnly.Value);
         opts.elements.showWireframeOnFaces = logical(controls.faceWireframe.Value);
 
@@ -507,6 +510,7 @@ end
         controls.showShell.Value = logical(opts.elements.showShell);
         controls.showSolid.Value = logical(opts.elements.showSolid);
         controls.showContact.Value = logical(opts.elements.showContact);
+        controls.showMVLEM.Value = logical(opts.elements.showMVLEM);
         controls.wireframeOnly.Value = logical(opts.elements.wireframeOnly);
         controls.faceWireframe.Value = logical(opts.elements.showWireframeOnFaces);
 

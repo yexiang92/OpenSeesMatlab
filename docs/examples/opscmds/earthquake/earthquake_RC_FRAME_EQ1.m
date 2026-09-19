@@ -1,17 +1,15 @@
 %% *Reinforced Concrete Frame Earthquake Analysis*
-% This live script is written as a guided walkthrough for a dynamic earthquake-analysis 
-% workflow. It builds the model, applies loading and ground motion records, runs 
-% the analysis, and reviews the response. Read the text cells first, then run 
-% each code cell in order so that the variables, model state, and recorded results 
-% are available for the later sections.
-% 
-% 
+% A reinforced-concrete frame is analyzed under gravity before an El Centro 
+% acceleration record is applied at its base. Follow the change from static to 
+% transient analysis and compare the natural frequencies before and after the 
+% earthquake calculation.
+% Build the nonlinear frame
+% The columns use force-based elements with confined concrete, cover concrete, 
+% and reinforcing-steel fibers. The beam remains elastic so the example stays 
+% focused on column nonlinearity.
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
-%% 
-% 
-
 
 ops.wipe();
 % Create ModelBuilder (with two-dimensions and 3 DOF/node)
@@ -125,9 +123,6 @@ ops.pattern('Plain', 1, 1);
 %    nd  FX,  FY, MZ
 ops.load(3, 0.0, -P, 0.0);
 ops.load(4, 0.0, -P, 0.0);
-%% 
-% 
-
 figure;
 paras = opsMAT.vis.defaultPlotModelOptions();
 paras.loads.showNodal = true;
@@ -137,6 +132,10 @@ opsMAT.vis.plotModel(opts=paras);
 % ------------------------------
 % End of model generation
 % ------------------------------
+
+% Establish the gravity state
+% Gravity is applied in ten static increments. The displacement check below 
+% is a useful guard against changes in the section, element, or constraint definitions.
 
 % ------------------------------
 % Start of analysis generation
@@ -184,6 +183,11 @@ if abs(u3 + 0.0183736) < 1e-6 && abs(u4 + 0.0183736) < 1e-6
 else
     disp('Failed!')
 end
+
+% Add mass and ground excitation
+% |loadConst| freezes the completed gravity pattern and resets domain time. 
+% Nodal mass is then derived from the supported weight before the acceleration 
+% record is added as a uniform excitation.
 
 % Set the gravity loads to be constant & reset the time in the domain
 ops.loadConst('-time', 0.0);
@@ -259,6 +263,11 @@ ok = 0;
 time = tCurrent;
 u3 = 0.0;
 
+% Run the transient analysis
+% Newmark average acceleration advances the response at the record time step. 
+% If regular Newton fails, one attempt with the initial tangent is made and the 
+% original algorithm is restored after recovery.
+
 % Perform the transient analysis
 while ok == 0 && tCurrent < tFinal
 
@@ -266,12 +275,12 @@ while ok == 0 && tCurrent < tFinal
 
     % if the analysis fails try initial tangent iteration
     if ok ~= 0
-        disp('regular newton failed .. lets try an initail stiffness for this step')
+        disp('Regular Newton failed; trying the initial tangent for this step.')
         ops.test('NormDispIncr', 1.0e-12, 100, 0);
         ops.algorithm('ModifiedNewton', '-initial');
         ok = ops.analyze(1, 0.01);
         if ok == 0
-            disp('that worked .. back to regular newton')
+            disp('The step converged; restoring regular Newton.')
         end
         ops.test('NormDispIncr', 1.0e-12, 10);
         ops.algorithm('Newton');
@@ -293,3 +302,8 @@ hold on
 plot([nPts*dt nPts*dt], [min(u3) max(u3)], "LineStyle", "--", "Color", "green");
 ylabel('Horizontal Displacement of node 3 (in)');
 xlabel('Time (s)');
+
+% Reading the response
+% The gravity displacement check should pass before transient analysis begins. 
+% Compare the initial and final eigenvalues and inspect node 3 displacement for 
+% discontinuities caused by a failed or unrecovered time step.

@@ -21,6 +21,12 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             testCase.verifyNotEmpty(opsmat.opensees.mexPath());
             testCase.verifyClass(opsmat.version, 'char');
             testCase.verifyMatches(opsmat.version, '^\d+\.\d+\.\d+');
+            testCase.verifyEqual(opsmat.version, opsmat.bindingVersion);
+            testCase.verifyClass(opsmat.openseesVersion, 'char');
+            testCase.verifyMatches(opsmat.openseesVersion, '^\d+\.\d+\.\d+');
+            testCase.verifyEqual(opsmat.backend, "serial");
+            testCase.verifyEqual(opsmat.opensees.openseesVersion(), ...
+                opsmat.openseesVersion);
 
             clear cleanup
         end
@@ -59,6 +65,32 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             clear cleanup
         end
 
+        function femDataSchemaFeedsNamedPostDataset(testCase)
+            opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
+            cleanup = onCleanup(@() opsmat.opensees.wipe());
+            outputFile = [tempname '.h5'];
+            fileCleanup = onCleanup(@() TestOpenSeesMexIntegration.deleteIfPresent(outputFile));
+            ops = opsmat.opensees;
+
+            TestOpenSeesMexIntegration.buildStaticTrussModel(ops);
+            recorderTag = ops.FEMDataRecorder(outputFile, '-saveNodalResp');
+            testCase.assertEqual(double(ops.analyze(1)), 0);
+            ops.remove('recorder', recorderTag);
+
+            recorded = ops.readFEMData(outputFile, 'nodal');
+            testCase.verifyTrue(isfield(recorded, 'responseSchema'));
+            schemaIndex = find(strcmp(recorded.responseSchema.paths, 'disp.ux'), 1);
+            testCase.verifyNotEmpty(schemaIndex);
+            testCase.verifyEqual(recorded.responseSchema.dimensions{schemaIndex}, ...
+                {'time', 'node'});
+
+            dataset = post.toResponseDataset(recorded);
+            displacement = dataset('disp.ux');
+            testCase.verifyEqual(displacement.Dimensions, ["time", "node"]);
+
+            clear fileCleanup cleanup
+        end
+
         function postProcessorCollectsMexModelData(testCase)
             opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
             cleanup = onCleanup(@() opsmat.opensees.wipe());
@@ -66,8 +98,8 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             TestOpenSeesMexIntegration.buildTrussModel(opsmat.opensees);
             modelInfo = opsmat.post.getModelData();
 
-            testCase.verifyEqual(modelInfo.NumNode, 2);
-            testCase.verifyEqual(modelInfo.NumElement, 1);
+            testCase.verifyEqual(double(modelInfo.NumNode), 2);
+            testCase.verifyEqual(double(modelInfo.NumElement), 1);
             testCase.verifyEqual(double(modelInfo.Nodes.Tags(:).'), [1 2]);
             testCase.verifyEqual(double(modelInfo.Nodes.Coords(1:2, 1:2)), ...
                 [0 0; 1 0], 'AbsTol', 1.0e-12);
@@ -75,6 +107,95 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             testCase.verifyEqual(double(modelInfo.Elements.Families.Truss.Cells), [2 1 2]);
 
             clear cleanup
+        end
+
+        function linearBucklingPostCollectsAndSavesMultipleModes(testCase)
+            opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
+            cleanup = onCleanup(@() opsmat.opensees.wipe());
+            outputDir = tempname;
+            mkdir(outputDir);
+            outputCleanup = onCleanup(@() ...
+                TestOpenSeesMexIntegration.deleteDirectory(outputDir));
+            ops = opsmat.opensees;
+
+            TestOpenSeesMexIntegration.buildPinnedColumn(ops, 12);
+            testCase.assertEqual(double(ops.linearBuckling('capture')), 0);
+            testCase.assertEqual(double(ops.analyze(1)), 0);
+            factors = double(ops.linearBuckling('solve', 2));
+            testCase.assertNumElements(factors, 2);
+
+            data = opsmat.post.getLinearBucklingData( ...
+                factors, IncludeModelInfo=true);
+            testCase.verifyEqual(string(data.AnalysisType), "buckling");
+            testCase.verifyEqual(data.ModeTags, [1; 2]);
+            testCase.verifyEqual(data.BucklingFactors, factors(:), ...
+                'AbsTol', 1.0e-12);
+            testCase.verifySize(data.EigenVectors.data, [2 13 6]);
+            testCase.verifyNotEmpty(data.InterpolatedEigenVectors);
+
+            opsmat.post.setOutputDir(outputDir);
+            opsmat.post.saveLinearBucklingData( ...
+                'column', factors, IncludeModelInfo=true);
+            restored = opsmat.post.getLinearBucklingData(odbTag='column');
+            testCase.verifyEqual(restored.ModeTags, [1; 2]);
+            testCase.verifyEqual(restored.BucklingFactors, factors(:), ...
+                'AbsTol', 1.0e-12);
+            testCase.verifySize(restored.EigenVectors.data, [2 13 6]);
+
+            % Mode data carrying ModelInfo must remain self-contained after the
+            % native domain has been cleared.
+            ops.wipe();
+
+            fig = figure('Visible', 'off');
+            figureCleanup = onCleanup(@() close(fig));
+            ax = axes('Parent', fig);
+            opsmat.vis.plotEigen(1, data, ax=ax);
+            testCase.verifyTrue(contains( ...
+                string(ax.Title.String), "Buckling Mode 1"));
+            testCase.verifyTrue(contains( ...
+                string(ax.Title.String), "Load factor"));
+
+            oldVisibility = get(groot, 'defaultFigureVisible');
+            visibilityCleanup = onCleanup(@() ...
+                set(groot, 'defaultFigureVisible', oldVisibility));
+            set(groot, 'defaultFigureVisible', 'off');
+            app = opsmat.vis.plotEigenGUI(data);
+            testCase.verifyTrue(contains( ...
+                string(app.Figure.Name), "Buckling Mode Plotter"));
+            close(app.Figure);
+
+            polyOpts = plotter.polyscope.Options.defaultEigenOptions();
+            polyOpts.polyscope.backend = 'openGL_mock';
+            polyOpts.polyscope.autoShow = false;
+            viewer = opsmat.vis.polyscope.plotEigen(data, polyOpts);
+            testCase.verifyClass(viewer, 'plotter.polyscope.plotEigen');
+
+            clear viewer visibilityCleanup figureCleanup outputCleanup cleanup
+        end
+
+        function postModelDataMatchesNativeSnapshot(testCase)
+            opsmat = TestOpenSeesMexIntegration.makeOpsMat(testCase);
+            cleanup = onCleanup(@() opsmat.opensees.wipe());
+            outputFile = [tempname '.h5'];
+            fileCleanup = onCleanup(@() TestOpenSeesMexIntegration.deleteIfPresent(outputFile));
+            ops = opsmat.opensees;
+
+            TestOpenSeesMexIntegration.buildTrussModel(ops);
+            ops.equalDOF(1, 2, 1);
+            ops.timeSeries('Linear', 1);
+            ops.pattern('Plain', 1, 1);
+            ops.load(2, 2.0, 0.0);
+
+            fromPost = opsmat.post.getModelData();
+            testCase.assertEqual(double(ops.writeFEMModel(outputFile)), 0);
+            fromNative = ops.readFEMData(outputFile, 'model');
+
+            testCase.verifyEqual(fromPost, fromNative);
+            testCase.verifyEqual(double(fromPost.MPConstraint.PairNodeTags), [1 2]);
+            testCase.verifyTrue(isfield(fromPost.MPConstraint, 'RetainedDofs'));
+            testCase.verifyTrue(isfield(fromPost.MPConstraint, 'ConstrainedDofs'));
+
+            clear fileCleanup cleanup
         end
 
         function preProcessorAssemblesStiffnessMatrixFromMexModel(testCase)
@@ -98,6 +219,18 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
     end
 
     methods (Static, Access = private)
+        function deleteIfPresent(path)
+            if isfile(path)
+                delete(path);
+            end
+        end
+
+        function deleteDirectory(path)
+            if isfolder(path)
+                rmdir(path, 's');
+            end
+        end
+
         function opsmat = makeOpsMat(testCase)
             mexDir = TestOpenSeesMexIntegration.findMexDir();
             testCase.assumeTrue(isfolder(mexDir), ...
@@ -113,7 +246,10 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
 
         function mexDir = findMexDir()
             repoRoot = fileparts(fileparts(mfilename('fullpath')));
-            candidate = fullfile(repoRoot, 'OpenSeesMatlab', '+ops', 'derived');
+            ops.connectOpenSeesNexus();
+            candidate = fullfile(repoRoot, 'OpenSeesMatlab', '+ops', ...
+                'OpenSeesNexus', 'derived', ...
+                OpenSeesNexus.platformKey());
 
             ext = mexext();
             mexFile = fullfile(candidate, ['OpenSeesMATLAB.' ext]);
@@ -145,6 +281,31 @@ classdef TestOpenSeesMexIntegration < matlab.unittest.TestCase
             ops.constraints('Plain');
             ops.integrator('LoadControl', 1.0);
             ops.algorithm('Linear');
+            ops.analysis('Static');
+        end
+
+        function buildPinnedColumn(ops, numElements)
+            length = 10.0;
+            ops.wipe();
+            ops.model('basic', '-ndm', 2, '-ndf', 3);
+            for node = 0:numElements
+                ops.node(node + 1, 0.0, length * node / numElements);
+            end
+            ops.fix(1, 1, 1, 0);
+            ops.fix(numElements + 1, 1, 0, 0);
+            ops.geomTransf('Corotational', 1);
+            for element = 1:numElements
+                ops.element('elasticBeamColumn', element, element, ...
+                    element + 1, 1.0e6, 200.0, 1.0, 1);
+            end
+            ops.timeSeries('Linear', 1);
+            ops.pattern('Plain', 1, 1);
+            ops.load(numElements + 1, 0.0, -1.0, 0.0);
+            ops.constraints('Transformation');
+            ops.numberer('RCM');
+            ops.system('UmfPack');
+            ops.algorithm('Linear');
+            ops.integrator('LoadControl', 1.0);
             ops.analysis('Static');
         end
     end

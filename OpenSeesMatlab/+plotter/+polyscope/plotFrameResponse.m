@@ -27,6 +27,10 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         historyRawKey_ char = ''
         historyRawX_ double = []
         historyRawValues_ cell = {}
+        historySampleKey_ char = ''
+        historySampleChoicesCache_ cell = {}
+        historySampleLabel_ char = ''
+        historyBeamInfoCache_ cell = {}
     end
 
     methods
@@ -135,6 +139,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.showDiagram = true;
             obj.gui_.showModel = obj.Opts.showModel;
             obj.gui_.showZeroLine = obj.Opts.showZeroLine;
+            obj.gui_.showFixed = obj.getOptField_(obj.Opts.fixed, 'show', true);
+            obj.gui_.showMP = obj.getOptField_(obj.Opts, 'showMPConstraint', true);
+            obj.gui_.fixedSymbolScale = obj.getOptField_(obj.Opts.fixed, 'symbolScale', 1.0);
             obj.gui_.showWire = obj.Opts.surf.show;
             obj.gui_.useColormap = obj.Opts.color.useColormap;
             obj.gui_.showColorbar = obj.getOptField_(obj.Opts.cbar, 'show', true);
@@ -152,6 +159,12 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.animationMode = obj.gui_.playing;
             obj.gui_.fps = obj.getOptField_(obj.Opts.animation, 'fps', ...
                 obj.defaultAnimationFps_(obj.nSteps_));
+            obj.gui_.fps = obj.clampAnimationFps_(obj.gui_.fps, obj.nSteps_);
+            obj.gui_.playDuration = obj.getOptField_(obj.Opts.animation, 'duration', 10);
+            obj.gui_.autoFrameStride = obj.getOptField_( ...
+                obj.Opts.animation, 'autoFrameStride', true);
+            obj.gui_.frameStride = obj.getOptField_(obj.Opts.animation, 'frameStride', ...
+                obj.recommendedFrameStride_(obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration));
             obj.gui_.loop = obj.getOptField_(obj.Opts.animation, 'loop', true);
             obj.gui_.pingpong = obj.getOptField_(obj.Opts.animation, 'pingpong', false);
             info = obj.beamInfo_(1, obj.nodeCoords_(1));
@@ -162,13 +175,15 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if ~isempty(info.tags), obj.gui_.historyEleTag = info.tags(1); end
             obj.gui_.historyShowValue = true;
             obj.gui_.historySampleMode = 'absMax';
+            obj.initHistoryPlotAppearanceGui_();
             obj.initColorbarGuiState_(obj.scalarQuantityName_());
             obj.initSliceGuiState_();
         end
 
         function configureAnimationRenderLoop_(obj)
             isRunning = isfield(obj.gui_, 'animationMode') && obj.gui_.animationMode && obj.gui_.playing;
-            fps = max(1, double(obj.getOptField_(obj.gui_, 'fps', 12)));
+            fps = obj.clampAnimationFps_( ...
+                obj.getOptField_(obj.gui_, 'fps', 12), obj.nSteps_);
             configureAnimationRenderLoop_@plotter.polyscope.ViewerBase(obj, isRunning, fps);
         end
     end
@@ -176,17 +191,22 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
     methods
         function guiCallback_(obj)
             try
+                obj.captureAnimationVideoFrame_(obj.currentStep_, obj.gui_.playing);
                 obj.advanceAnimation_();
                 GB = plotter.polyscope.GuiBuilder;
+                obj.ensureUiThemeForFrame_();
                 ws = obj.safeWindowSize_();
                 panelW = 390;
-                GB.begin('Frame Response', [max(0, ws(1) - panelW), 0], [panelW, max(560, ws(2))]);
+                GB.beginDockedRight('Frame Response', [ws(1), 0], [panelW, max(560, ws(2))]);
                 cleanup = onCleanup(@() GB.finish());
 
                 needsRebuild = false;
                 needsUpdate = false;
                 needsStyle = false;
                 GB.header('Frame response');
+                if obj.drawPlotThemeGui_('##frame_theme')
+                    needsUpdate = true;
+                end
 
                 if GB.collapsingHeader('Response', int32(0))
                     [chg, rebuild] = obj.drawResponseGui_();
@@ -194,24 +214,27 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                     needsRebuild = needsRebuild || rebuild;
                     obj.gui_.showHistory = GB.checkbox('Show response history', obj.gui_.showHistory);
                 end
-                if GB.collapsingHeader('Diagram', int32(0))
-                    [chg, styleOnly] = obj.drawDiagramGui_();
+                if GB.collapsingHeader('Geometry', int32(0))
+                    [chg, styleOnly] = obj.drawGeometryGui_();
                     needsUpdate = needsUpdate || (chg && ~styleOnly);
                     needsStyle = needsStyle || styleOnly;
                 end
-                if GB.collapsingHeader('Style', int32(0))
-                    [dataChanged, styleChanged] = obj.drawStyleGui_();
-                    needsUpdate = needsUpdate || dataChanged;
+                if GB.collapsingHeader('Appearance', int32(0))
+                    styleChanged = obj.drawAppearanceGui_();
                     needsStyle = needsStyle || styleChanged;
+                end
+                if GB.collapsingHeader('Colormap & Colorbar', int32(0))
+                    colormapChanged = obj.drawColormapGui_();
+                    needsUpdate = needsUpdate || colormapChanged;
+                end
+                if GB.collapsingHeader('View & Quality##frame_resp', int32(0))
+                    obj.drawViewQualityGui_();
                 end
                 if obj.drawSlicePlaneGui_('##frame_resp')
                     obj.registerSlicePlanes_();
                 end
                 if GB.collapsingHeader('Animation', int32(0))
                     if obj.drawAnimationGui_(), needsUpdate = true; end
-                end
-                if GB.collapsingHeader('Render quality##frame_resp', int32(0))
-                    obj.drawSsaaGui_('##frame_resp');
                 end
                 if GB.collapsingHeader('Debug', int32(0))
                     polyscope.ImGui.Text(sprintf('Step %d / %d', obj.currentStep_, obj.nSteps_ - 1));
@@ -233,8 +256,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                     obj.applyStyle_();
                     obj.applyVisibility_();
                 end
+                obj.clearGuiCallbackError_();
             catch ME
-                try, polyscope.ImGui.Text(['GUI error: ' ME.message]); catch, end
+                obj.reportGuiCallbackError_('plotFrameResponse', ME);
             end
         end
     end
@@ -290,7 +314,13 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if ~visible, return; end
 
             GB = plotter.polyscope.GuiBuilder;
-            info = obj.beamInfo_(max(1, obj.currentSeg_), obj.nodeCoords_(max(1, obj.currentSeg_)));
+            segIdx = max(1, obj.currentSeg_);
+            if isfield(obj.beamInfoCache_, 'segIdx') && obj.beamInfoCache_.segIdx == segIdx
+                info = obj.beamInfoCache_.info;
+            else
+                info = obj.beamInfo_(segIdx, obj.nodeCoords_(segIdx));
+                obj.beamInfoCache_ = struct('segIdx', segIdx, 'info', info);
+            end
             tags = info.tags(:);
             if isempty(tags)
                 polyscope.ImGui.TextDisabled('No frame elements are available.');
@@ -300,8 +330,8 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 char(string(obj.Opts.respType)), char(string(obj.Opts.component))));
             obj.gui_.historyUseTag = GB.checkbox('Use element tag', obj.gui_.historyUseTag);
             if obj.gui_.historyUseTag
-                [changed, val] = polyscope.ImGui.InputInt('Element tag##frame_history', ...
-                    int32(round(obj.gui_.historyEleTag)), int32(1), int32(100));
+                [changed, val] = GB.editableIntChoice('Element tag##frame_history', ...
+                    obj.gui_.historyEleTag, tags, 'Existing element tags');
                 if changed
                     obj.gui_.historyEleTag = double(val);
                     hit = find(tags == obj.gui_.historyEleTag, 1);
@@ -339,6 +369,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.invalidateHistoryReducedCache_();
             end
             obj.gui_.historyShowValue = GB.checkbox('Show current value', obj.gui_.historyShowValue);
+            obj.drawHistoryPlotAppearanceGui_('##frame_history');
 
             [x, y] = obj.responseHistorySeries_();
             finite = isfinite(x) & isfinite(y);
@@ -357,9 +388,14 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 ip.SetupAxes('time / step', 'Response');
                 ip.SetupAxesLimits(xmin-xp, xmax+xp, ymin-yp, ymax+yp, ...
                     int32(polyscope.ImPlot.get_constant('ImPlotCond_Always')));
+                [lineColor, markerFill, markerOutline] = obj.historyLineStyle_();
+                ip.SetNextLineStyle(lineColor, 2.0);
                 ip.PlotLineXY('response##frame_history_line', x(:), y(:));
                 k = obj.currentStep_ + 1;
                 if k >= 1 && k <= numel(y) && isfinite(y(k))
+                    ip.SetNextMarkerStyle( ...
+                        int32(polyscope.ImPlot.get_constant('ImPlotMarker_Circle')), ...
+                        8, markerFill, 2.0, markerOutline);
                     ip.PlotScatterXY('current##frame_history_current', x(k), y(k));
                 end
                 ip.EndPlot();
@@ -374,17 +410,22 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             end
         end
 
-        function [changed, styleOnly] = drawDiagramGui_(obj)
+        function [changed, styleOnly] = drawGeometryGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
             obj.gui_.showDiagram = GB.checkbox('Diagram##frame_geom', obj.gui_.showDiagram);
             GB.sameLine();
             obj.gui_.showModel = GB.checkbox('Model##frame_geom', obj.gui_.showModel);
             obj.gui_.showZeroLine = GB.checkbox('Zero line##frame_geom', obj.gui_.showZeroLine);
+            obj.gui_.showFixed = GB.checkbox('Fixed nodes##frame_geom', obj.gui_.showFixed);
             GB.sameLine();
-            obj.gui_.showWire = GB.checkbox('Wire edges##frame_geom', obj.gui_.showWire);
+            obj.gui_.showMP = GB.checkbox('MP constraints##frame_geom', obj.gui_.showMP);
+            obj.gui_.fixedSymbolScale = GB.sliderFloat('Support size##frame_geom', ...
+                obj.gui_.fixedSymbolScale, 0.1, 2.0);
+            GB.sameLine();
+            obj.gui_.showWire = GB.checkbox('Diagram mesh edges##frame_geom', obj.gui_.showWire);
             styles = {'surface','wireframe'};
-            obj.gui_.styleIdx = GB.combo('Style##frame_geom', obj.gui_.styleIdx, styles);
+            obj.gui_.styleIdx = GB.combo('Diagram representation##frame_geom', obj.gui_.styleIdx, styles);
             obj.Opts.style = styles{obj.gui_.styleIdx};
             scales = {'current','global'};
             obj.gui_.scaleModeIdx = GB.combo('Scale mode##frame_geom', obj.gui_.scaleModeIdx, scales);
@@ -400,12 +441,17 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.setStep(obj.currentStep_, true);
             end
             obj.syncOptsFromGui_();
+            supportScaleChanged = obj.gui_.fixedSymbolScale ~= old.fixedSymbolScale;
+            if supportScaleChanged
+                obj.setStep(obj.currentStep_, true);
+            end
             changed = obj.guiChanged_(old, {'showDiagram','showModel','showZeroLine','showWire', ...
-                'styleIdx','scaleModeIdx','scale','heightFrac'});
-            styleOnly = changed && ~obj.guiChanged_(old, {'styleIdx','scaleModeIdx','scale','heightFrac'});
+                'showFixed','showMP','fixedSymbolScale','styleIdx','scaleModeIdx','scale','heightFrac'});
+            styleOnly = changed && ~obj.guiChanged_(old, ...
+                {'styleIdx','scaleModeIdx','scale','heightFrac'});
         end
 
-        function [dataChanged, styleChanged] = drawStyleGui_(obj)
+        function dataChanged = drawColormapGui_(obj)
             GB = plotter.polyscope.GuiBuilder;
             old = obj.gui_;
             cmaps = obj.colormapNames_();
@@ -413,13 +459,24 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.Opts.polyscope.scalarColorMap = cmaps{obj.gui_.cmapIdx};
             climModes = {'current','global','range'};
             obj.gui_.climIdx = GB.combo('Color limits##frame_style', obj.gui_.climIdx, climModes);
+            GB.helpMarker('Current rescales each step; Global keeps a fixed range for the complete animation.');
             obj.Opts.color.climMode = climModes{obj.gui_.climIdx};
             obj.gui_.useColormap = GB.checkbox('Use colormap##frame_style', obj.gui_.useColormap);
             obj.Opts.color.useColormap = logical(obj.gui_.useColormap);
+            colorbarChanged = false;
             if obj.gui_.useColormap
-                obj.drawColorbarGui_('##frame_style', true);
+                colorbarChanged = obj.drawColorbarGui_('##frame_style', true);
                 obj.Opts.cbar.show = logical(obj.gui_.onscreenColorbar);
             end
+            obj.syncOptsFromGui_();
+            dataChanged = obj.guiChanged_(old, ...
+                {'cmapIdx','climIdx','useColormap'}) || colorbarChanged;
+            if dataChanged, obj.invalidateCaches_(); end
+        end
+
+        function styleChanged = drawAppearanceGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            old = obj.gui_;
             [~, obj.gui_.solidColor] = GB.colorEdit3('Solid color##frame_style', obj.gui_.solidColor);
             [~, obj.gui_.wireColor] = GB.colorEdit3('Wire color##frame_style', obj.gui_.wireColor);
             [~, obj.gui_.modelColor] = GB.colorEdit3('Model color##frame_style', obj.gui_.modelColor);
@@ -428,18 +485,23 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.diagramRadius = GB.sliderFloat('Diagram radius##frame_style', obj.gui_.diagramRadius, 0.0001, 0.006);
             obj.gui_.modelRadius = GB.sliderFloat('Model radius##frame_style', obj.gui_.modelRadius, 0.0001, 0.006);
             obj.gui_.zeroRadius = GB.sliderFloat('Zero radius##frame_style', obj.gui_.zeroRadius, 0.0001, 0.006);
+            obj.syncOptsFromGui_();
+            styleChanged = obj.guiChanged_(old, {'solidColor','wireColor','modelColor','zeroColor', ...
+                'faceAlpha','diagramRadius','modelRadius','zeroRadius'});
+        end
+
+        function drawViewQualityGui_(obj)
+            GB = plotter.polyscope.GuiBuilder;
+            GB.subtitle('Camera');
             views = obj.viewNames_();
             obj.gui_.viewIdx = GB.combo('View##frame_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##frame_style')
                 obj.Opts.general.view = views{obj.gui_.viewIdx};
                 obj.setCameraForPoints_(obj.nodeCoords_(obj.currentSeg_), obj.Opts.general.view);
             end
-            obj.syncOptsFromGui_();
-            dataChanged = obj.guiChanged_(old, {'cmapIdx','climIdx','useColormap', ...
-                'onscreenColorbar','onscreenColorbarLocation','colorbarTitle'});
-            styleChanged = obj.guiChanged_(old, {'solidColor','wireColor','modelColor','zeroColor', ...
-                'faceAlpha','diagramRadius','modelRadius','zeroRadius','viewIdx'});
-            if dataChanged, obj.invalidateCaches_(); end
+            GB.separator();
+            GB.subtitle('Render quality');
+            obj.drawSsaaGui_('##frame_view_quality');
         end
 
         function changed = drawAnimationGui_(obj)
@@ -456,20 +518,49 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.Opts.scaleMode = 'global';
                 obj.gui_.climIdx = obj.indexOf_({'current','global','range'}, 'global');
                 obj.Opts.color.climMode = 'global';
-                if GB.button('Play / pause'), obj.gui_.playing = ~obj.gui_.playing; end
-                GB.sameLine();
-                if GB.button('Restart')
-                    obj.currentStep_ = 0;
-                    obj.gui_.step = 0;
+                if obj.gui_.playing
+                    if GB.button('Pause##frame_animation'), obj.gui_.playing = false; end
+                else
+                    if GB.button('Play##frame_animation'), obj.gui_.playing = true; end
                 end
-                obj.gui_.playing = GB.checkbox('Playing', obj.gui_.playing);
-                obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, 240);
+                GB.sameLine();
+                if GB.button('Restart##frame_animation'), obj.animDir_ = 1; obj.setStep(0, false); end
+                GB.sameLine();
+                if GB.button('Step##frame_animation'), obj.advanceAnimationStep_(); end
+                polyscope.ImGui.ProgressBar((obj.currentStep_ + 1) / max(1, obj.nSteps_), [0, 0], ...
+                    sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
+                maxFps = obj.animationFpsUpperBound_(obj.nSteps_);
+                obj.gui_.fps = GB.sliderFloat('FPS', obj.gui_.fps, 1, maxFps);
+                GB.helpMarker('Requested playback and export frame rate. Complex diagrams may render more slowly.');
+                obj.gui_.autoFrameStride = GB.checkbox( ...
+                    'Auto frame stride##frame_animation', obj.gui_.autoFrameStride);
+                GB.helpMarker('Automatically chooses the step increment from FPS and target duration.');
+                obj.gui_.playDuration = GB.sliderFloat( ...
+                    'Target duration (s)##frame_animation', obj.gui_.playDuration, 2, 60);
+                if obj.gui_.autoFrameStride
+                    obj.gui_.frameStride = obj.recommendedFrameStride_( ...
+                        obj.nSteps_, obj.gui_.fps, obj.gui_.playDuration);
+                    polyscope.ImGui.TextDisabled(sprintf('Frame stride: %d (automatic)', ...
+                        obj.gui_.frameStride));
+                else
+                    obj.gui_.frameStride = GB.sliderInt('Frame stride##frame_animation', ...
+                        obj.gui_.frameStride, 1, max(1, obj.nSteps_ - 1));
+                    GB.helpMarker('Number of response steps advanced per animation frame.');
+                end
+                passTime = obj.estimatedAnimationDuration_( ...
+                    obj.nSteps_, obj.gui_.fps, obj.gui_.frameStride);
+                polyscope.ImGui.TextDisabled(sprintf('Estimated pass: %.1f s', passTime));
                 obj.gui_.loop = GB.checkbox('Loop', obj.gui_.loop);
                 GB.sameLine();
                 obj.gui_.pingpong = GB.checkbox('Ping-pong', obj.gui_.pingpong);
                 obj.gui_.scale = GB.sliderFloat('Scale factor##frame_animation', obj.gui_.scale, 0.01, 20);
-                polyscope.ImGui.ProgressBar((obj.currentStep_ + 1) / max(1, obj.nSteps_), [0, 0], ...
-                    sprintf('%d / %d', obj.currentStep_, max(0, obj.nSteps_ - 1)));
+                if obj.drawVideoRecorderGui_('##frame_animation', obj.gui_.fps)
+                    obj.gui_.playing = true;
+                    obj.gui_.loop = false;
+                    obj.gui_.pingpong = false;
+                    obj.animDir_ = 1;
+                    obj.setStep(0, false);
+                end
             else
                 obj.gui_.playing = false;
             end
@@ -477,10 +568,16 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.Opts.animation.fps = obj.gui_.fps;
             obj.Opts.animation.loop = obj.gui_.loop;
             obj.Opts.animation.pingpong = obj.gui_.pingpong;
+            obj.Opts.animation.autoFrameStride = obj.gui_.autoFrameStride;
+            obj.Opts.animation.frameStride = obj.gui_.frameStride;
+            obj.Opts.animation.duration = obj.gui_.playDuration;
             obj.Opts.scale = double(obj.gui_.scale);
             % Only reconfigure the render loop when animation state/fps change.
             if obj.guiChanged_(old, {'animationMode','playing','fps'})
                 obj.configureAnimationRenderLoop_();
+            end
+            if old.playing && ~obj.gui_.playing
+                obj.setStep(obj.currentStep_, true);
             end
             % FPS/loop/pingpong/playing only affect the animation loop; they do
             % not require a full diagram recompute. Only changes that alter the
@@ -589,6 +686,19 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 obj.handles_.def_ZeroLine = h;
             end
             obj.modelData_.nZeroPts = size(data.zeroPts, 1);
+            P = obj.nodeCoords_(obj.currentSeg_);
+            [Pfix, edges] = plotter.polyscope.SupportGlyphs.build( ...
+                obj.ModelInfo(obj.currentSeg_), P, max(obj.L_, eps) * 0.035 * ...
+                max(0.05, double(obj.Opts.fixed.symbolScale)));
+            if ~isempty(Pfix) && ~isempty(edges)
+                h = ps.register_curve_network(obj.structName_('Fixed', 'def'), Pfix, edges);
+                h.set_radius(obj.Opts.polyscope.edgeRadius * 0.8, true);
+                h.set_color(obj.supportColor_());
+                h.set_enabled(obj.Opts.fixed.show);
+                obj.handles_.def_Fixed = h;
+            end
+            obj.handles_.def_MPConstraint = obj.registerMPConstraintStructure_( ...
+                obj.ModelInfo(obj.currentSeg_), P, obj.structName_('MPConstraint', 'def'));
         end
 
         function applyStyle_(obj)
@@ -625,12 +735,18 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.setEnabled_('def_DiagramWire', showDiagramWire);
             obj.setEnabled_('def_Model', obj.Opts.showModel && obj.Opts.showBeamModel);
             obj.setEnabled_('def_ZeroLine', obj.Opts.showZeroLine);
+            obj.setEnabled_('def_Fixed', obj.Opts.fixed.show);
+            obj.setEnabled_('def_MPConstraint', obj.Opts.showMPConstraint);
         end
 
         function syncOptsFromGui_(obj)
             obj.Opts.showModel = logical(obj.gui_.showModel);
             obj.Opts.showBeamModel = logical(obj.gui_.showModel);
             obj.Opts.showZeroLine = logical(obj.gui_.showZeroLine);
+            obj.Opts.fixed.show = logical(obj.gui_.showFixed);
+            obj.Opts.fixed.symbolScale = double(obj.gui_.fixedSymbolScale);
+            obj.Opts.showMPConstraint = logical(obj.gui_.showMP);
+            obj.Opts.polyscope.showMPConstraints = logical(obj.gui_.showMP);
             obj.Opts.surf.show = logical(obj.gui_.showWire);
             obj.Opts.color.useColormap = logical(obj.gui_.useColormap);
             obj.Opts.cbar.show = logical(obj.getOptField_(obj.gui_, 'onscreenColorbar', false));
@@ -1105,29 +1221,41 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             if ~isfield(obj.gui_, 'animationMode') || ~obj.gui_.animationMode || ~obj.gui_.playing
                 return;
             end
-            nextStep = obj.currentStep_ + obj.animDir_;
+            obj.advanceAnimationStep_();
+        end
+
+        function advanceAnimationStep_(obj)
+            stride = max(1, round(double(obj.gui_.frameStride)));
+            nextStep = obj.currentStep_ + obj.animDir_ * stride;
+            stopped = false;
             if nextStep >= obj.nSteps_
                 if obj.gui_.pingpong
                     obj.animDir_ = -1;
-                    nextStep = max(0, obj.nSteps_ - 2);
+                    nextStep = obj.nSteps_ - 1;
                 elseif obj.gui_.loop
-                    nextStep = 0;
+                    nextStep = mod(nextStep, obj.nSteps_);
                 else
                     nextStep = obj.nSteps_ - 1;
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                 end
             elseif nextStep < 0
                 if obj.gui_.pingpong
                     obj.animDir_ = 1;
-                    nextStep = min(obj.nSteps_ - 1, 1);
+                    nextStep = 0;
                 elseif obj.gui_.loop
-                    nextStep = obj.nSteps_ - 1;
+                    nextStep = mod(nextStep, obj.nSteps_);
                 else
                     nextStep = 0;
                     obj.gui_.playing = false;
+                    obj.Opts.animation.play = false;
+                    obj.configureAnimationRenderLoop_();
+                    stopped = true;
                 end
             end
-            obj.setStep(nextStep, false);
+            obj.setStep(nextStep, stopped);
         end
 
         function buildStepIndex_(obj)
@@ -1610,7 +1738,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         function updateProgramName_(obj)
             try
                 obj.App.polyscopeHandle().set_program_name(sprintf( ...
-                    'OpenSeesMatlab | Frame response | %s %s | step %d - by Yexiang Yan', ...
+                    'OpenSeesMatlab | Frame response | %s %s | step %d', ...
                     char(string(obj.Opts.respType)), char(string(obj.Opts.component)), obj.currentStep_));
             catch
             end
@@ -1629,6 +1757,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.historyRawKey_ = '';
             obj.historyRawX_ = [];
             obj.historyRawValues_ = {};
+            obj.historySampleKey_ = '';
+            obj.historySampleChoicesCache_ = {};
+            obj.historySampleLabel_ = '';
         end
 
         function invalidateHistoryReducedCache_(obj)
@@ -1647,6 +1778,15 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
         end
 
         function [choices, label] = historySampleChoices_(obj, info, tags)
+            cacheKey = sprintf('%s|%s|tag:%g|idx:%g|use:%d|seg:%d', ...
+                char(string(obj.Opts.respType)), char(string(obj.Opts.component)), ...
+                obj.gui_.historyEleTag, obj.gui_.historyEleIndex, ...
+                logical(obj.gui_.historyUseTag), obj.currentSeg_);
+            if strcmp(obj.historySampleKey_, cacheKey) && ~isempty(obj.historySampleChoicesCache_)
+                choices = obj.historySampleChoicesCache_;
+                label = obj.historySampleLabel_;
+                return;
+            end
             nValue = 1;
             row = obj.historyElementIndex_(tags);
             values = obj.respPerEle_(obj.currentSeg_, obj.currentLocalStep_, info);
@@ -1661,6 +1801,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             else
                 label = 'Value / reduce';
             end
+            obj.historySampleKey_ = cacheKey;
+            obj.historySampleChoicesCache_ = choices;
+            obj.historySampleLabel_ = label;
         end
 
         function value = reduceHistoryValues_(~, values, mode)
@@ -1729,8 +1872,14 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             targetIndex = round(obj.gui_.historyEleIndex);
             for si = 1:numel(obj.segStepCounts_)
                 fr = obj.FrameResp(si);
-                P = obj.nodeCoords_(si);
-                info = obj.beamInfo_(si, P);
+                if numel(obj.historyBeamInfoCache_) >= si && ...
+                        ~isempty(obj.historyBeamInfoCache_{si})
+                    info = obj.historyBeamInfoCache_{si};
+                else
+                    P = obj.nodeCoords_(si);
+                    info = obj.beamInfo_(si, P);
+                    obj.historyBeamInfoCache_{si} = info;
+                end
                 if isempty(info.tags), continue; end
                 row = [];
                 if obj.gui_.historyUseTag, row = find(info.tags == targetTag, 1);
@@ -1740,13 +1889,74 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 offset = obj.segOffsets_(si);
                 tv = [];
                 if isfield(fr, 'time') && ~isempty(fr.time), tv = double(fr.time(:)); end
-                for ls = 1:nLocal
-                    g = offset + ls - 1;
-                    x(g + 1) = g;
-                    if ls <= numel(tv), x(g + 1) = tv(ls); end
-                    if isempty(row), continue; end
-                    values = obj.respPerEle_(si, ls, info);
-                    if row <= numel(values), rawValues{g + 1} = double(values{row}(:)); end
+                ids = offset + (1:nLocal);
+                x(ids) = offset + (0:nLocal-1);
+                nt = min(nLocal, numel(tv));
+                if nt > 0, x(ids(1:nt)) = tv(1:nt); end
+                if isempty(row), continue; end
+                rawValues(ids) = obj.extractOneElementHistory_(si, row, info, nLocal);
+            end
+        end
+
+        function values = extractOneElementHistory_(obj, segIdx, elementRow, info, nLocal)
+            % Extract only the selected element. The old path rebuilt values
+            % for every element at every step, which dominated GUI latency.
+            values = cell(nLocal, 1);
+            rt = obj.normalizeRespType_(segIdx, obj.Opts.respType);
+            A = obj.getRespData_(segIdx, rt);
+            if isempty(A), return; end
+            n = min(nLocal, size(A, 1));
+            dofs = obj.getRespDofs_(segIdx, rt);
+            ci = obj.componentIndex_(rt, obj.Opts.component, dofs);
+            rows = zeros(n, 1);
+            targetTag = NaN;
+            if elementRow <= numel(info.tags), targetTag = info.tags(elementRow); end
+            [firstTags, firstTagRows] = obj.respEleTags_(segIdx, rt, 1, size(A, 2));
+            firstHit = [];
+            if ~isempty(firstTags) && isfinite(targetTag)
+                firstHit = find(double(firstTags(:)) == double(targetTag), 1);
+            end
+            rawTags = [];
+            fr = obj.FrameResp(segIdx);
+            if isfield(fr, rt) && isstruct(fr.(rt)) && isfield(fr.(rt), 'eleTags')
+                rawTags = fr.(rt).eleTags;
+            elseif isfield(fr, 'eleTags')
+                rawTags = fr.eleTags;
+            end
+            if isvector(rawTags) && ~isempty(firstHit) && firstHit <= numel(firstTagRows)
+                rows(:) = firstTagRows(firstHit);
+                firstDynamicStep = n + 1;
+            else
+                firstDynamicStep = 1;
+            end
+            for ls = firstDynamicStep:n
+                [respTags, tagRows] = obj.respEleTags_(segIdx, rt, ls, size(A, 2));
+                if ~isempty(respTags) && isfinite(targetTag)
+                    hit = find(double(respTags(:)) == double(targetTag), 1);
+                    if ~isempty(hit) && hit <= numel(tagRows), rows(ls) = tagRows(hit); end
+                elseif elementRow <= size(A, 2)
+                    rows(ls) = elementRow;
+                end
+            end
+            nd = ndims(A);
+            pair = [];
+            if nd == 3
+                pair = obj.componentEndPair_(rt, obj.Opts.component, dofs, size(A, 3));
+            end
+            for ls = 1:n
+                r = rows(ls);
+                if r < 1 || r > size(A, 2), continue; end
+                if nd == 2
+                    values{ls} = double(A(ls, r));
+                elseif nd == 3
+                    if numel(pair) == 2 && all(pair > 0) && all(pair <= size(A, 3))
+                        values{ls} = reshape(double(A(ls, r, pair)), [], 1);
+                    elseif ci > 0 && ci <= size(A, 3)
+                        values{ls} = double(A(ls, r, ci));
+                    end
+                elseif nd >= 4 && ci > 0 && ci <= size(A, 4)
+                    v = reshape(double(A(ls, r, :, ci)), [], 1);
+                    values{ls} = v(isfinite(v));
                 end
             end
         end

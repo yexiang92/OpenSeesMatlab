@@ -1,18 +1,13 @@
 %% *Deflection Analysis of Bracket*
-% This live script is written as a guided walkthrough for a verification benchmark. 
-% It compares a known structural response with the result produced by the OpenSeesMatlab 
-% workflow. Read the text cells first, then run each code cell in order so that 
-% the variables, model state, and recorded results are available for the later 
-% sections.
+% The same three-dimensional bracket is solved with MATLAB PDE Toolbox and OpenSeesMatlab. 
+% Reusing one mesh makes the comparison focus on boundary conditions, material 
+% data, load transfer, and displacement results.
 % 
-% This example shows how to analyze a 3-D mechanical part under an applied load 
-% using the finite element analysis model and determine the maximal deflection.
+% A three-dimensional bracket is loaded to determine its displacement field 
+% and maximum deflection.
 % 
 % Matlab examples see [Partial Differential Equation Toolbox](https://www.mathworks.com/help/pde/ug/deflection-analysis-of-bracket-femodel.html).
 % Partial Differential Equation Toolbox Solving
-% The following commands carry out this step of the workflow. Run this cell 
-% after the previous sections so the required variables and model state already 
-% exist.
 
 clc; clear;
 
@@ -34,9 +29,6 @@ figure
 pdegplot(model,FaceLabels="on");
 view(30,30);
 title("Bracket with Face Labels")
-%% 
-% 
-
 pdeModel = generateMesh(model, GeometricOrder="linear");
 
 figure
@@ -45,21 +37,11 @@ title("Mesh with Linear Tetrahedral Elements")
 result = solve(pdeModel);
 minUzPDE = min(result.Displacement.uz);
 fprintf("Maximal deflection in the z-direction is %g meters.",minUzPDE)
-%% 
-% 
-% 
-% 
-
 figure
 pdeplot3D(result.Mesh,ColorMapData=result.Displacement.uz);
 title("z-displacement");
 colormap("jet")
 [az, el] = view;
-%% 
-% 
-% 
-% 
-
 figure
 pdeplot3D(result.Mesh,ColorMapData=result.VonMisesStress)
 title("von Mises stress")
@@ -176,9 +158,6 @@ for i = 1:nNode
         ops.load(i, fx, fy, fz);
     end
 end
-%% 
-% 
-
 % Static analysis
 Nsteps = 2;
 ops.constraints('Plain');
@@ -198,13 +177,6 @@ opts = opsMAT.vis.defaultPlotModelOptions;
 opts.loads.showNodal=true;
 opsMAT.vis.plotModel(opts=opts);
 view(az, el);
-%% 
-% 
-% 
-% 
-% 
-% 
-
 nodeResp = opsMAT.post.getNodalResponse("myODB");
 uz = nodeResp.disp.uz;
 minUz = min(uz(:));
@@ -220,9 +192,6 @@ opsMAT.vis.plotNodalResponse(nodeResp, respType="disp", stepIdx="absMax", respCo
 colormap("jet")
 axis off
 view(az, el);
-%% 
-% 
-
 solidResp = opsMAT.post.getElementResponse("myODB", eleType="Solid");
 vm = solidResp.StressMeasureAtNode.vonMises;
 maxVonMisesStress = max(vm(:));
@@ -240,8 +209,6 @@ axis off
 colormap("jet")
 view(az, el);
 % opsMAT.post.writeResponsePVD("myODB");
-%% 
-% 
 % Visualization by Polyscope GUI
 
 opsMAT.vis.polyscope.plotModel();
@@ -249,9 +216,6 @@ opsMAT.vis.polyscope.plotNodalResponse(nodeResp);
 
 opsMAT.vis.polyscope.plotContinuumResponse(solidResp);
 % Local functions
-% The following commands carry out this step of the workflow. Run this cell 
-% after the previous sections so the required variables and model state already 
-% exist.
 
 %% ------------------------------------------------------------------------
 % Local functions
@@ -287,13 +251,8 @@ function A = triangleArea3D(xyz)
     v2 = xyz(3,:) - xyz(1,:);
     A = 0.5 * norm(cross(v1, v2));
 end
-%% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-% 
-%
+
+% Acceptance check
+% Compare displacement fields on the same mesh and coordinate system, not only 
+% the maximum value. Differences concentrated near restraints or load application 
+% points often arise from how those boundary conditions are imposed.

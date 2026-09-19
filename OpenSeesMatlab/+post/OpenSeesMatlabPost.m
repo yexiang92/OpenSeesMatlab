@@ -143,8 +143,7 @@ classdef OpenSeesMatlabPost < handle
             filename = fullfile(obj.outputDir, filename);
             obj.checkOutputDir();
 
-            modelData = post.FEMDataCollector(obj.parent.opensees, post.utils.OpenSeesTagMaps());
-            modelData.collect();
+            modelData = post.FEMDataCollector(obj.parent.opensees);
             modelData.save(filename);
         end
 
@@ -179,7 +178,7 @@ classdef OpenSeesMatlabPost < handle
 
             odbTag = string(odbTag);
 
-            modelData = post.FEMDataCollector(obj.parent.opensees, post.utils.OpenSeesTagMaps());
+            modelData = post.FEMDataCollector(obj.parent.opensees);
 
             if strlength(odbTag) == 0
                 modelInfo = modelData.getModelInfo();
@@ -321,6 +320,102 @@ classdef OpenSeesMatlabPost < handle
             modeData = post.EigenDataCollector(obj.parent.opensees, modelInfo);
             out = modeData.collect(numModes, solver, extraArgs{:});
         end
+
+        function saveLinearBucklingData(obj, odbTag, bucklingFactors, options)
+            % Save all mode shapes from an already-completed buckling solve.
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost
+                odbTag = "1"
+                bucklingFactors = []
+                options.IncludeModelInfo (1,1) logical = false
+                options.InterpolateBeam (1,1) logical = true
+                options.NptsPerElement (1,1) double ...
+                    {mustBeInteger, mustBeGreaterThanOrEqual(options.NptsPerElement, 2)} = 6
+            end
+
+            data = obj.getLinearBucklingData( ...
+                bucklingFactors, ...
+                IncludeModelInfo=options.IncludeModelInfo, ...
+                InterpolateBeam=options.InterpolateBeam, ...
+                NptsPerElement=options.NptsPerElement);
+            filename = fullfile(obj.outputDir, ...
+                sprintf('linearBucklingData_%s.hdf5', string(odbTag)));
+            obj.checkOutputDir();
+            store = post.utils.HDF5DataStore(filename, 'overwrite', true);
+            store.write('/', data);
+        end
+
+        function out = getLinearBucklingData(obj, bucklingFactors, options)
+            % Collect mode shapes from an already-completed linearBuckling solve.
+            %
+            % This method performs no analysis. The caller must first run
+            % linearBuckling("capture"), the reference-load analysis, and
+            % linearBuckling("solve", numModes), then pass the returned factors
+            % here while the resulting node eigenvectors remain in the domain.
+            %
+            % Example
+            % -------
+            %     ops.linearBuckling("capture");
+            %     assert(ops.analyze(1) == 0);
+            %     factors = ops.linearBuckling("solve", 6);
+            %     data = opsmat.post.getLinearBucklingData(factors);
+
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost
+                bucklingFactors = []
+                options.odbTag = ""
+                options.IncludeModelInfo (1,1) logical = false
+                options.InterpolateBeam (1,1) logical = true
+                options.NptsPerElement (1,1) double ...
+                    {mustBeInteger, mustBeGreaterThanOrEqual(options.NptsPerElement, 2)} = 6
+            end
+
+            odbTag = string(options.odbTag);
+            if strlength(odbTag) > 0
+                filename = fullfile(obj.outputDir, ...
+                    sprintf('linearBucklingData_%s.hdf5', odbTag));
+                store = post.utils.HDF5DataStore(filename, 'overwrite', false);
+                out = store.load();
+                if ~isstruct(out)
+                    error('OpenSeesMatlabPost:InvalidLinearBucklingData', ...
+                        'Saved linear buckling data must be a struct.');
+                end
+                return;
+            end
+
+            if ~isnumeric(bucklingFactors) || ~isreal(bucklingFactors) || ...
+                    ~isvector(bucklingFactors)
+                error('OpenSeesMatlabPost:InvalidBucklingFactors', ...
+                    'bucklingFactors must be a nonempty real numeric vector.');
+            end
+            factors = double(bucklingFactors(:));
+            if isempty(factors) || any(~isfinite(factors)) || any(factors <= 0)
+                error('OpenSeesMatlabPost:InvalidBucklingFactors', ...
+                    'bucklingFactors must be a nonempty vector of finite positive values.');
+            end
+
+            modelInfo = obj.getModelData();
+            modeData = post.EigenDataCollector(obj.parent.opensees, modelInfo);
+            numModes = numel(factors);
+
+            out = struct();
+            out.AnalysisType = 'buckling';
+            out.ModeTags = (1:numModes).';
+            out.BucklingFactors = factors;
+            out.EigenVectors = modeData.getEigenVectors(numModes);
+            if options.InterpolateBeam
+                out.InterpolatedEigenVectors = ...
+                    modeData.getInterpolatedEigenVectors( ...
+                        out.EigenVectors, options.NptsPerElement, 'ignore');
+            else
+                out.InterpolatedEigenVectors = [];
+            end
+            if options.IncludeModelInfo
+                out.ModelInfo = modelInfo;
+            else
+                out.ModelInfo = struct();
+            end
+        end
     end
 
     % Responses
@@ -334,7 +429,13 @@ classdef OpenSeesMatlabPost < handle
             %
             % Example
             % -------
-            %     odb = post.createODB("MyODB", flushEvery=50);
+            %     odb = post.createODB("MyODB", recordDt=0.02);
+            %
+            %     % Smaller and faster output for visualization workloads:
+            %     odb = post.createODB("MyODB", ...
+            %         floatPrecision="float", compressionLevel=4, ...
+            %         recordDt=0.01, projectGaussToNodes="off", ...
+            %         computeMechanicalMeasures={}, saveFiberSecResp=false);
             %
             % Parameters
             % ----------
@@ -348,6 +449,15 @@ classdef OpenSeesMatlabPost < handle
             %     Precision for floating-point data in the ODB. Options are "float" or "double". 'double' reflects the full precision of MATLAB's default numeric type, while 'float' uses single-precision storage to reduce file size at the cost of precision.
             % intPrecision : char | string, optional, default "int32"
             %     Precision for integer data in the ODB. Options are "int32" or "int64". 'int32' is sufficient for most models and results in smaller file sizes, while 'int64' allows for larger models with more nodes/elements at the cost of increased file size.
+            % compressionLevel : integer, optional, default 4
+            %     HDF5 deflate compression level from 0 (disabled) to 9.
+            %     Level 4 normally provides a good balance between file size and
+            %     write speed. Higher levels can consume substantially more CPU
+            %     time for only a small additional reduction in file size.
+            % includeModel : logical, optional, default true
+            %     Store model geometry and topology in the ODB.
+            % recordInitialState : logical, optional, default true
+            %     Record the state at recorder creation before analysis steps.
             % elasticFrameSecPoints : integer, optional, default 9
             %     Number of points to use for elastic frame section integration.
             % interpolateBeamDisp : char | string | integer, optional, default "off"
@@ -361,11 +471,12 @@ classdef OpenSeesMatlabPost < handle
             %     - "tauMax" (maximum shear stress)
 
             % projectGaussToNodes : char | string, optional, default "extrapolate"
-            %     Method to project Gauss point data to nodes for shell responses. Options are "
+            %     Method to project Gauss point data to nodes for shell, plane, and solid responses.
             %
             %     - "copy" (copy values from nearest Gauss point)
             %     - "extrapolate" (interpolate values from all Gauss points).
             %     - "average" (average values from all Gauss points).
+            %     - "off" (do not store projected nodal values).
             % saveNodalResp: logical, optional, default true
             %     Flag to save nodal response data.
             % nodeTags: double array, optional
@@ -402,20 +513,55 @@ classdef OpenSeesMatlabPost < handle
             %     Flag to save contact response data.
             % contactTags: double array, optional
             %     Array of contact tags specifying which contacts to save responses for.
+            % saveMVLEMResp: logical, optional, default true
+            %     Flag to save MVLEM-family response data.
+            % mvlemTags: double array, optional
+            %     Array of MVLEM-family element tags to save responses for.
             %
             % Returns
             % -------
             % odb : post.ODB
             %     The created output database object.
+            %
+            % File size and performance
+            % -------------------------
+            % The most effective way to reduce both file size and recording
+            % overhead is to write fewer values: set recordDt to the required
+            % output interval, disable unused response families, and provide tag
+            % lists when only selected nodes or elements are needed.
+            %
+            % Fiber responses, Gauss-point-to-node projection, interpolated beam
+            % displacement, and mechanical measures add derived datasets and
+            % computation. Keep saveFiberSecResp=false, use
+            % projectGaussToNodes="off", interpolateBeamDisp="off", and
+            % computeMechanicalMeasures={} unless those outputs are required.
+            %
+            % floatPrecision="float" approximately halves raw response storage
+            % and usually reduces I/O time, but limits responses to about 6-7
+            % decimal significant digits. Use "double" for verification and
+            % precision-sensitive analysis.
+            %
+            % compressionLevel=4 is the recommended general-purpose setting.
+            % Levels 1-4 can improve total runtime when reduced disk I/O outweighs
+            % compression CPU cost; level 0 can be faster on a very fast disk when
+            % storage size is unimportant. Levels 7-9 are generally not recommended
+            % during analysis. Increasing flushEvery can reduce flush overhead,
+            % but leaves more recent steps buffered if analysis terminates
+            % unexpectedly; flushEvery does not change how many steps are stored.
 
             arguments
                 obj (1,1) post.OpenSeesMatlabPost
                 odbTag  = ""
 
-                options.flushEvery                       = 10
-                options.recordDt                         =  0
-                options.floatPrecision                   = "double"
-                options.intPrecision                     = "int32"
+                options.flushEvery (1,1) double {mustBeInteger, mustBePositive} = 20
+                options.recordDt (1,1) double {mustBeNonnegative} = 0
+                options.floatPrecision {mustBeTextScalar, mustBeMember(options.floatPrecision, ...
+                    ["double", "float64", "f64", "fp64", "float", "single", "float32", "f32", "fp32"])} = "double"
+                options.intPrecision {mustBeTextScalar, mustBeMember(options.intPrecision, ...
+                    ["int32", "i32", "32", "int64", "i64", "64"])} = "int32"
+                options.compressionLevel (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(options.compressionLevel, 0), mustBeLessThanOrEqual(options.compressionLevel, 9)} = 4
+                options.includeModel           logical = true
+                options.recordInitialState     logical = true
 
                 options.saveNodalResp           logical = true
                 options.saveFrameResp           logical = true
@@ -426,6 +572,7 @@ classdef OpenSeesMatlabPost < handle
                 options.savePlaneResp           logical = true
                 options.saveSolidResp           logical = true
                 options.saveContactResp         logical = true
+                options.saveMVLEMResp           logical = true
 
                 options.nodeTags                double = []
                 options.frameTags               double = []
@@ -435,11 +582,13 @@ classdef OpenSeesMatlabPost < handle
                 options.planeTags               double = []
                 options.solidTags               double = []
                 options.contactTags             double = []
+                options.mvlemTags               double = []
 
                 options.elasticFrameSecPoints   double {mustBeInteger, mustBePositive} = 9
                 options.interpolateBeamDisp             = "off"
                 options.computeMechanicalMeasures       = {"principal", "tauMax", "octahedral", "vonMises"}
-                options.projectGaussToNodes {mustBeTextScalar, mustBeMember(options.projectGaussToNodes, ["extrapolate", "average", "copy"])} = "extrapolate"
+                options.projectGaussToNodes {mustBeTextScalar, mustBeMember(options.projectGaussToNodes, ...
+                    ["off", "none", "nearest", "copy", "average", "avg", "extrapolate"])} = "extrapolate"
             end
             odbTag = string(odbTag);
             if strlength(odbTag) == 0
@@ -559,7 +708,7 @@ classdef OpenSeesMatlabPost < handle
             % eleTags : double array, optional
             %     An array of element tags to filter the response data. If empty or not provided, responses for all elements will be returned.
             % eleType : char | string, optional
-            %     The type of element to filter the response data (e.g., "Frame", "Truss", "Shell", "Plane", "Solid"). If empty or not provided, responses for all element types will be returned.
+            %     The type of element to filter the response data (e.g., "Frame", "Truss", "Shell", "Plane", "Solid", "MVLEM"). If empty or not provided, responses for all element types will be returned.
             % respType : char | string, optional
             %     The type of element response to retrieve (e.g., "force", "stress"). If empty or not provided, all types of element responses will be returned.
             %
@@ -572,7 +721,9 @@ classdef OpenSeesMatlabPost < handle
                 obj (1,1) post.OpenSeesMatlabPost
                 odbTag = ""
 
-                options.eleType   {mustBeTextScalar, mustBeMember(options.eleType, ["", "Frame", "Truss", "Shell", "Plane", "Solid", "Link"])} = ""
+                options.eleType   {mustBeTextScalar, mustBeMember(options.eleType, ...
+                    ["", "Frame", "Beam", "Truss", "Shell", "Plane", "Solid", "Brick", "Link", "Contact", ...
+                     "MVLEM", "SFI_MVLEM", "MVLEM_3D", "SFI_MVLEM_3D", "E_SFI_MVLEM_3D"])} = ""
                 options.eleTags   double = []
                 options.respType  {mustBeTextScalar} = ""
             end
@@ -609,6 +760,17 @@ classdef OpenSeesMatlabPost < handle
             end
 
             data = post.utils.ResponseStructTransformer.merge(respData);
+        end
+
+        function data = toResponseDataset(obj, respData)
+            % Convert an existing response struct to a label-aware dataset.
+            % The input remains unchanged and can still be passed directly
+            % to all existing visualization functions.
+            arguments
+                obj (1,1) post.OpenSeesMatlabPost %#ok<INUSA>
+                respData struct
+            end
+            data = post.toResponseDataset(respData);
         end
 
         function results = writeResponsePVD(obj, odbTag, outDir, baseName, options)

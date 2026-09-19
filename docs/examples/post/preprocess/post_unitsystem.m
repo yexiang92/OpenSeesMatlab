@@ -1,25 +1,18 @@
 %% *Automatic Unit System Conversion*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% The |unitSystem| object converts derived quantities from a chosen length-force-time 
+% basis. The same truss is solved in three unit systems to verify that frequencies 
+% are invariant and that displacements and reactions transform by the expected 
+% scale factors.
 % 
-% As we all know, the units should be unified in the finite element analysis. 
-% Common basic units include |length|, |force|, and |time|. The units of the base 
-% system can be combined in any combination, but other units including |pressure|, 
-% |stress|, |mass|, etc. should be unified with base system. In order to facilitate 
-% unit processing in the model, ``OpenSeesMatlab`` has developed a class that 
-% can automatically perform unit conversion based on the basic units you set.
+% OpenSees does not impose a unit system; every numerical value must be consistent 
+% with the selected length, force, and time units. |unitSystem| derives area, 
+% stress, mass, and other conversion factors from that basis.
 
 
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 
 % Basic usage
-% The following commands carry out this step of the workflow. Run this cell 
-% after the previous sections so the required variables and model state already 
-% exist.
 
 length_unit = "m";    % base unit
 force_unit  = "kN";   % base unit
@@ -42,8 +35,6 @@ disp(UNIT)
 %% 
 % These other units will be automatically converted to the base units you have 
 % set!
-% 
-% 
 % Truss example
 % Let’s look at a truss example. You can set the practical values of structural 
 % parameters in the model, and  unitSystem will help you automatically convert 
@@ -86,11 +77,10 @@ fprintf('Reaction at node 2: %s/%s = %g, %s/%s = %g\n', ...
     char(force_unit2), char(force_unit1), forces2(end) / forces1(end), ...
     char(force_unit3), char(force_unit1), forces3(end) / forces1(end));
 %% 
-% The displacement and force values depend on the base unit system you set up, 
-% but they are proportional to each other. Well, the rest is left to you to verify.
+% The numerical values change with the chosen units, while the physical response 
+% does not. The printed ratios should reproduce the known conversion factors for 
+% displacement and force.
 % Truss Model Code
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 function [u, forces, freq] = trussModel(opsMAT)
 %TRUSSMODEL  Simple 2D truss example in OpenSeesMatlab.
@@ -165,3 +155,8 @@ function [u, forces, freq] = trussModel(opsMAT)
         forces(i, :) = reshape(ops.nodeReaction(2), 1, []);
     end
 end
+
+% Verification
+% Frequencies from the three models should coincide. Displacement and reaction 
+% ratios should equal the corresponding length and force conversion factors, demonstrating 
+% physical rather than numerical equivalence.

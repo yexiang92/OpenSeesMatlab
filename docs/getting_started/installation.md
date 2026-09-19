@@ -1,6 +1,22 @@
 # Installation
 
-OpenSeesMatlab is currently distributed as a MATLAB toolbox for Windows. MATLAB R2023a or later is required.
+OpenSeesMatlab is distributed as platform-specific MATLAB toolboxes for
+Windows x86-64 and macOS Apple silicon. Windows requires MATLAB R2023a or
+later; macOS requires a native Apple-silicon MATLAB R2023b or later.
+
+## Supported platforms
+
+| Platform | Release package | Minimum MATLAB release |
+|---|:---:|---|
+| Windows x86-64 | ✓ | R2023a |
+| macOS Apple silicon | ✓ | R2023b (native Apple silicon) |
+| macOS Intel | — | Not distributed |
+| Linux | — | Not distributed |
+
+`✓` indicates that a prebuilt toolbox is included in the release. `—`
+indicates that this project does not currently distribute a toolbox for that
+platform. OpenSees itself supports additional platforms; this table describes
+the OpenSeesMatlab binary packages only.
 
 ## Install a released version
 
@@ -37,7 +53,7 @@ If more than one copy is listed, remove old copies from the MATLAB path so that 
 
 ## Run an example
 
-The `examples` directory contains Live Scripts grouped by engineering topic. Open a `.mlx` file in MATLAB Live Editor and run its sections in order. A good first choice is a small structural example; response and visualization examples are useful after you understand the basic command workflow.
+The source repository's `examples` directory contains plain-text Live Code `.m` files grouped by engineering topic. MATLAB R2025a or later opens these files in the Live Editor; packaged releases also include ordinary `.m` scripts for older supported MATLAB versions. Run each example's sections in order. A good first choice is a small structural example; response and visualization examples are useful after you understand the basic command workflow.
 
 Next, follow [Your first analysis](quickstart.md) for a complete model–analysis–result cycle, or browse the [examples](../examples/index.md).
 
@@ -45,8 +61,7 @@ Next, follow [Your first analysis](quickstart.md) for a complete model–analysi
 
 | Item | Requirement |
 |---|---|
-| MATLAB | R2023a or later |
-| Operating system | Windows |
+| MATLAB and operating system | Windows x86-64: R2023a or later; macOS Apple silicon: native R2023b or later |
 | OpenSees engine | Included through the OpenSeesMatlab MEX interface |
 | Interactive Polyscope viewer | Requires the packaged Polyscope MEX binary |
 
@@ -66,7 +81,11 @@ Next, follow [Your first analysis](quickstart.md) for a complete model–analysi
 
 ### The MEX file cannot be loaded
 
-- Confirm that you are using supported 64-bit Windows and MATLAB R2023a or later.
+- Confirm that the installed toolbox matches the current host: Windows x86-64
+  with MATLAB R2023a or later, or macOS Apple silicon with native MATLAB
+  R2023b or later.
+- Run `which OpenSeesMATLAB -all` for the serial backend. Inside a configured
+  OpenSeesSP job, run `which OpenSeesMATLABSP -all`.
 - Do not mix files from different OpenSeesMatlab releases.
 - Check whether endpoint security software quarantined a packaged binary.
 
@@ -85,3 +104,10 @@ For the lowest overhead, use `opsMat.opensees` with standard OpenSees recorders 
 OpenSeesMatlab uses `MAJOR.MINOR.PATCH.BUILD`. The first three fields identify the corresponding OpenSees release; `BUILD` identifies an OpenSeesMatlab revision built on it. For example, `3.8.0.2` is the second OpenSeesMatlab build based on OpenSees 3.8.0.
 
 See the [changelog](changelog.md) for release-specific changes.
+
+## Related documentation
+
+- [OpenSeesMatlab at a glance](overview.md)
+- [Your first analysis](quickstart.md)
+- [OpenSees command interface](opensees.md)
+- [Examples](../examples/index.md)

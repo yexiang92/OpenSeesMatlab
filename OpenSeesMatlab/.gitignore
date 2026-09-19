@@ -42,5 +42,10 @@ codegen/
 
 *.html
 
-resources/
+# MATLAB stores the project definition behind the small .prj entry point.
+# Track that definition so a clone opens the same project, but keep generated
+# build-tool state out of version control.
+resources/*
+!resources/project/
+!resources/project/**
 release/

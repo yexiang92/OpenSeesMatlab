@@ -6,6 +6,13 @@
     - CPU solvers continue to work without an NVIDIA GPU, CUDA, or cuDSS.
     - The current binary supports the cuDSS 0.8 API. CUDA 12 is validated; CUDA 13 runtime discovery is available but has not yet been validated on a CUDA 13 test machine.
 
+!!! warning "Validation status"
+
+    The backend has not yet received broad independent use across GPU, driver,
+    matrix, and model combinations. Compare critical results with a CPU solver
+    such as `UmfPack`, and report reproducible problems through
+    [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
 The cuDSS backend can accelerate repeated sparse factorizations in large models.
 For small systems, CPU solvers may remain faster because GPU initialization,
 data transfer, and kernel-launch overhead are comparable with the solve itself.
@@ -21,17 +28,19 @@ To use cuDSS, the user computer needs:
     - [CUDA](https://developer.nvidia.com/cuda-toolkit-archive) 12 or CUDA 13 runtime and cuBLAS libraries;
     - NVIDIA [cuDSS](https://developer.nvidia.com/cudss) **0.8** built for the same CUDA major version; and
 
-Users do not need Visual Studio, CMake, `nvcc`, or MATLAB Parallel Computing
-Toolbox. A newer supported NVIDIA GPU is allowed; the MEX is not tied to the GPU
-used when it was compiled.
+Download and install matching CUDA and cuDSS versions, and note their
+installation directories for the configuration below.
 
 ## Configure the cuDSS runtime
 
-If cuDSS is installed in its standard directory, automatic discovery is usually
-enough. Otherwise, set the installation directory before creating the solver:
+If cuDSS is installed in its standard directory, try the shortest form first:
 
-The paths may also be supplied directly to `ops.system` with `-cudaPath` and
-`-cudssPath`. This is useful when several CUDA or cuDSS versions are installed.
+```matlab
+ops.system("CuDSS");
+```
+
+If the runtime is not found, or if several CUDA versions are installed, pass
+the two DLL locations explicitly with `-cudaPath` and `-cudssPath`.
 
 For custom or Conda layouts, specify the two DLL directories independently.
 Each value may be either the directory that directly contains the DLLs or an
@@ -40,11 +49,11 @@ installation root containing `bin` or `Library\bin`:
 ```matlab
 % for cuda v12.6, for example
 cudssPath = "C:\Program Files\NVIDIA cuDSS\v0.8\bin\12";
-cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin"
+cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin";
 
 % for cuda 13.1, for example
 cudssPath = "C:\Program Files\NVIDIA cuDSS\v0.8\bin\13";
-cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin"
+cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin";
 
 ops.system("CuDSS", ...
     "-cudaPath", cudaPath, ...   % cudart64_*.dll, cublas64_*.dll, cublasLt64_*.dll
@@ -105,6 +114,186 @@ reordering and symbolic analysis while the equation graph is unchanged, uses
 refactorization for later changed tangent matrices, and skips the matrix upload
 and factorization when only the right-hand side changes.
 
+Once the solver loads correctly, remove `-verbose` for normal runs:
+
+```matlab
+CuDSSOptions = {"-cudaPath", cudaPath, "-cudssPath", cudssPath};
+ops.system("CuDSS", CuDSSOptions{:});
+```
+
+Keeping the options in a cell array is convenient when several scripts use the
+same runtime. The `{:}` expands the cell contents into separate arguments. Add
+`"-verbose"` only when checking which DLLs and GPU were selected.
+
+## Options
+
+All options below are passed through `ops.system` to the cuDSS extension.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `-cudaMajor auto\|12\|13` | `auto` | Select the CUDA runtime major family. |
+| `-cudaPath directory` | automatic | CUDA DLL directory or installation root. |
+| `-cudssPath directory` | automatic | cuDSS DLL directory or installation root. |
+| `-device auto\|index` | `auto` | Select one zero-based GPU index. |
+| `-devices "i,j,..."` | disabled | Enable single-node multi-GPU execution on at least two GPUs. |
+| `-cpuThreshold equations` | `0` | Use Eigen SparseLU at or below this equation count; zero disables CPU crossover. |
+| `-reuseFactorization` | on | Reuse an existing numerical factorization when the newly assembled matrix is exactly unchanged. |
+| `-noReuseFactorization` | off | Force numerical refactorization after OpenSees forms the tangent; useful for controlled benchmarks. |
+| `-indexBits auto\|32\|64` | `auto` | Select CSR index width. Automatic mode uses 32-bit indices when the matrix fits and otherwise uses 64-bit indices. |
+| `-reorder default\|btf\|colamd\|amd\|nd\|none` | `default` | Select the symbolic reordering algorithm. |
+| `-factorization default\|multiblock\|general` | `default` | Select the numerical factorization algorithm. |
+| `-ndLevels count` | cuDSS default | Set the nested-dissection level count; the value must be positive. |
+| `-ndUbFactor percent` | cuDSS default | Set nested-dissection partition imbalance from `0` through `100`. |
+| `-pivot auto\|none\|globalCol\|globalRow\|diagonal\|local` | `auto` | Select numerical pivoting. Valid combinations depend on matrix type and reordering. |
+| `-pivotThreshold value` | cuDSS default | Set the pivot acceptance threshold. |
+| `-pivotEpsilon value` | cuDSS default | Set the static-pivot replacement epsilon. |
+| `-refinement count` | `0` | Maximum iterative-refinement steps. |
+| `-tolerance value` | `1e-12` | Iterative-refinement relative tolerance. |
+| `-deterministic` | off | Request reproducible execution; it may reduce performance. |
+| `-estimates` | off | Print factorization memory and FLOP estimates after analysis. |
+| `-hybridMemory` | off | Allow factor data to use host and device memory. |
+| `-hybridMemoryLimit bytes` | unset | Enable hybrid memory and set the per-device GPU memory limit. |
+| `-hybridExecute` | off | Enable hybrid host/device execution. |
+| `-hostThreads count` | cuDSS default | Set the host thread count for hybrid or MT execution. |
+| `-threadingLayer library` | unset | Load a cuDSS-compatible threading backend, such as VCOMP on Windows. |
+| `-matrixMemory auto\|host\|device` | `auto` | Place CSR input arrays in host or device memory; automatic mode uses host CSR when supported. |
+| `-schurSize equations` | disabled | Use the final N equations as a Schur set; currently requires `CuDSSSymmetric` or `CuDSSSPD`. |
+| `-diagnostics` | off | Synchronize and query errors after each phase; debugging only. |
+| `-profile` | off | Print phase timings; profiling adds synchronization overhead and is intended for diagnostics. |
+| `-verbose` | off | Print runtime, device, and transfer details. |
+
+For example, a performance-oriented symmetric-indefinite configuration is:
+
+```matlab
+ops.system("CuDSSSymmetric", ...
+    "-cpuThreshold", 1000, ...
+    "-reorder", "amd", ...
+    "-pivot", "diagonal");
+```
+
+Start with the default algorithms and benchmark alternatives on a representative
+model. `amd` is often a useful symmetric baseline, while `btf` or `colamd` may
+benefit general matrices. An incompatible reordering/pivot combination is
+rejected by cuDSS rather than silently changed.
+
+## Performance behavior
+
+The implementation automatically selects 32-bit or 64-bit CSR indices, caches
+the element-equation to CSR assembly mapping, uses asynchronous transfers on a
+dedicated stream, reuses symbolic analysis, and uses refactorization when the
+sparsity pattern is unchanged. If refactorization fails, it retries a complete
+numerical factorization. When the assembled matrix is exactly unchanged, the
+default `-reuseFactorization` behavior skips its upload and numerical
+factorization and performs only the new right-hand-side solve.
+
+Element tangents are assembled in OpenSees' column-major storage order, with a
+branch-free path for elements whose equations are all active. For an ordinary
+non-Schur solve, numerical factorization and solution are submitted in one
+cuDSS phase call. `-profile` and `-diagnostics` deliberately keep the phases
+separate so their timings and failures remain distinguishable.
+
+Small systems can be faster on the CPU because GPU launch and transfer overhead
+dominates. Tune `-cpuThreshold` with the actual model and hardware; values around
+500--3000 equations are reasonable starting experiments, not universal defaults.
+Single-node multi-GPU is intended for sufficiently large factorizations and may
+be slower for modest systems. Hybrid memory primarily extends capacity when the
+factorization does not fit in GPU memory and is not normally a speed optimization.
+
+Do not enable `-diagnostics`, `-verbose`, or `-estimates` in production timing.
+Deterministic execution can also reduce throughput. Schur mode performs the
+reduced dense solve on the CPU and is beneficial only when the selected Schur
+set is relatively small.
+
+### A sensible tuning order
+
+1. Run the model with a trusted CPU solver and keep its result and elapsed time
+   as a reference.
+2. Select `CuDSS` with default settings and confirm that the response agrees.
+3. Remove `-verbose`, `-diagnostics`, and `-estimates` before measuring time.
+4. If the analysis contains many small systems, test `-cpuThreshold` values
+   such as `500`, `1000`, and `3000`.
+5. Only then benchmark reordering or matrix-type variants on the full model.
+
+Measure the complete analysis, not a single solve. GPU initialization can make
+the first run slower, while symbolic-analysis reuse becomes useful over many
+steps. Compare runs with the same model, recorder, and convergence settings.
+
+A straightforward production setup is:
+
+```matlab
+CuDSSOptions = { ...
+    "-cudaPath", cudaPath, ...
+    "-cudssPath", cudssPath, ...
+    "-cpuThreshold", 1000, ...
+    "-refinement", 0};
+
+ops.system("CuDSS", CuDSSOptions{:});
+```
+
+Do not copy `-cpuThreshold`, reordering, or pivot values blindly. The best
+choice depends on equation count, sparsity pattern, GPU, and how often the
+tangent matrix changes.
+
+## Improving nonlinear analysis performance
+
+Start with the general solver and the standard Newton algorithm. This is the
+safest choice for nonlinear static and dynamic analysis:
+
+```matlab
+ops.system("CuDSS");
+ops.test("NormDispIncr", 1.0e-8, 30);
+ops.algorithm("Newton");
+```
+
+For static analysis, add the required load-control integrator. For dynamic
+analysis, use the selected transient integrator as usual:
+
+```matlab
+% Static
+ops.integrator("LoadControl", 0.01);
+ops.analysis("Static");
+
+% Dynamic
+ops.integrator("Newmark", 0.5, 0.25);
+ops.analysis("Transient");
+```
+
+Newton updates and refactorizes the tangent during nonlinear iteration. For a
+large model, try `ModifiedNewton` or `KrylovNewton` if the tangent can remain
+useful for several iterations:
+
+```matlab
+ops.algorithm("ModifiedNewton");
+% or
+ops.algorithm("KrylovNewton", "-maxDim", 10);
+```
+
+These methods may reduce factorization time, but they can require more
+iterations. Use Newton again if convergence becomes slow or unreliable. Strong
+plasticity, stiffness degradation, contact, snap-through, and changing time
+steps generally reduce the opportunity to reuse a factorization.
+
+CuDSS automatically reuses an unchanged matrix. This is especially effective
+for linear dynamics and for repeated solves with a fixed tangent. Nonlinear
+materials and geometric nonlinearity remain fully active; when the tangent
+changes, CuDSS refactorizes it automatically.
+
+Measure the complete analysis rather than a single solve. The first solve is
+normally slower because it initializes the GPU and performs symbolic analysis
+and factorization. Compare total time, convergence, and final response with a
+trusted CPU solver such as UmfPack. Disable reuse only when measuring raw
+factorization performance:
+
+```matlab
+ops.system("CuDSS", "-noReuseFactorization");
+```
+
+The C++ extension additionally supports multiple dense right-hand sides through
+`SOE::solveMultiple`. The standard OpenSees `LinearSOE` analysis path continues
+to submit one right-hand side. Cross-node MGMN and batching independent OpenSees
+domains require an external communicator or analysis scheduler and are not
+created automatically by `ops.system`.
+
 For troubleshooting, add `-diagnostics`:
 
 ```matlab
@@ -136,6 +325,37 @@ ops.system("CuDSS", ...
     "-device", 0);
 ```
 
+## Eigenvalue and linear buckling analysis
+
+cuDSS can accelerate the repeated sparse solves used by two spectral-analysis
+paths. It does not replace ARPACK and does not move the Arnoldi iteration to
+the GPU.
+
+| Analysis path | Matrix factored by cuDSS | Reuse during one solve | Limitation |
+| --- | --- | --- | --- |
+| [`eigen("-genBandArpack", modes)`][ops.OpenSeesMatlabCmds.eigen] | Shifted stiffness `K - sigma*M` | One factorization is reused for ARPACK right-hand sides | `-fullGenLapack`, `-symmBandLapack`, and `callbackSparseEigen` do not use the active cuDSS system |
+| [`linearBuckling("solve", modes)`](linear_buckling.md) | Captured base tangent `K0` | One factorization is reused while ARPACK applies `Kg = K0 - K1` | Requires symmetric `K0` and `Kg`, with constrained `K0` positive definite |
+
+For a compatible model, select the system before the eigen or buckling call:
+
+```matlab
+ops.constraints("Transformation");
+ops.numberer("RCM");
+ops.system("CuDSSSPD", "-device", 0, "-reuseFactorization");
+
+eigenvalues = ops.eigen("-genBandArpack", 10);
+```
+
+For buckling, the same active system must remain in place throughout
+`capture`, the reference-load analysis, and `solve`. See the
+[linear buckling guide](linear_buckling.md) for the complete sequence and
+matrix requirements.
+
+GPU factorization is most useful when the matrix is large enough to amortize
+runtime initialization and host-device transfers. Use `UmfPack` as the CPU
+reference and confirm the requested eigenvalues or buckling factors before
+accepting a GPU speedup.
+
 ## Choosing the matrix type
 
 The following variants are available:
@@ -149,6 +369,10 @@ The following variants are available:
 For strongly nonlinear earthquake analysis, start with `CuDSS`. A tangent
 matrix may become indefinite even if the initial elastic stiffness is positive
 definite.
+
+`CuDSSGeneral` is the compatibility name for the same general-matrix
+implementation selected by `CuDSS`. Prefer the shorter `CuDSS` name unless a
+matrix-type comparison benefits from spelling out all variants.
 
 ## CPU fallback
 
@@ -184,3 +408,10 @@ nonlinear convergence settings.
 ## Examples
 
 [Extensions Examples](../../examples/extension/index.md)
+
+## Related documentation
+
+- [`system` API][ops.OpenSeesMatlabCmds.system]
+- [Linear buckling analysis](linear_buckling.md)
+- [KINSOL nonlinear solver](kinsol_solver.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)

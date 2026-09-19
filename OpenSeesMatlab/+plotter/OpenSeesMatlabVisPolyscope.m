@@ -41,11 +41,11 @@ classdef OpenSeesMatlabVisPolyscope < handle
         end
 
         function h = plotEigen(obj, varargin)
-            % Open the Polyscope eigen-mode viewer.
+            % Open the Polyscope modal/buckling-mode viewer.
             %
             % Usage:
             % --------
-            %     vis.polyscope.plotEigen(eigenData);
+            %     vis.polyscope.plotEigen(modeData);
             %
             % If eigenData is omitted it is collected from the current model.
             % The mode number can be picked directly in the GUI; modeTag only
@@ -97,7 +97,7 @@ classdef OpenSeesMatlabVisPolyscope < handle
                 opts.mode.modeTag = modeTag;
             end
 
-            modelInfo = obj.parent.parent.post.getModelData();
+            modelInfo = obj.resolveModeModelInfo_(eigenData);
             h = plotter.polyscope.plotEigen(modelInfo, eigenData, opts);
         end
 
@@ -164,6 +164,33 @@ classdef OpenSeesMatlabVisPolyscope < handle
                 modelInfo = obj.parent.parent.post.getModelData();
             end
             h = plotter.polyscope.plotFrameResponse(modelInfo, frameRespData, options.opts);
+        end
+
+        function h = plotMVLEMResponse(obj, respData, options)
+            % Open the Polyscope MVLEM scalar-response viewer.
+            arguments
+                obj (1,1) plotter.OpenSeesMatlabVisPolyscope
+                respData struct
+                options.respType {mustBeTextScalar} = "curvature"
+                options.respComponent {mustBeTextScalar} = "auto"
+                options.stepIdx = "absmax"
+                options.topology {mustBeTextScalar, mustBeMember(options.topology, ...
+                    ["all","line","surface"])} = "all"
+                options.opts (1,1) struct = struct()
+            end
+            options.opts.respType = char(string(options.respType));
+            options.opts.component = char(string(options.respComponent));
+            options.opts.stepIdx = options.stepIdx;
+            options.opts.topology = char(options.topology);
+            if isfield(respData(1), 'odbTag')
+                odbTag = respData(1).odbTag;
+                modelInfo = post.ODB.readModelInfo(obj.parent.parent.opensees, odbTag);
+                nodalResp = post.ODB.readNodeResponse(obj.parent.parent.opensees, odbTag);
+            else
+                modelInfo = obj.parent.parent.post.getModelData();
+                nodalResp = struct();
+            end
+            h = plotter.polyscope.plotMVLEMResponse(modelInfo, respData, options.opts, nodalResp);
         end
 
         function h = plotShellResponse(obj, respData, options)
@@ -247,6 +274,18 @@ classdef OpenSeesMatlabVisPolyscope < handle
             options.opts.responseLocation = char(string(options.responseLocation));
             options.opts.stepIdx = options.stepIdx;
             h = plotter.polyscope.plotUnstruResponse(modelInfo, nodalResp, respData, options.opts);
+        end
+    end
+
+    methods (Access = private)
+        function modelInfo = resolveModeModelInfo_(obj, modeData)
+            if isfield(modeData, 'ModelInfo') && ...
+                    isstruct(modeData.ModelInfo) && ...
+                    ~isempty(fieldnames(modeData.ModelInfo))
+                modelInfo = modeData.ModelInfo;
+            else
+                modelInfo = obj.parent.parent.post.getModelData();
+            end
         end
     end
 end

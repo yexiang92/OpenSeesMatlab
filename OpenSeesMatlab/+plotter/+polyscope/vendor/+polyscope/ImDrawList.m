@@ -49,6 +49,13 @@ classdef ImDrawList < handle
             call_mex('imgui_drawlist_add_text', obj.Handle, pos, col, text);
         end
 
+        function AddImage(obj, tex_id, p_min, p_max, uv0, uv1, tint_col)
+            if nargin < 5, uv0 = [0, 0]; end
+            if nargin < 6, uv1 = [1, 1]; end
+            if nargin < 7, tint_col = hex2dec('FFFFFFFF'); end
+            call_mex('imgui_drawlist_add_image', obj.Handle, tex_id, p_min, p_max, uv0, uv1, tint_col);
+        end
+
         function AddTriangle(obj, p1, p2, p3, col, thickness)
             if nargin < 6, thickness = 1.0; end
             call_mex('imgui_drawlist_add_triangle', obj.Handle, p1, p2, p3, col, thickness);

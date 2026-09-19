@@ -106,6 +106,7 @@ classdef EigenDataCollector < handle
             obj.runEigenAnalysis(modeTag, solver);
 
             data = struct();
+            data.AnalysisType = 'modal';
             data.ModeTags = (1:modeTag).';
             data.ModalProps = obj.getModalProperties(modeTag);
             data.EigenVectors = obj.getEigenVectors(modeTag);

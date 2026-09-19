@@ -21,6 +21,7 @@ classdef OpenSeesMatlab < handle
     % Syntax
     % ------
     %       opsmat = OpenSeesMatlab()
+    %       opsmat = OpenSeesMatlab(backend=name)
     %       opsmat = OpenSeesMatlab(mexName=name)
     %       opsmat = OpenSeesMatlab(mexDir=dir)
     %       opsmat = OpenSeesMatlab(mexName=name, mexDir=dir)
@@ -40,12 +41,13 @@ classdef OpenSeesMatlab < handle
     %     analysis with retries, algorithm switching, step splitting, and progress
     %     reporting.
     % post : OpenSeesMatlabPost
-    %     Post-processing utilities for collecting model information, eigen data,
-    %     and response data, and for saving/loading output databases.
+    %     Post-processing utilities for collecting model information, modal and
+    %     linear-buckling data, and response data, and for saving/loading output
+    %     databases.
     % vis : OpenSeesMatlabVis
-    %     Visualization utilities for model geometry, mode shapes, deformations,
-    %     nodal responses, frame responses, shell responses, and continuum
-    %     responses.
+    %     Visualization utilities for model geometry, modal and buckling mode
+    %     shapes, deformations, nodal responses, frame responses, shell
+    %     responses, and continuum responses.
     % utils : OpenSeesMatlabTool
     %     General helper tools, including example-model loading.
     %
@@ -72,8 +74,18 @@ classdef OpenSeesMatlab < handle
     %       h = opsmat.vis.plotModel();
     %
 
+    properties (Constant)
+        % Toolbox release version. publish.m copies this value into the
+        % metadata and file name of every platform-specific toolbox package.
+        ToolboxVersion = "3.8.0.3"
+    end
+
     properties (SetAccess = private, GetAccess = public)
-        opensees ops.OpenSeesMatlabCmds      % OpenSees command interface.
+        % Keep this property untyped so the embedded OpenSeesNexus library can
+        % be connected before MATLAB resolves OpenSeesMatlabCmds and its
+        % superclass. The constructor still assigns an OpenSeesMatlabCmds
+        % instance, so the public API and runtime type are unchanged.
+        opensees                               % OpenSees command interface.
         post post.OpenSeesMatlabPost          % Post-processing interface.
         vis plotter.OpenSeesMatlabVis            % Visualization interface.
         pre pre.OpenSeesMatlabPre            % Pre-processing interface.
@@ -82,7 +94,10 @@ classdef OpenSeesMatlab < handle
     end
 
     properties (SetAccess = private, GetAccess = public)
-        version = [];  % OpenSeesMatlab version tag.
+        version = [];           % Compatibility alias for bindingVersion.
+        bindingVersion = [];    % OpenSeesNexus MATLAB package version.
+        openseesVersion = [];   % OpenSees engine version.
+        backend = "serial";     % Active native backend: serial or sp.
     end
 
     methods
@@ -96,20 +111,25 @@ classdef OpenSeesMatlab < handle
             % Syntax
             % ------
             %       opsmat = OpenSeesMatlab()
+            %       opsmat = OpenSeesMatlab(backend=name)
             %       opsmat = OpenSeesMatlab(mexName=name)
             %       opsmat = OpenSeesMatlab(mexDir=dir)
             %       opsmat = OpenSeesMatlab(mexName=name, mexDir=dir)
             %
             % Parameters
             % ----------
+            % backend : "serial" | "sp", optional
+            %     Backend selected before native initialization. The default is
+            %     the current OpenSeesNexus selection, initially "serial".
             % mexName : string or char, optional
-            %     Name of the OpenSees MATLAB MEX module. Default is
-            %     'OpenSeesMATLAB'.
+            %     Explicit OpenSees MATLAB MEX module name. Leave empty to use
+            %     OpenSeesMATLAB for serial or OpenSeesMATLABSP for SP.
             %
             % mexDir : string or char, optional
             %     Directory containing the OpenSees MATLAB MEX module. Relative
-            %     paths are resolved by OpenSeesMatlabBase relative to this class
-            %     location when possible. Default is 'derived/'.
+            %     paths are resolved by OpenSeesNexus relative to its embedded library
+            %     location when supplied. By default the current platform is
+            %     selected under +ops/OpenSeesNexus/derived.
             %
             % Example
             % -------
@@ -118,11 +138,17 @@ classdef OpenSeesMatlab < handle
             %
             %       opsmatCustom = OpenSeesMatlab( ...
             %           mexName="OpenSeesMATLAB", ...
-            %           mexDir="derived/");
+            %           mexDir="D:/custom/opensees");
 
             arguments
-                options.mexName  {mustBeTextScalar} = 'OpenSeesMATLAB'
-                options.mexDir {mustBeTextScalar} = 'derived/'
+                options.backend {mustBeTextScalar} = ''
+                options.mexName {mustBeTextScalar} = ''
+                options.mexDir {mustBeTextScalar} = ''
+            end
+
+            ops.connectOpenSeesNexus();
+            if strlength(string(options.backend)) > 0
+                OpenSeesNexus.setBackend(options.backend);
             end
 
             obj.opensees = ops.OpenSeesMatlabCmds(obj, options.mexName, options.mexDir);
@@ -134,7 +160,10 @@ classdef OpenSeesMatlab < handle
             obj.anlys = analysis.OpenSeesMatlabAnalysis(obj);
             obj.pre = pre.OpenSeesMatlabPre(obj);
 
-            obj.version = obj.opensees.matlabversion();
+            obj.backend = OpenSeesNexus.getBackend();
+            obj.bindingVersion = obj.opensees.matlabversion();
+            obj.openseesVersion = obj.opensees.openseesVersion();
+            obj.version = obj.bindingVersion;
         end
     end
 

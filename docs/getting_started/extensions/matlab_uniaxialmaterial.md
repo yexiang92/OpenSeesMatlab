@@ -2,33 +2,37 @@
 
 !!! note
 
-    `MatlabUniaxialMaterial` is an OpenSeesMatlab extension. It is not a native
-    OpenSees material type and requires the OpenSeesMATLAB MEX module.
+    `callbackUniaxialMaterial` is an OpenSeesNexus extension. It is not a native
+    OpenSees material command and requires the OpenSeesMATLAB MEX module.
 
-`MatlabUniaxialMaterial` lets a MATLAB function implement the stress, tangent,
+!!! warning "Validation status"
+
+    Callback correctness depends on user code and has not received broad
+    independent use. Check tangent consistency, trial/commit/revert behavior,
+    and cyclic response against a reference material. Report adapter problems
+    through [GitHub Issues](https://github.com/yexiang92/OpenSeesMatlab/issues).
+
+`callbackUniaxialMaterial` lets a MATLAB function implement the stress, tangent,
 and history evolution of an ordinary OpenSees `UniaxialMaterial`. Once created,
 it can be assigned to `zeroLength`, truss, section, bearing, and other OpenSees
 objects that accept a uniaxial material.
 
 ## Create a material
 
-Use the normal [`ops.uniaxialMaterial`][ops.OpenSeesMatlabCmds.uniaxialMaterial]
-command:
+Use the shared `callbackUniaxialMaterial` command:
 
 ```matlab
 initialState = struct(...);
 
-ops.uniaxialMaterial( ...
-    "MatlabUniaxialMaterial", ...
+ops.callbackUniaxialMaterial( ...
     materialTag, ...
     @materialCallback, ...
     initialState, ...
     initialTangent);
 ```
 
-The MATLAB wrapper recognizes `MatlabUniaxialMaterial` and routes it to the
-internal MEX `extensionMaterial` dispatcher. Native material types such as
-`Elastic` and `Steel01` continue to use the upstream OpenSees material factory.
+Native material types such as `Elastic` and `Steel01` continue to use the
+upstream `uniaxialMaterial` command.
 
 ## Callback contract
 
@@ -104,8 +108,7 @@ ops.node(1, 0.0);
 ops.node(2, 0.0);
 ops.fix(1, 1);
 
-ops.uniaxialMaterial( ...
-    "MatlabUniaxialMaterial", ...
+ops.callbackUniaxialMaterial( ...
     1, ...                       % material tag
     @linearCallback, ...         % MATLAB constitutive callback
     initialState, ...            % complete initial history state
@@ -245,8 +248,7 @@ ops.node(1, 0.0);
 ops.node(2, 0.0);
 ops.fix(1, 1);
 
-ops.uniaxialMaterial( ...
-    "MatlabUniaxialMaterial", 1, ...
+ops.callbackUniaxialMaterial(1, ...
     @materialCallback, initialState, initialTangent);
 
 ops.element("zeroLength", 1, 1, 2, ...
@@ -271,7 +273,7 @@ OpenSees from adaptively changing the prescribed cyclic path.
 
 ## Query responses
 
-`MatlabUniaxialMaterial` inherits `UniaxialMaterial::setResponse` and
+The callback-backed material inherits `UniaxialMaterial::setResponse` and
 `UniaxialMaterial::getResponse`. Standard element material queries therefore
 work without a custom recorder implementation:
 
@@ -317,3 +319,10 @@ cyclic increments as needed to resolve the response.
 ## Complete tutorials
 
 [Extensions Examples](../../examples/extension/index.md){ .md-button .md-button--primary }
+
+## Related documentation
+
+- [`callbackUniaxialMaterial` API](../../api/OpenSeesNexusExtensions.md#matlab-callback-extensions)
+- [MATLAB substructure callbacks](substructure_analysis.md)
+- [OpenSeesNexus extensions API](../../api/OpenSeesNexusExtensions.md)
+- [Extension examples](../../examples/extension/index.md)

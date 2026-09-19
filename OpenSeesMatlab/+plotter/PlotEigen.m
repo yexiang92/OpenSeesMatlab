@@ -59,6 +59,7 @@ classdef PlotEigen < handle
                 'figureSize', [1000, 618]);
 
             opts.mode = struct( ...
+                'type',             'modal',       ...
                 'modeTag',          1,           ...
                 'scale',            1,           ...
                 'autoScale',        true,        ...
@@ -133,6 +134,7 @@ classdef PlotEigen < handle
                 '  general.figureSize    [w h]    Figure size in pixels (default [1000 618]).'
                 ''
                 '-- Mode shape --------------------------------------------------'
+                '  mode.type             ''modal'' | ''buckling'' (default ''modal'').'
                 '  mode.modeTag          int/double  Mode tag to display (default 1).'
                 '  mode.scale            double   Manual scale multiplier applied on top of'
                 '                                 autoScale (default 1).'
@@ -225,6 +227,12 @@ classdef PlotEigen < handle
             obj.ModelInfo = modelInfo;
             obj.EigenInfo = eigenInfo;
             obj.Opts      = obj.mergeStruct(plotter.PlotEigen.defaultOptions(), opts);
+            if ~(isstruct(opts) && isfield(opts, 'mode') && ...
+                    isstruct(opts.mode) && isfield(opts.mode, 'type')) && ...
+                    isfield(eigenInfo, 'AnalysisType')
+                obj.Opts.mode.type = eigenInfo.AnalysisType;
+            end
+            obj.Opts.mode.type = obj.normalizeModeType(obj.Opts.mode.type);
             obj.Plotter   = plotter.PatchPlotter(ax);
             obj.Ax        = obj.Plotter.Ax;
             obj.buildCaches();
@@ -235,6 +243,7 @@ classdef PlotEigen < handle
         function setOptions(obj, opts)
             if nargin >= 2 && ~isempty(opts)
                 obj.Opts = obj.mergeStruct(obj.Opts, opts);
+                obj.Opts.mode.type = obj.normalizeModeType(obj.Opts.mode.type);
                 obj.buildCaches();
             end
         end
@@ -243,6 +252,7 @@ classdef PlotEigen < handle
         function h = plotOrigin(obj, opts)
             if nargin >= 2 && ~isempty(opts)
                 obj.Opts = obj.mergeStruct(obj.Opts, opts);
+                obj.Opts.mode.type = obj.normalizeModeType(obj.Opts.mode.type);
                 obj.buildCaches();
             end
             obj.prepareAxes();
@@ -267,6 +277,7 @@ classdef PlotEigen < handle
             end
             if nargin >= 3 && ~isempty(opts)
                 obj.Opts = obj.mergeStruct(obj.Opts, opts);
+                obj.Opts.mode.type = obj.normalizeModeType(obj.Opts.mode.type);
             end
 
             obj.prepareAxes();
@@ -645,6 +656,19 @@ classdef PlotEigen < handle
                 title(obj.Ax,'Model Shape');  return;
             end
 
+            if strcmp(obj.Opts.mode.type, 'buckling')
+                txt = sprintf('Buckling Mode %g', obj.getModeTag(modeIdx));
+                if isfield(obj.EigenInfo, 'BucklingFactors') && ...
+                        numel(obj.EigenInfo.BucklingFactors) >= modeIdx
+                    factor = double(obj.EigenInfo.BucklingFactors(modeIdx));
+                    if isfinite(factor)
+                        txt = sprintf('%s  |  Load factor = %.6g', txt, factor);
+                    end
+                end
+                title(obj.Ax, txt);
+                return;
+            end
+
             txt = sprintf('Mode %g', obj.getModeTag(modeIdx));
 
             if isfield(obj.EigenInfo,'ModalProps') && ...
@@ -938,6 +962,14 @@ classdef PlotEigen < handle
 
     % =====================================================================
     methods (Static, Access = private)
+
+        function type = normalizeModeType(value)
+            type = lower(char(string(value)));
+            if ~ismember(type, {'modal', 'buckling'})
+                error('PlotEigen:InvalidModeType', ...
+                    'mode.type must be ''modal'' or ''buckling''.');
+            end
+        end
 
         function P = padTo3ColStatic(P)
             if size(P,2)<3, P(:,3)=0;    end

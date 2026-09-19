@@ -1,9 +1,7 @@
 %% *Fiber section mesh generation*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% The section-meshing utilities turn geometric regions and reinforcement definitions 
+% into OpenSees fibers. The plots should be inspected for area, centroid, material 
+% tags, and mesh density before the section is assigned to an element.
 % 
 % *Here we demonstrate how to generate fiber cross sections using Matlab and 
 % OpenSees.*
@@ -12,18 +10,14 @@
 % Toolbox - MATLAB> *is required.*
 
 clear; clc;
-%% 
-% 
-
 opsmat = OpenSeesMatlab();
 ops    = opsmat.opensees;
-fs     = opsmat.pre.fiberSectionMesh; 
+fs     = opsmat.pre.fiberSectionMesh;
 disp(fs);
-%% 
-% 
 % |EXAMPLE 1 —| Steel section
-% This section defines the material or section properties. These choices control 
-% stiffness, strength, and the nonlinear behavior observed later.
+% The material tags assigned here are carried into the generated fiber commands. 
+% Check the plotted regions and bar locations before using the section in a member 
+% model.
 
 ops.wipe();
 ops.model('basic', '-ndm', 3, '-ndf', 6);
@@ -51,8 +45,6 @@ opsmat.pre.setSectionGeometryRecorder(true);
 sec1.build();  % Write to OpenSees domain
 opsmat.pre.plotSection(1);
 opsmat.pre.setSectionGeometryRecorder(false);
-%% 
-% 
 % |EXAMPLE 2 — RC box section|
 % |Matlab's geometric functions:| <https://www.mathworks.com/help/matlab/elementary-polygons.html 
 % Polygonal Shapes - MATLAB & Simulink>
@@ -175,9 +167,6 @@ rebars(1).name   = 'HRB400 D25';
 rebars(1).matTag = 4;
 rebars(1).coords = allBarCoords;
 rebars(1).area   = pi * rebarR^2;
-%% 
-% 
-
 %% --- Construct, mesh, inspect ---
 sec2 = fs.new(parts, rebars=rebars, secTag=2);
 sec2.mesh();
@@ -191,9 +180,8 @@ opsmat.pre.setSectionGeometryRecorder(true);
 sec2.build();
 opsmat.pre.plotSection(2);
 opsmat.pre.setSectionGeometryRecorder(false);
-%% 
-% 
-% 
-% 
-% 
-%
+
+% Mesh checks
+% Compare fiber area and centroid with the source geometry, then inspect material 
+% tags and reinforcement locations. Increase mesh density only where the expected 
+% strain gradient requires it.

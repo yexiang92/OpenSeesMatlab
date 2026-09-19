@@ -1,23 +1,14 @@
 %% *Quick Model and Eigen Visualization*
-% This live script is written as a guided walkthrough for a post-processing 
-% workflow. It focuses on retrieving, organizing, and visualizing model or response 
-% data after an OpenSees analysis. Read the text cells first, then run each code 
-% cell in order so that the variables, model state, and recorded results are available 
-% for the later sections.
+% A compact model is used to introduce undeformed geometry, deformed shape, 
+% and mode-shape plots. The scale factors affect only visualization and must not 
+% be interpreted as changes to the analysis result.
 % 
-% At any point during model creation, you can run the ``ops.vis.plotModel()`` 
-% or ``ops.vis.plotEigen()`` to visualize the current model’s geometric details 
+% At any point during model creation, you can run the |ops.vis.plotModel()| 
+% or |ops.vis.plotEigen()| to visualize the current model’s geometric details 
 % and eigen modes.
 % Model visualization
-% This section creates the finite-element idealization used by the rest of the 
-% example. Check the dimensions, tags, and connectivity here before moving on.
 
 clc; clear; close all;
-%% 
-% First, instantiate the OpenSeesMatlab interface class. This class provides 
-% native OpenSees commands, as well as additional visualization, pre/post-processing, 
-% and utility methods.
-
 opsMAT = OpenSeesMatlab();
 ops = opsMAT.opensees;
 %% 
@@ -113,5 +104,9 @@ opsMAT.vis.plotEigenGUI(eigenData);
 opsMAT.vis.polyscope.plotEigen(eigenData);
 %% 
 % 
-% 
-%
+
+
+% Plotting checks
+% Undeformed geometry should confirm connectivity and support locations. Deformed 
+% and modal plots use visual scale factors, so amplitudes must be read from response 
+% data rather than measured from the figure.

@@ -1,145 +1,223 @@
-%% Build a versioned release package from the toolbox project file
+%% Package the toolbox for all supported operating systems
 %
-% Notes
-% -----
-% - The toolbox project file is assumed to be located in:
-%       OpenSeesMatlab/*.prj
-% - The packaged .mltbx file is generated as:
-%       OpenSeesMatlab/release/OpenSeesMatlab.mltbx
-% - The copied toolbox file in the release folder is also named:
-%       OpenSeesMatlab.mltbx
-% - All .mlx files directly under examples/ are exported to .m files
-%   into the target release examples folder, instead of being copied.
-% - The utils folder is copied recursively, but .png and .mp4 files are excluded.
+% OpenSeesNexus and Polyscope are already embedded in the toolbox tree. This
+% script leaves those files untouched and creates one self-contained toolbox
+% for Windows x86-64 and one for macOS Apple silicon.
 
 clc;
 
-%% =========================
-% User-specified version
-% =========================
-version = "3.8.0.2";   % <-- manually set toolbox version here
-
-%% Project root
+%% Project paths and host platform
 projectRoot = fileparts(mfilename("fullpath"));
+toolboxRootDir = fullfile(projectRoot, "OpenSeesMatlab");
+opsPackageDir = fullfile(toolboxRootDir, "+ops");
+polyscopePrivateDir = fullfile(toolboxRootDir, "+plotter", "+polyscope", ...
+    "vendor", "+polyscope", "private");
+srcExamplesDir = fullfile(projectRoot, "examples");
+srcUtilsDir = fullfile(srcExamplesDir, "utils");
+srcInstallScript = fullfile(projectRoot, "installOpenSeesMatlab.m");
 
-%% Source paths
-srcExamplesDir    = fullfile(projectRoot, "examples");
-srcUtilsDir       = fullfile(srcExamplesDir, "utils");
-toolboxRootDir    = fullfile(projectRoot, "OpenSeesMatlab");
-toolboxReleaseDir = fullfile(toolboxRootDir, "release");
-srcInstallScript  = fullfile(projectRoot, "installOpenSeesMatlab.m");
-
-%% Validate required paths
-assert(isfolder(srcExamplesDir),    "Examples folder does not exist: %s", srcExamplesDir);
-assert(isfolder(toolboxRootDir),    "Toolbox root folder does not exist: %s", toolboxRootDir);
-assert(isfile(srcInstallScript),    "Install script does not exist: %s", srcInstallScript);
-
-%% Locate toolbox project file
 prjFiles = dir(fullfile(toolboxRootDir, "*.prj"));
-
-if isempty(prjFiles)
-    error("No toolbox .prj file was found in: %s", toolboxRootDir);
-elseif numel(prjFiles) > 1
-    error("Multiple .prj files were found in: %s. Please keep only one.", toolboxRootDir);
-end
-
+assert(isscalar(prjFiles), ...
+    "Exactly one toolbox .prj file is required in: %s", toolboxRootDir);
 prjFile = fullfile(prjFiles(1).folder, prjFiles(1).name);
 
-fprintf("Toolbox project file: %s\n", prjFile);
-fprintf("Specified version   : %s\n", version);
+% The class constant is the single source of truth for the product version.
+% Add the toolbox root only when the caller has not already placed it on the
+% MATLAB path; this also permits publish.m to run without an open project.
+pathFolders = string(strsplit(path, pathsep));
+toolboxRootWasOnPath = any(strcmpi(pathFolders, string(toolboxRootDir)));
+if ~toolboxRootWasOnPath
+    addpath(toolboxRootDir);
+    toolboxPathCleanup = onCleanup(@() rmpath(toolboxRootDir));
+end
+version = string(OpenSeesMatlab.ToolboxVersion);
+assert(strlength(version) > 0, ...
+    "OpenSeesMatlab.ToolboxVersion must not be empty.");
 
-%% Ensure toolbox internal release folder exists
-ensureDir(toolboxReleaseDir);
+platforms = [ ...
+    struct("tag", "win64", "native", "windows-x86_64", ...
+        "mex", "mexw64", "minimumRelease", "R2023a"), ...
+    struct("tag", "maca64", "native", "macos-aarch64", ...
+        "mex", "mexmaca64", "minimumRelease", "R2023b")];
 
-%% =========================
-% Package toolbox from .prj
-% =========================
-fprintf("\nUpdating toolbox version in project...\n");
-matlab.addons.toolbox.toolboxVersion(prjFile, version);
+nexusLibraryDir = fullfile(opsPackageDir, "OpenSeesNexus");
+implementationDir = fullfile(nexusLibraryDir, "+nexus");
+opsFoundationFiles = [ ...
+    "Commands.m", ...
+    "Runtime.m", ...
+    "getBackend.m", ...
+    "setBackend.m", ...
+    "SparseFactorizationCache.m", ...
+    fullfile("+internal", "matrixOperator.m")];
 
-generatedMltbxFile = fullfile(toolboxReleaseDir, "OpenSeesMatlab.mltbx");
-if isfile(generatedMltbxFile)
-    delete(generatedMltbxFile);
-    fprintf("Removed existing toolbox package: %s\n", generatedMltbxFile);
+assert(isfolder(toolboxRootDir), "Toolbox folder does not exist: %s", toolboxRootDir);
+assert(isfolder(srcExamplesDir), "Examples folder does not exist: %s", srcExamplesDir);
+assert(isfile(srcInstallScript), "Install script does not exist: %s", srcInstallScript);
+assert(isfolder(opsPackageDir), ...
+    "The ops MATLAB package is missing: %s", opsPackageDir);
+assert(isfolder(implementationDir), ...
+    "The embedded OpenSeesNexus implementation is missing: %s", implementationDir);
+for i = 1:numel(opsFoundationFiles)
+    helperFile = fullfile(implementationDir, opsFoundationFiles(i));
+    assert(isfile(helperFile), ...
+        "The OpenSeesNexus file is missing: %s", helperFile);
 end
 
-fprintf("Packaging toolbox from project...\n");
+%% Package the complete project once for each native platform
+allToolboxFiles = filesInFolder(toolboxRootDir);
+commonSourceFiles = allToolboxFiles(endsWith(lower(allToolboxFiles), ".m"));
 
-opts = matlab.addons.toolbox.ToolboxOptions(prjFile);
+for p = 1:numel(platforms)
+    platform = platforms(p);
+    platformTag = string(platform.tag);
+    nativePlatform = string(platform.native);
+    mexExtension = string(platform.mex);
+    minimumRelease = string(platform.minimumRelease);
+    nativeDir = fullfile(nexusLibraryDir, "derived", nativePlatform);
+    mexFile = fullfile(nativeDir, "OpenSeesMATLAB." + mexExtension);
+    polyscopeMexFile = fullfile(polyscopePrivateDir, ...
+        "polyscope_mex." + mexExtension);
 
-opts.ToolboxVersion = version;
-opts.MinimumMatlabRelease = "R2023a";
-opts.MaximumMatlabRelease = "";
-opts.OutputFile = generatedMltbxFile;
+    assert(isfile(mexFile), "The %s OpenSeesNexus module is missing: %s", ...
+        platformTag, mexFile);
+    assert(isfile(polyscopeMexFile), ...
+        "The %s Polyscope module is missing: %s", platformTag, polyscopeMexFile);
 
-matlab.addons.toolbox.packageToolbox(opts);
+    if platformTag == "win64"
+        spLauncherFiles = fullfile(nexusLibraryDir, [ ...
+            "OpenSeesSPMatlab.cmd"; ...
+            "OpenSeesSPMatlab.ps1"]);
+    else
+        spLauncherFiles = fullfile(nexusLibraryDir, "OpenSeesSPMatlab.sh");
+    end
+    for i = 1:numel(spLauncherFiles)
+        assert(isfile(spLauncherFiles(i)), ...
+            "The OpenSeesSP launcher is missing: %s", spLauncherFiles(i));
+    end
 
-if ~isfile(generatedMltbxFile)
-    error("Failed to generate toolbox package: %s", generatedMltbxFile);
+    releasePlatformDir = fullfile(projectRoot, "release", version, nativePlatform);
+    ensureDir(releasePlatformDir);
+    packageName = "OpenSeesMatlab-" + version + "-" + platformTag + ".mltbx";
+    packageFile = fullfile(releasePlatformDir, packageName);
+    if isfile(packageFile)
+        delete(packageFile);
+    end
+
+    opts = matlab.addons.toolbox.ToolboxOptions(prjFile);
+    opts.ToolboxVersion = version;
+    opts.MinimumMatlabRelease = minimumRelease;
+    opts.MaximumMatlabRelease = "";
+    opts.OutputFile = packageFile;
+    opts.SupportedPlatforms = supportedPlatformsFor( ...
+        opts.SupportedPlatforms, platformTag);
+
+    % Start from the complete toolbox tree rather than the project's cached
+    % file list. filterPackageFiles removes only generated project metadata,
+    % linker products, and native files belonging to the other platform.
+    packageFiles = filterPackageFiles(allToolboxFiles, platformTag);
+    assert(all(ismember(commonSourceFiles, packageFiles)), ...
+        "The %s package would omit one or more MATLAB source files.", platformTag);
+    opts.ToolboxFiles = packageFiles;
+
+    fprintf("Packaging OpenSeesMatlab %s for %s (%d files)...\n", ...
+        version, platformTag, numel(packageFiles));
+    matlab.addons.toolbox.packageToolbox(opts);
+    assert(isfile(packageFile), ...
+        "Failed to generate toolbox package: %s", packageFile);
+
+    %% Export example scripts beside the release asset
+    targetExamplesDir = fullfile(releasePlatformDir, "examples");
+    targetUtilsDir = fullfile(targetExamplesDir, "utils");
+    targetOutputDir = fullfile(targetExamplesDir, "output_data");
+    ensureDir(targetExamplesDir);
+    ensureDir(targetOutputDir);
+
+    exampleFiles = dir(fullfile(srcExamplesDir, "*.m"));
+    exampleFiles = exampleFiles(arrayfun(@(file) isPlainTextLiveCodeFile( ...
+        fullfile(file.folder, file.name)), exampleFiles));
+    for i = 1:numel(exampleFiles)
+        sourceFile = fullfile(exampleFiles(i).folder, exampleFiles(i).name);
+        [~, baseName] = fileparts(exampleFiles(i).name);
+        export(sourceFile, fullfile(targetExamplesDir, baseName + ".m"), ...
+            Format="m");
+    end
+
+    if isfolder(srcUtilsDir)
+        copyFolderExcludeExt(srcUtilsDir, targetUtilsDir, [".png", ".mp4"]);
+    end
+    copyfile(srcInstallScript, ...
+        fullfile(releasePlatformDir, "installOpenSeesMatlab.m"));
+
+    fprintf("Created: %s\n", packageFile);
+    fprintf("Platform release directory: %s\n", releasePlatformDir);
 end
 
-fprintf("Generated toolbox package: %s\n", generatedMltbxFile);
+%% Local functions
+function supported = supportedPlatformsFor(supported, platformTag)
+    names = string(fieldnames(supported));
+    for i = 1:numel(names)
+        supported.(names(i)) = false;
+    end
 
-%% Target paths
-releaseRootDir    = fullfile(projectRoot, "release");
-targetVerDir      = fullfile(releaseRootDir, version);
-targetExDir       = fullfile(targetVerDir, "examples");
-targetUtilsDir    = fullfile(targetExDir, "utils");
-targetOutDir      = fullfile(targetExDir, "output_data");
-targetMltbxFile   = fullfile(targetVerDir, "OpenSeesMatlab.mltbx");
-targetInstallFile = fullfile(targetVerDir, "installOpenSeesMatlab.m");
-
-%% Rebuild target release directory
-ensureDir(releaseRootDir);
-
-if isfolder(targetVerDir)
-    fprintf("Removing existing folder: %s\n", targetVerDir);
-    rmdir(targetVerDir, "s");
+    if platformTag == "win64"
+        supported.Win64 = true;
+    elseif isfield(supported, "Mac")
+        % MATLAB R2026a and newer.
+        supported.Mac = true;
+    elseif isfield(supported, "Maci64")
+        % MATLAB R2023b--R2025b use the legacy macOS field name.
+        supported.Maci64 = true;
+    else
+        error("The installed MATLAB release cannot describe macOS toolbox support.");
+    end
 end
 
-fprintf("Creating version folder: %s\n", targetVerDir);
-mkdir(targetExDir);
-mkdir(targetOutDir);
-
-%% Export all .mlx files directly under examples/ to .m files
-mlxFiles = dir(fullfile(srcExamplesDir, "*.mlx"));
-
-for i = 1:numel(mlxFiles)
-    srcFile = fullfile(mlxFiles(i).folder, mlxFiles(i).name);
-    [~, baseName] = fileparts(mlxFiles(i).name);
-    dstFile = fullfile(targetExDir, baseName + ".m");
-
-    export(srcFile, dstFile);
-end
-fprintf("Export MLX to M done! (%d files)\n", numel(mlxFiles));
-
-%% Copy utils subfolder recursively, excluding .png and .mp4
-if isfolder(srcUtilsDir)
-    nCopied = copyFolderExcludeExt(srcUtilsDir, targetUtilsDir, [".png", ".mp4"]);
-    fprintf("Copied utils folder (excluding .png and .mp4): %d files\n", nCopied);
-else
-    warning("Utils folder does not exist: %s", srcUtilsDir);
+function files = filesInFolder(folderPath)
+    entries = dir(fullfile(folderPath, "**", "*"));
+    entries = entries(~[entries.isdir]);
+    files = strings(numel(entries), 1);
+    for i = 1:numel(entries)
+        files(i) = string(fullfile(entries(i).folder, entries(i).name));
+    end
 end
 
-%% Copy toolbox package into the version folder
-copyfile(generatedMltbxFile, targetMltbxFile);
-fprintf("Copied toolbox package: %s\n", targetMltbxFile);
+function files = filterPackageFiles(files, platformTag)
+    files = files(isfile(files));
+    lowerFiles = lower(files);
+    [~, ~, extensions] = arrayfun(@fileparts, lowerFiles, ...
+        "UniformOutput", false);
+    extensions = string(extensions);
 
-%% Copy install script into the version folder
-copyfile(srcInstallScript, targetInstallFile);
-fprintf("Copied install script: %s\n", targetInstallFile);
+    normalized = replace(lowerFiles, "\", "/");
+    excluded = contains(normalized, "/resources/") | ...
+        contains(normalized, "/release/") | ...
+        endsWith(normalized, ["/openseesmatlab.prj", "/toolbox.ignore", ...
+            "/deploymentlog.html", "/.gitignore", "/.gitattributes"]) | ...
+        endsWith(lowerFiles, ...
+        [".exp", ".lib", ".pdb", ".ilk", ".obj", ".o", ".a"]);
+    if platformTag == "win64"
+        excluded = excluded | ...
+            contains(normalized, "/derived/macos-aarch64/") | ...
+            endsWith(normalized, "/openseesspmatlab.sh");
+    else
+        excluded = excluded | ...
+            contains(normalized, "/derived/windows-x86_64/") | ...
+            endsWith(normalized, ...
+                ["/openseesspmatlab.cmd", "/openseesspmatlab.ps1"]);
+    end
 
-%% Done
-fprintf("\nRelease packaging completed successfully.\n");
-fprintf("Version       : %s\n", version);
-fprintf("Project file  : %s\n", prjFile);
-fprintf("Toolbox file  : %s\n", generatedMltbxFile);
-fprintf("Install script: %s\n", targetInstallFile);
-fprintf("Release folder: %s\n", targetVerDir);
+    if platformTag == "win64"
+        excluded = excluded | ...
+            (startsWith(extensions, ".mex") & extensions ~= ".mexw64") | ...
+            endsWith(lowerFiles, [".dylib", ".so"]);
+    else
+        excluded = excluded | ...
+            (startsWith(extensions, ".mex") & extensions ~= ".mexmaca64") | ...
+            endsWith(lowerFiles, [".dll", ".so"]);
+    end
 
-%% ========================================================================
-% Local functions
-% ========================================================================
+    files = files(~excluded);
+end
 
 function ensureDir(folderPath)
     if ~isfolder(folderPath)
@@ -147,48 +225,30 @@ function ensureDir(folderPath)
     end
 end
 
-function nCopied = copyFolderExcludeExt(srcDir, dstDir, excludedExts)
-% Recursively copy a folder while excluding files with specified extensions.
-%
-% Parameters
-% ----------
-% srcDir : char/string
-%     Source directory.
-% dstDir : char/string
-%     Destination directory.
-% excludedExts : string array
-%     Extensions to exclude, e.g. [".png", ".mp4"].
-%
-% Returns
-% -------
-% nCopied : double
-%     Number of copied files.
+function tf = isPlainTextLiveCodeFile(filePath)
+    tf = contains(fileread(filePath), "%[appendix]");
+end
 
+function nCopied = copyFolderExcludeExt(srcDir, dstDir, excludedExts)
     ensureDir(dstDir);
     nCopied = 0;
-
     items = dir(srcDir);
 
     for k = 1:numel(items)
-        name = items(k).name;
-
-        if strcmp(name, ".") || strcmp(name, "..")
+        name = string(items(k).name);
+        if name == "." || name == ".."
             continue;
         end
 
         srcPath = fullfile(srcDir, name);
         dstPath = fullfile(dstDir, name);
-
         if items(k).isdir
             nCopied = nCopied + copyFolderExcludeExt(srcPath, dstPath, excludedExts);
         else
-            [~, ~, ext] = fileparts(name);
-            ext = lower(string(ext));
-
-            if any(ext == excludedExts)
+            [~, ~, extension] = fileparts(name);
+            if any(lower(string(extension)) == excludedExts)
                 continue;
             end
-
             copyfile(srcPath, dstPath);
             nCopied = nCopied + 1;
         end
