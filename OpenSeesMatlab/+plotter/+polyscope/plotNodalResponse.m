@@ -47,7 +47,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 plotter.polyscope.Options.defaultNodalResponseOptions(), opts);
             obj.App = plotter.polyscope.PolyscopeApp();
             obj.P0_ = obj.nodeCoords_(1);
-            obj.L_ = obj.modelLength_(obj.P0_);
+            obj.L_ = plotter.polyscope.ModelAdapter.modelLength(modelInfo(1));
             obj.buildStepIndex_();
             obj.fieldTypes_ = obj.collectFieldTypes_();
             if isempty(obj.fieldTypes_), obj.fieldTypes_ = {'disp'}; end
@@ -100,7 +100,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.applySliceCullWholeElements_();
             obj.updateSliceVisualization_();
             if firstBuild
-                obj.setCameraForPoints_(obj.P0_, obj.Opts.general.view);
+                obj.setCameraForPoints_( ...
+                    plotter.polyscope.ModelAdapter.activeNodeCoords(obj.ModelInfo(1)), ...
+                    obj.Opts.general.view);
             end
         end
 
@@ -843,7 +845,9 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.gui_.viewIdx = GB.combo('View', obj.gui_.viewIdx, views);
             if GB.button('Apply view')
                 obj.Opts.general.view = views{obj.gui_.viewIdx};
-                obj.setCameraForPoints_(obj.nodeCoords_(obj.currentSeg_), obj.Opts.general.view);
+                obj.setCameraForPoints_( ...
+                    plotter.polyscope.ModelAdapter.activeNodeCoords( ...
+                        obj.ModelInfo(obj.currentSeg_)), obj.Opts.general.view);
             end
             GB.sameLine();
             if GB.button('Rebuild')
@@ -862,7 +866,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
             obj.surfData_ = struct();
             obj.volumeData_ = struct();
             obj.P0_ = obj.nodeCoords_(segIdx);
-            obj.L_ = obj.modelLength_(obj.P0_);
+            obj.L_ = plotter.polyscope.ModelAdapter.modelLength(obj.ModelInfo(segIdx));
             ps = obj.App.polyscopeHandle();
 
             obj.registerLineFamilies_(ps, segIdx);
@@ -2125,14 +2129,8 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
         end
 
         function P = nodeCoords_(obj, segIdx)
-            P = zeros(0, 3);
             mi = obj.ModelInfo(min(segIdx, numel(obj.ModelInfo)));
-            if isfield(mi, 'Nodes') && isfield(mi.Nodes, 'Coords')
-                P = double(mi.Nodes.Coords);
-            end
-            P = plotter.polyscope.ModelAdapter.pad3(P);
-            c = obj.geometryCenter_(P);
-            P = P - c;
+            P = plotter.polyscope.ModelAdapter.nodeCoords(mi);
         end
 
         function tags = nodeTags_(obj, segIdx, n)
@@ -2178,7 +2176,10 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 end
             end
             rows = unique(used(used>=1 & used<=nNode),'stable');
-            if isempty(rows), rows = (1:nNode).'; end
+            if isempty(rows)
+                mi = obj.ModelInfo(min(segIdx, numel(obj.ModelInfo)));
+                rows = plotter.polyscope.ModelAdapter.activeNodeRows(mi);
+            end
         end
 
         function [Pfix, rows] = fixedNodes_(obj, segIdx, Poverride)
@@ -2381,7 +2382,7 @@ classdef plotNodalResponse < plotter.polyscope.ViewerBase
                 all(edges <= numel(rawToClean), 2);
             edges = edges(validEdges, :);
             if isempty(edges), return; end
-            edges = rawToClean(edges);
+            edges = reshape(rawToClean(edges(:)), size(edges));
             edges = edges(all(edges >= 1, 2), :);
         end
 

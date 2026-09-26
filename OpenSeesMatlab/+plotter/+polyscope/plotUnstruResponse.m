@@ -55,7 +55,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 plotter.polyscope.Options.defaultUnstructuredResponseOptions(), opts);
             obj.App = plotter.polyscope.PolyscopeApp();
             obj.P0_ = obj.nodeCoords_(1);
-            obj.L_ = obj.modelLength_(obj.P0_);
+            obj.L_ = plotter.polyscope.ModelAdapter.modelLength(modelInfo(1));
 
             obj.buildStepIndex_();
             obj.eleTypes_ = obj.collectElementTypes_();
@@ -112,7 +112,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.registerSlicePlanes_();
             obj.applySliceCullWholeElements_();
             if firstBuild
-                obj.setCameraForPoints_(obj.P0_, obj.Opts.general.view);
+                obj.setCameraForPoints_( ...
+                    plotter.polyscope.ModelAdapter.activeNodeCoords(obj.ModelInfo(1)), ...
+                    obj.Opts.general.view);
             end
         end
 
@@ -204,7 +206,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                     obj.Opts = obj.initialOpts_;
                     obj.currentStep_ = obj.resolveStepArg_(obj.getOptField_(obj.Opts, 'stepIdx', 'absmax'));
                     obj.initGuiState_();
-                    obj.setCameraForPoints_(obj.P0_, obj.Opts.general.view);
+                    obj.setCameraForPoints_( ...
+                        plotter.polyscope.ModelAdapter.activeNodeCoords( ...
+                            obj.ModelInfo(obj.currentSeg_)), obj.Opts.general.view);
                     needsRebuild = true;
                 end
 
@@ -466,7 +470,9 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.gui_.viewIdx = GB.combo('View##unstru_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##unstru_style')
                 obj.Opts.general.view = views{obj.gui_.viewIdx};
-                obj.setCameraForPoints_(obj.nodeCoords_(obj.currentSeg_), obj.Opts.general.view);
+                obj.setCameraForPoints_( ...
+                    plotter.polyscope.ModelAdapter.activeNodeCoords( ...
+                        obj.ModelInfo(obj.currentSeg_)), obj.Opts.general.view);
             end
             GB.sameLine();
             if GB.button('Rebuild##unstru_style')
@@ -565,14 +571,14 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.lineData_ = struct();
             obj.currentSeg_ = segIdx;
             obj.P0_ = obj.nodeCoords_(segIdx);
-            obj.L_ = obj.modelLength_(obj.P0_);
+            obj.L_ = plotter.polyscope.ModelAdapter.modelLength(obj.ModelInfo(segIdx));
             ps = obj.App.polyscopeHandle();
 
             [Pdef, ~] = obj.deformedCoords_(segIdx, obj.currentLocalStep_);
             [Snode, Sele, clim, nodeBased] = obj.scalarField_(segIdx, obj.currentLocalStep_);
             obj.registerResponseMesh_(ps, segIdx, Pdef, Snode, Sele, clim, nodeBased);
             obj.registerLineStructures_(ps, segIdx, Pdef, Snode, clim);
-            if obj.Opts.nodes.show, obj.registerNodes_(ps, Pdef, Snode, clim); end
+            if obj.Opts.nodes.show, obj.registerNodes_(ps, segIdx, Pdef, Snode, clim); end
             if obj.Opts.fixed.show, obj.registerFixed_(ps, segIdx, Pdef, Snode, clim); end
             obj.handles_.def_MPConstraint = obj.registerMPConstraintStructure_( ...
                 obj.ModelInfo(segIdx), Pdef, obj.structName_('MPConstraint', 'def'));
@@ -703,15 +709,17 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
             obj.handles_.def_Line = h;
         end
 
-        function registerNodes_(obj, ps, Pdef, Snode, clim)
-            h = ps.register_point_cloud(obj.structName_('Nodes', 'def'), Pdef);
+        function registerNodes_(obj, ps, segIdx, Pdef, Snode, clim)
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(obj.ModelInfo(segIdx));
+            if isempty(rows), return; end
+            h = ps.register_point_cloud(obj.structName_('Nodes', 'def'), Pdef(rows, :));
             h.set_radius(obj.Opts.polyscope.nodeRadius, true);
             h.set_color(obj.asRgb_(obj.Opts.color.solidColor));
             h.set_point_render_mode(obj.Opts.polyscope.pointRenderMode);
             h.set_enabled(obj.Opts.nodes.show);
             if ~isempty(Snode)
                 qargs = obj.scalarArgs_(clim);
-                h.add_scalar_quantity(obj.scalarQuantityName_(), Snode, qargs{:});
+                h.add_scalar_quantity(obj.scalarQuantityName_(), Snode(rows), qargs{:});
             end
             obj.handles_.def_Nodes = h;
         end
@@ -826,10 +834,11 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
         function updateNodes_(obj, segIdx, Pdef, Snode, clim)
             if isfield(obj.handles_, 'def_Nodes')
                 h = obj.handles_.def_Nodes;
-                h.update_point_positions(Pdef);
+                rows = plotter.polyscope.ModelAdapter.activeNodeRows(obj.ModelInfo(segIdx));
+                h.update_point_positions(Pdef(rows, :));
                 if ~isempty(Snode)
                     qargs = obj.scalarArgs_(clim);
-                    h.add_scalar_quantity(obj.scalarQuantityName_(), Snode, qargs{:});
+                    h.add_scalar_quantity(obj.scalarQuantityName_(), Snode(rows), qargs{:});
                 end
             end
             if isfield(obj.handles_, 'def_Fixed')
@@ -872,7 +881,7 @@ classdef plotUnstruResponse < plotter.polyscope.ViewerBase
                 [Snode, ~, clim, ~] = obj.scalarField_(obj.currentSeg_, obj.currentLocalStep_);
             end
             if obj.Opts.nodes.show && ~isfield(obj.handles_, 'def_Nodes')
-                obj.registerNodes_(ps, Pdef, Snode, clim);
+                obj.registerNodes_(ps, obj.currentSeg_, Pdef, Snode, clim);
             end
             if obj.Opts.fixed.show && ~isfield(obj.handles_, 'def_Fixed')
                 obj.registerFixed_(ps, obj.currentSeg_, Pdef, Snode, clim);

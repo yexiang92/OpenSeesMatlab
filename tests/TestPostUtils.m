@@ -82,5 +82,109 @@ classdef TestPostUtils < matlab.unittest.TestCase
                  1,  4, 2, 5, 3,   6, 0.1, 0.9, 121, 8];
             testCase.verifyEqual(out.Element.Beam.Values, expected);
         end
+
+        function femModelAdapterRemapsCountPrefixedCells(testCase)
+            cells = [ ...
+                3, 2, 3, 4, NaN; ...
+                4, 2, 4, 5, 6; ...
+                3, 1, 3, 4, NaN];
+            rawToClean = [0; 1; 2; 3; 0; 4];
+
+            [actual, keepRows, usedRows] = ...
+                plotter.utils.FEMModelAdapter.remapVTKCells(cells, rawToClean);
+
+            testCase.verifyEqual(keepRows, [true; false; false]);
+            testCase.verifyEqual(actual, [3, 1, 2, 3, NaN]);
+            testCase.verifyEqual(usedRows, [1; 2; 3]);
+        end
+
+        function femModelAdapterDoesNotRemapCellPointCount(testCase)
+            cells = [4, 4, 5, 6, 7];
+            rawToClean = [0; 0; 0; 1; 2; 3; 4];
+
+            actual = plotter.utils.FEMModelAdapter.remapVTKCells( ...
+                cells, rawToClean);
+
+            testCase.verifyEqual(actual, [4, 1, 2, 3, 4]);
+        end
+
+        function polyscopeAdapterExcludesUnusedNodesFromDisplayGeometry(testCase)
+            modelInfo.Nodes = struct( ...
+                'Coords', [100 100 0; 0 0 0; 2 0 0], ...
+                'Tags', [99; 1; 2], ...
+                'UnusedTags', 99);
+
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(modelInfo);
+            centered = plotter.polyscope.ModelAdapter.nodeCoords(modelInfo);
+            modelLength = plotter.polyscope.ModelAdapter.modelLength(modelInfo);
+
+            testCase.verifyEqual(rows, [2; 3]);
+            testCase.verifyEqual(centered(2:3, :), [-1 0 0; 1 0 0]);
+            testCase.verifyEqual(modelLength, 2);
+        end
+
+        function pvdWriterAcceptsDirectAndWrappedResponses(testCase)
+            modelInfo.Nodes = struct( ...
+                'Coords', [0 0 0; 1 0 0], ...
+                'Tags', [1; 2], ...
+                'UnusedTags', zeros(0, 1));
+            modelInfo.Elements.Families.Line = struct( ...
+                'Cells', [2 1 2], 'CellTypes', 3, 'Tags', 1);
+            response = struct( ...
+                'time', 0, ...
+                'nodeTags', [1; 2], ...
+                'disp', struct('data', zeros(1, 2, 3), ...
+                    'dofs', {{'ux', 'uy', 'uz'}}));
+
+            direct = post.utils.PVDWriter(modelInfo, nodalResp=response);
+            wrapped = post.utils.PVDWriter(modelInfo, ...
+                nodalResp=struct('NodalResponses', response));
+
+            testCase.verifyEqual(direct.nSteps(), 1);
+            testCase.verifyEqual(wrapped.nSteps(), 1);
+        end
+
+        function pvdWriterUsesUnusedTagsFromEachSegment(testCase)
+            coords = [9 9 0; 0 0 0; 1 0 0; 8 8 0];
+            line = struct('Cells', [2 2 3], 'CellTypes', 3, 'Tags', 10);
+            nodes = struct( ...
+                'Coords', coords, ...
+                'Tags', [99; 1; 2; 100], ...
+                'UnusedTags', 99, ...
+                'Ndm', 2 * ones(4, 1));
+            model1 = struct('Nodes', nodes, ...
+                'Elements', struct('Families', struct('Line', line)));
+            nodes.UnusedTags = 100;
+            model2 = struct('Nodes', nodes, ...
+                'Elements', struct('Families', struct('Line', line)));
+
+            resp1 = TestPostUtils.nodalResponse(0, [1; 2; 100]);
+            resp2 = TestPostUtils.nodalResponse(1, [99; 1; 2]);
+            writer = post.utils.PVDWriter([model1, model2], ...
+                nodalResp=[resp1, resp2]);
+
+            outDir = tempname;
+            mkdir(outDir);
+            cleanup = onCleanup(@() rmdir(outDir, 's'));
+            writer.write(outDir, 'stage');
+            files = dir(fullfile(outDir, 'stage_nodal', 'vtu', '*.vtu'));
+            testCase.verifyNumElements(files, 2);
+            first = fileread(fullfile(files(1).folder, files(1).name));
+            second = fileread(fullfile(files(2).folder, files(2).name));
+
+            testCase.verifySubstring(first, '0 0 0 1 0 0 8 8 0');
+            testCase.verifySubstring(second, '9 9 0 0 0 0 1 0 0');
+            clear cleanup
+        end
+    end
+
+    methods (Static, Access = private)
+        function response = nodalResponse(time, nodeTags)
+            response = struct( ...
+                'time', time, ...
+                'nodeTags', nodeTags, ...
+                'disp', struct('data', zeros(1, numel(nodeTags), 3), ...
+                    'dofs', {{'ux', 'uy', 'uz'}}));
+        end
     end
 end

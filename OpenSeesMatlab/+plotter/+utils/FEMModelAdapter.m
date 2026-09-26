@@ -6,6 +6,53 @@ classdef FEMModelAdapter
     % that conversion without changing the stored cross-language data.
 
     methods (Static)
+        function [cellsOut, keepRows, usedRows] = remapVTKCells(cells, rawToClean)
+            %REMAPVTKCELLS Remap count-prefixed VTK cell connectivity.
+            %
+            % Each input row is [nPts, rawNodeRow1, ..., rawNodeRowN, padding].
+            % rawToClean maps raw node rows to compacted node rows; zero means
+            % that the raw node was removed.  Invalid cells and cells touching
+            % a removed node are dropped.  NaN padding is preserved and is not
+            % interpreted as connectivity.
+            cells = double(cells);
+            rawToClean = double(rawToClean(:));
+            if isempty(cells)
+                cellsOut = zeros(0, size(cells, 2));
+                keepRows = false(size(cells, 1), 1);
+                usedRows = zeros(0, 1);
+                return;
+            end
+            if isvector(cells), cells = reshape(cells, 1, []); end
+
+            cellsMapped = nan(size(cells));
+            keepRows = false(size(cells, 1), 1);
+            usedRows = zeros(0, 1);
+            for i = 1:size(cells, 1)
+                nPts = cells(i, 1);
+                if ~isfinite(nPts) || nPts < 1 || nPts ~= round(nPts) || ...
+                        nPts > size(cells, 2) - 1
+                    continue;
+                end
+                nPts = round(nPts);
+                ids = cells(i, 2:1+nPts);
+                if any(~isfinite(ids) | ids < 1 | ids ~= round(ids) | ...
+                        ids > numel(rawToClean))
+                    continue;
+                end
+                mapped = rawToClean(round(ids));
+                if any(~isfinite(mapped) | mapped < 1 | mapped ~= round(mapped))
+                    continue;
+                end
+                cellsMapped(i, 1:1+nPts) = [nPts, mapped(:).'];
+                keepRows(i) = true;
+                usedRows = [usedRows; mapped(:)]; %#ok<AGROW>
+            end
+            cellsOut = cellsMapped(keepRows, :);
+            if ~isempty(usedRows)
+                usedRows = unique(usedRows, 'stable');
+            end
+        end
+
         function loads = loadsForPlotting(loads)
             if ~isstruct(loads) || ~isfield(loads, 'Element') || ...
                     ~isstruct(loads.Element) || ~isfield(loads.Element, 'Beam')

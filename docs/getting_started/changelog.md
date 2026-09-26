@@ -1,5 +1,16 @@
 # Changes Log
 
+## v3.8.0.4
+
+- Improve FEM data extraction so active constraint, control and recorder nodes
+  are preserved while internal Lagrange-multiplier nodes remain hidden.
+- Fix native MATLAB frame, nodal and unstructured-response visualization after
+  unused nodes are removed from model geometry.
+- Improve Polyscope visualization by consistently excluding unused nodes and
+  supporting single-edge interpolated beams.
+- Fix multistage PVD export to use stage-specific unused-node metadata and the
+  actual ODB response groups.
+
 ## v3.8.0.3
 
 - Add native macOS Apple-silicon support for OpenSeesNexus, OpenSeesSP and the

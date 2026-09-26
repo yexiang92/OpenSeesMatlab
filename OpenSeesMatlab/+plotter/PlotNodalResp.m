@@ -793,7 +793,7 @@ classdef PlotNodalResp < handle
                 all(cells <= numel(rawToClean), 2);
             cells = cells(validCells, :);
             if isempty(cells), return; end
-            cells = rawToClean(cells);
+            cells = reshape(rawToClean(cells(:)), size(cells));
             cells = cells(all(cells >= 1, 2), :);
         end
 
@@ -947,10 +947,14 @@ classdef PlotNodalResp < handle
                 lines = C;
             else, return;
             end
+            [~, rawToClean] = obj.getNodeStepSelection(segIdx);
             lines = round(lines);
-            nPdef = size(obj.getNodeCoordsRaw(segIdx), 1);
-            valid = all(isfinite(lines),2) & all(lines>=1,2) & all(lines<=nPdef,2);
+            valid = all(isfinite(lines),2) & all(lines>=1,2) & ...
+                all(lines<=numel(rawToClean),2);
             lines = lines(valid, :);
+            if isempty(lines), return; end
+            lines = reshape(rawToClean(lines(:)), size(lines));
+            lines = lines(all(lines >= 1, 2), :);
         end
 
         function fam = getFamilies(obj, segIdx)
@@ -1483,10 +1487,15 @@ classdef PlotNodalResp < handle
             if isempty(cells), return; end
             cells = double(cells);
 
-            % Pdef and S are already aligned to the node coordinate array.
-            % Cell indices are 1-based row indices into that array.
-            PrawDef = Pdef;
-            Sraw    = S;
+            % Pdef contains only finite/used nodes.  Remap the count-prefixed
+            % raw VTK cells while ignoring any NaN padding after nPts.
+            [~, rawToClean] = obj.getNodeStepSelection(segIdx);
+            [cells, validRows] = plotter.utils.FEMModelAdapter.remapVTKCells( ...
+                cells, rawToClean);
+            types = types(validRows);
+            if isempty(cells), return; end
+
+            Sraw = S;
 
             if ~isempty(Sraw)
                 surfOut = plotter.utils.VTKElementTriangulator.triangulate( ...
