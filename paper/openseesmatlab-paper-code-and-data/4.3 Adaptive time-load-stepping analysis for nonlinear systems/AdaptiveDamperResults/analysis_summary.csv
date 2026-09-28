@@ -1,0 +1,4 @@
+Method,ReturnCode,EndPhysicalTime_s,NominalStep_s,RequestedSteps,WallClockTime_s,PeakDisplacement_mm,NormalizedRMSE,RelativePeakError,MaxRelativeDifference_pct,RelativeEnergyDifference_pct
+"Reference, fine dt",0,40.9599999999952,0.001,40960,46.1141347,537.774,0,0,0,0
+"Adaptive, ground-motion dt",0,40.9600000000004,0.01,4096,9.8878972,536.533,0.00301269305012653,0.00230766083893975,0.468598333128788,0.013694917793324
+"Adaptive, fine dt",0,40.9599999999952,0.001,40960,46.4805658,537.774,0,0,0,0

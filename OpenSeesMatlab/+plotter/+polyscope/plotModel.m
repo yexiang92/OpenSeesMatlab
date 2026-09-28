@@ -671,9 +671,11 @@ classdef plotModel < plotter.polyscope.ViewerBase
             if isempty(P)
                 return;
             end
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(obj.ModelInfo);
+            if isempty(rows), return; end
             name = obj.structName_('Nodes');
             rgb = obj.familyColor_('Node', obj.Opts.nodes.color);
-            pc = obj.App.polyscopeHandle().register_point_cloud(name, P);
+            pc = obj.App.polyscopeHandle().register_point_cloud(name, P(rows, :));
             pc.set_radius(obj.Opts.polyscope.nodeRadius, true);
             pc.set_color(rgb);
             pc.set_material(obj.Opts.polyscope.lineMaterial);
@@ -683,8 +685,8 @@ classdef plotModel < plotter.polyscope.ViewerBase
             tags = plotter.polyscope.ModelAdapter.nodeTags(obj.ModelInfo);
             rawP = plotter.polyscope.ModelAdapter.rawNodeCoords(obj.ModelInfo);
             obj.query_.(obj.structKey_('Nodes')) = struct( ...
-                'kind', 'node', 'family', 'Node', 'tags', tags(:), ...
-                'coords', P, 'rawCoords', rawP);
+                'kind', 'node', 'family', 'Node', 'tags', tags(rows), ...
+                'coords', P(rows, :), 'rawCoords', rawP(rows, :));
         end
 
         function registerFixedNodes_(obj)

@@ -1212,7 +1212,7 @@ classdef PlotFrameResp < handle
             validConn=all(isfinite(conn),2)&all(conn>=1,2)&all(conn<=numel(rawToClean),2);
             conn=conn(validConn,:); tags=tags(validConn);
             if isempty(conn), return; end
-            conn=rawToClean(conn);
+            conn=reshape(rawToClean(conn(:)),size(conn));
             keepMapped=all(conn>=1,2);
             conn=conn(keepMapped,:); tags=tags(keepMapped);
             if isempty(conn), return; end
@@ -1429,23 +1429,9 @@ classdef PlotFrameResp < handle
         end
 
         function [cells, modelRowsUsed, keepRows] = remapCellsToModelRows(obj, cells, segIdx)
-            modelRowsUsed=zeros(0,1); keepRows=false(size(cells,1),1);
-            if isempty(cells), return; end
             [~,rawToClean]=obj.getNodeStepSelection(segIdx);
-            if isempty(rawToClean), cells=zeros(0,size(cells,2)); keepRows=false(0,1); return; end
-            for i=1:size(cells,1)
-                row=double(cells(i,:)); row=row(isfinite(row)&row>0);
-                if isempty(row), continue; end
-                ids=round(row(:));
-                if any(ids<1|ids>numel(rawToClean)), continue; end
-                rr=rawToClean(ids);
-                if any(rr<=0), continue; end
-                cells(i,1:numel(rr))=rr(:).';
-                modelRowsUsed=[modelRowsUsed;rr(:)]; %#ok<AGROW>
-                keepRows(i)=true;
-            end
-            cells=cells(keepRows,:);
-            if ~isempty(modelRowsUsed), modelRowsUsed=unique(round(modelRowsUsed),'stable'); end
+            [cells, keepRows, modelRowsUsed] = ...
+                plotter.utils.FEMModelAdapter.remapVTKCells(cells, rawToClean);
         end
 
         % =================================================================

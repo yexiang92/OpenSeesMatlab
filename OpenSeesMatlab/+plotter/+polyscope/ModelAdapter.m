@@ -35,6 +35,37 @@ classdef ModelAdapter
             end
         end
 
+        function rows = activeNodeRows(modelInfo)
+            modelInfo = plotter.polyscope.ModelAdapter.modelSnapshot_(modelInfo);
+            P = plotter.polyscope.ModelAdapter.rawNodeCoords(modelInfo);
+            rows = (1:size(P, 1)).';
+            if isempty(rows), return; end
+            keep = ~all(isnan(P), 2);
+            tags = rows;
+            if isfield(modelInfo, 'Nodes') && isstruct(modelInfo.Nodes) && ...
+                    isfield(modelInfo.Nodes, 'Tags') && ~isempty(modelInfo.Nodes.Tags)
+                rawTags = double(modelInfo.Nodes.Tags(:));
+                tags = NaN(size(rows));
+                n = min(numel(rawTags), numel(tags));
+                tags(1:n) = rawTags(1:n);
+                keep = keep & isfinite(tags);
+            end
+            if isfield(modelInfo, 'Nodes') && isstruct(modelInfo.Nodes) && ...
+                    isfield(modelInfo.Nodes, 'UnusedTags') && ...
+                    ~isempty(modelInfo.Nodes.UnusedTags)
+                unused = double(modelInfo.Nodes.UnusedTags(:));
+                unused = unused(isfinite(unused));
+                keep = keep & ~ismember(tags, unused);
+            end
+            rows = rows(keep);
+        end
+
+        function P = activeNodeCoords(modelInfo)
+            P = plotter.polyscope.ModelAdapter.nodeCoords(modelInfo);
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(modelInfo);
+            P = P(rows, :);
+        end
+
         function fam = families(modelInfo)
             modelInfo = plotter.polyscope.ModelAdapter.modelSnapshot_(modelInfo);
             fam = struct();
@@ -330,6 +361,8 @@ classdef ModelAdapter
 
         function c = geometryCenter(modelInfo)
             P = plotter.polyscope.ModelAdapter.rawNodeCoords(modelInfo);
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(modelInfo);
+            if ~isempty(P), P = P(rows, :); end
             if isempty(P)
                 c = [0, 0, 0];
                 return;
@@ -344,6 +377,8 @@ classdef ModelAdapter
 
         function L = modelLength(modelInfo)
             P = plotter.polyscope.ModelAdapter.nodeCoords(modelInfo);
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(modelInfo);
+            if ~isempty(P), P = P(rows, :); end
             L = plotter.polyscope.ModelAdapter.computeLength(P);
         end
 

@@ -821,7 +821,6 @@ classdef PlotUnstruResponse < handle
 
         function lines = getLineConn(obj, segIdx)
             % Cell format: [nPts, idx1, idx2] — 1-based row indices.
-            % No remapping (same as PlotEigen).
             lines = zeros(0,2);
             fam   = obj.getFamilies(segIdx);
             if ~isfield(fam,'Line') || ~isfield(fam.Line,'Cells') || isempty(fam.Line.Cells)
@@ -834,10 +833,14 @@ classdef PlotUnstruResponse < handle
             elseif size(C,2) == 2
                 lines = C;
             else, return; end
+            [~, rawToClean] = obj.getNodeStepSelection(segIdx);
             lines = round(lines);
-            nPdef = size(obj.getNodeCoordsRaw(segIdx), 1);
-            valid = all(isfinite(lines),2) & all(lines>=1,2) & all(lines<=nPdef,2);
+            valid = all(isfinite(lines),2) & all(lines>=1,2) & ...
+                all(lines<=numel(rawToClean),2);
             lines = lines(valid,:);
+            if isempty(lines), return; end
+            lines = reshape(rawToClean(lines(:)), size(lines));
+            lines = lines(all(lines >= 1, 2), :);
         end
 
         function fam = getFamilies(obj, segIdx)
@@ -1410,29 +1413,9 @@ classdef PlotUnstruResponse < handle
 
         function [cellsModel, modelRowsUsed, keepRows] = remapCellsToModelRows(obj, cells, segIdx)
             % Cell format: [nPts, idx1, idx2, ...] with 1-based row indices.
-            % No rawToClean remapping — indices reference node coord array directly.
-            cells = double(cells);
-            nPdef = size(obj.getNodeCoordsRaw(segIdx), 1);
-            keepRows      = false(size(cells,1),1);
-            modelRowsUsed = zeros(0,1);
-
-            if isempty(cells) || size(cells,2) < 2
-                cellsModel = zeros(0, max(size(cells,2),1));
-                return;
-            end
-
-            for i = 1:size(cells,1)
-                nPts = round(cells(i,1));
-                if ~isfinite(nPts) || nPts < 1, continue; end
-                nPts = min(nPts, size(cells,2)-1);
-                ids  = round(cells(i, 2:1+nPts));
-                if all(isfinite(ids) & ids >= 1 & ids <= nPdef)
-                    keepRows(i) = true;
-                    modelRowsUsed = [modelRowsUsed; ids(:)]; %#ok<AGROW>
-                end
-            end
-            cellsModel = cells(keepRows,:);
-            if ~isempty(modelRowsUsed), modelRowsUsed = unique(modelRowsUsed,'stable'); end
+            [~, rawToClean] = obj.getNodeStepSelection(segIdx);
+            [cellsModel, keepRows, modelRowsUsed] = ...
+                plotter.utils.FEMModelAdapter.remapVTKCells(cells, rawToClean);
         end
 
         % =================================================================
@@ -1450,8 +1433,7 @@ classdef PlotUnstruResponse < handle
 
         function [h, pts] = drawUnstructured(obj, Pdef, segIdx, Snode, Sele, clim_, asUndeformed)
             % Pdef has rows for CLEAN (kept) nodes only.
-            % Cells reference the RAW coord array.  Expand Pdef back to
-            % raw size so that cell indices are valid.
+            % Cells reference the RAW coord array and are remapped below.
             h = gobjects(0);  pts = zeros(0,3);
             if ~obj.Opts.surf.show || isempty(Pdef), return; end
             R0 = obj.getRespFamily(segIdx);
@@ -1466,21 +1448,25 @@ classdef PlotUnstruResponse < handle
             nCell = min(size(cells,1), numel(types));
             cells = cells(1:nCell,:);
             types = types(1:nCell);
+            cellRows = (1:nCell).';
 
             % Keep rows that are not entirely NaN (partial NaN = padding, OK)
             keepRowsMask = ~all(isnan(cells), 2);
             cells = cells(keepRowsMask,:);
             types = types(keepRowsMask);
+            cellRows = cellRows(keepRowsMask);
 
             % Drop invalid cell types
             validTypes = isfinite(types);
             cells = cells(validTypes,:);
             types = types(validTypes);
+            cellRows = cellRows(validTypes);
             if isempty(cells), return; end
 
-            keepRows = 1:numel(types);  % for Sele indexing (all remaining)
-            cellsModel = double(cells);
-            usedRows   = true;
+            [cellsModel, ~, remapKeep] = obj.remapCellsToModelRows(cells, segIdx);
+            types = types(remapKeep);
+            cellRows = cellRows(remapKeep);
+            if isempty(cellsModel), return; end
 
             useNode = false;  useEle = false;
             mode = lower(char(string(obj.Opts.surf.colorMode)));
@@ -1496,8 +1482,10 @@ classdef PlotUnstruResponse < handle
                 surfOut = plotter.utils.VTKElementTriangulator.triangulate(Pdef, types, cellsModel);
             elseif useEle
                 if ~isempty(Sele)
-                    Sele = obj.trimVectorLength(Sele, numel(keepRows));
-                    Sele = Sele(keepRows);
+                    SeleRaw = double(Sele(:));
+                    Sele = NaN(numel(cellRows), 1);
+                    validScalar = cellRows >= 1 & cellRows <= numel(SeleRaw);
+                    Sele(validScalar) = SeleRaw(cellRows(validScalar));
                 end
                 surfOut = plotter.utils.VTKElementTriangulator.triangulate( ...
                     Pdef, types, cellsModel, 'Scalars', Sele, 'ScalarsByElement', true);

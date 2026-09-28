@@ -50,7 +50,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
                 plotter.polyscope.Options.defaultFrameResponseOptions(), opts);
             obj.App = plotter.polyscope.PolyscopeApp();
             obj.P0_ = obj.nodeCoords_(1);
-            obj.L_ = obj.modelLength_(obj.P0_);
+            obj.L_ = plotter.polyscope.ModelAdapter.modelLength(modelInfo(1));
             obj.buildStepIndex_();
             obj.respTypes_ = obj.collectResponseTypes_();
             if isempty(obj.respTypes_)
@@ -94,7 +94,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.registerSlicePlanes_();
             obj.applySliceCullWholeElements_();
             if firstBuild
-                obj.setCameraForPoints_(obj.P0_, obj.Opts.general.view);
+                obj.setCameraForPoints_( ...
+                    plotter.polyscope.ModelAdapter.activeNodeCoords(obj.ModelInfo(1)), ...
+                    obj.Opts.general.view);
             end
         end
 
@@ -497,7 +499,9 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.gui_.viewIdx = GB.combo('View##frame_style', obj.gui_.viewIdx, views);
             if GB.button('Apply view##frame_style')
                 obj.Opts.general.view = views{obj.gui_.viewIdx};
-                obj.setCameraForPoints_(obj.nodeCoords_(obj.currentSeg_), obj.Opts.general.view);
+                obj.setCameraForPoints_( ...
+                    plotter.polyscope.ModelAdapter.activeNodeCoords( ...
+                        obj.ModelInfo(obj.currentSeg_)), obj.Opts.general.view);
             end
             GB.separator();
             GB.subtitle('Render quality');
@@ -593,7 +597,7 @@ classdef plotFrameResponse < plotter.polyscope.ViewerBase
             obj.currentSeg_ = segIdx;
             obj.currentLocalStep_ = localStep;
             obj.P0_ = obj.nodeCoords_(segIdx);
-            obj.L_ = obj.modelLength_(obj.P0_);
+            obj.L_ = plotter.polyscope.ModelAdapter.modelLength(obj.ModelInfo(segIdx));
             ps = obj.App.polyscopeHandle();
             data = obj.diagramData_(segIdx, localStep);
             % Register the reference model first so the response diagram is

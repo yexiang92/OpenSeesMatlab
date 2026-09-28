@@ -503,7 +503,9 @@ classdef plotEigen < plotter.polyscope.ViewerBase
             ps = obj.App.polyscopeHandle();
             name = obj.structName_('Nodes', 'def');
             rgb = plotter.polyscope.utils.colorToRgb(obj.Opts.color.solidColor);
-            pc = ps.register_point_cloud(name, obj.P0_);
+            rows = plotter.polyscope.ModelAdapter.activeNodeRows(obj.ModelInfo);
+            if isempty(rows), return; end
+            pc = ps.register_point_cloud(name, obj.P0_(rows, :));
             pc.set_radius(obj.Opts.polyscope.nodeRadius, true);
             pc.set_color(rgb);
             pc.set_material(obj.Opts.polyscope.lineMaterial);
@@ -872,11 +874,12 @@ classdef plotEigen < plotter.polyscope.ViewerBase
 
             if isfield(obj.handles_, 'def_Nodes')
                 pc = obj.handles_.def_Nodes;
-                pc.update_point_positions(Pdef);
+                rows = plotter.polyscope.ModelAdapter.activeNodeRows(obj.ModelInfo);
+                pc.update_point_positions(Pdef(rows, :));
                 if ~cbAdded && ~isempty(cbArgs)
-                    pc.add_scalar_quantity('mode', S, qargs{:}, cbArgs{:});
+                    pc.add_scalar_quantity('mode', S(rows), qargs{:}, cbArgs{:});
                 else
-                    pc.add_scalar_quantity('mode', S, qargs{:});
+                    pc.add_scalar_quantity('mode', S(rows), qargs{:});
                 end
             end
 

@@ -229,18 +229,18 @@ classdef PVDWriter < handle
 
         function resp = normalizeNodalResp(~, resp)
             if ~isstruct(resp) || isempty(fieldnames(resp(1))), return; end
-            resp = pvdUnwrapResponseGroup(resp, post.resp.NodalRespStepData.RESP_NAME);
+            resp = pvdUnwrapResponseGroup(resp, 'NodalResponses');
         end
 
         function resp = normalizeElementResp(~, resp, famName)
             if ~isstruct(resp) || isempty(fieldnames(resp(1))), return; end
             switch lower(famName)
                 case 'shell'
-                    resp = pvdUnwrapResponseGroup(resp, post.resp.ShellRespStepData.RESP_NAME);
+                    resp = pvdUnwrapResponseGroup(resp, 'ShellResponses');
                 case 'plane'
-                    resp = pvdUnwrapResponseGroup(resp, post.resp.PlaneRespStepData.RESP_NAME);
+                    resp = pvdUnwrapResponseGroup(resp, 'PlaneResponses');
                 case 'solid'
-                    resp = pvdUnwrapResponseGroup(resp, post.resp.SolidRespStepData.RESP_NAME);
+                    resp = pvdUnwrapResponseGroup(resp, 'SolidResponses');
             end
         end
 
@@ -385,7 +385,7 @@ classdef PVDWriter < handle
 
             P    = obj.getNodeCoordsRaw(segIdx);
             tags = obj.getModelNodeTagsRaw(segIdx, size(P,1));
-            keepMask = obj.getExistingNodeStepMask(P, tags);
+            keepMask = obj.getExistingNodeStepMask(segIdx, P, tags);
 
             cache.ready      = true;
             cache.keepMask   = keepMask;
@@ -408,13 +408,13 @@ classdef PVDWriter < handle
             elseif size(P,2) > 3, P = P(:,1:3); end
         end
 
-        function keepMask = getExistingNodeStepMask(obj, P, tags)
+        function keepMask = getExistingNodeStepMask(obj, segIdx, P, tags)
             if isempty(P), keepMask = false(0,1); return; end
             keepMask = ~all(isnan(P), 2);
-            if nargin < 3 || isempty(tags), return; end
+            if nargin < 4 || isempty(tags), return; end
             tags = obj.trimVectorLength(tags, numel(keepMask));
             keepMask = keepMask & isfinite(tags);
-            unusedTags = obj.getUnusedNodeTags();
+            unusedTags = obj.getUnusedNodeTags(segIdx);
             if ~isempty(unusedTags)
                 keepMask = keepMask & ~ismember(tags, unusedTags);
             end
@@ -431,11 +431,9 @@ classdef PVDWriter < handle
             if ~isempty(nRow), tags = obj.trimVectorLength(tags, nRow); end
         end
 
-        function tags = getUnusedNodeTags(obj)
-            % Use first segment; topology changes across segments are handled
-            % by separate cache entries.
+        function tags = getUnusedNodeTags(obj, segIdx)
             tags = [];
-            mi = obj.ModelInfo(1);
+            mi = obj.ModelInfo(segIdx);
             if ~isfield(mi,'Nodes')||~isfield(mi.Nodes,'UnusedTags')||isempty(mi.Nodes.UnusedTags)
                 return;
             end
@@ -1537,16 +1535,16 @@ if size(C,2)>=3, cells=C(:,end-1:end); else, cells=C; end
 cells=round(cells);
 valid=all(isfinite(cells),2)&all(cells>=1,2)&all(cells<=numel(rawToClean),2);
 cells=cells(valid,:); if isempty(cells), return; end
-cells=rawToClean(cells); cells=cells(all(cells>=1,2),:);
+cells=reshape(rawToClean(cells(:)),size(cells)); cells=cells(all(cells>=1,2),:);
 end
 
 function out = pvdUnwrapResponseGroup(resp, groupName)
 out=resp;
 if ~isstruct(resp)||isempty(fieldnames(resp(1)))||~isfield(resp(1),groupName), return; end
-% Unwrap each segment
-for s=1:numel(resp)
-    if isfield(resp(s),groupName), out(s)=resp(s).(groupName); end
-end
+if ~all(arrayfun(@(s)isfield(s,groupName)&&isscalar(s.(groupName))&& ...
+        isstruct(s.(groupName)),resp)), return; end
+parts=arrayfun(@(s){s.(groupName)},resp);
+out=reshape([parts{:}],size(resp));
 end
 
 function tf = pvdIsLineFamilyName(famName)
