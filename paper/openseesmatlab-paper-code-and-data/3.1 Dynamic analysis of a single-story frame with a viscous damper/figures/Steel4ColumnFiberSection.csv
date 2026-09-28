@@ -1,0 +1,4 @@
+Component,YMin_mm,YMax_mm,ZMin_mm,ZMax_mm,NY,NZ
+top_flange,136,150,-110,110,2,12
+web,-136,136,-4,4,16,2
+bottom_flange,-150,-136,-110,110,2,12
